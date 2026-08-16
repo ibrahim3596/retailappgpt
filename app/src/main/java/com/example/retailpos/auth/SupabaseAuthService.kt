@@ -16,7 +16,10 @@ class SupabaseAuthService : AuthService {
         }
 
         return try {
-            SupabaseClientProvider.client.auth.signInWith(Google)
+            SupabaseClientProvider.client.auth.signInWith(
+                Google,
+                redirectUrl = SupabaseClientProvider.AUTH_CALLBACK_URL
+            )
             updateAuthState()
             Result.success(Unit)
         } catch (e: Exception) {
