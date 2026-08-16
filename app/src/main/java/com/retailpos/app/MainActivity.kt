@@ -23,17 +23,22 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.retailpos.app.ui.screens.HomeScreen
 import com.retailpos.app.ui.screens.PosScreen
+import com.retailpos.app.ui.screens.ProductListScreen
+import com.retailpos.app.ui.screens.ProductReviewScreen
 import com.retailpos.app.ui.theme.RetailPosTheme
 
 private object Routes {
     const val HOME = "home"
     const val POS = "pos"
     const val PRODUCTS = "products"
+    const val ADD_PRODUCT = "products/add"
     const val INVENTORY = "inventory"
     const val CUSTOMERS = "customers"
     const val ANALYTICS = "analytics"
     const val SETTINGS = "settings"
 }
+
+private const val LOCAL_STORE_ID = "local-store"
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -64,7 +69,17 @@ private fun RetailPosApp() {
             )
         }
         composable(Routes.PRODUCTS) {
-            FoundationPlaceholder("Products", "Catalogue and product management")
+            ProductListScreen(
+                storeId = LOCAL_STORE_ID,
+                onBack = { navController.popBackStack() },
+                onAddProduct = { navController.navigate(Routes.ADD_PRODUCT) }
+            )
+        }
+        composable(Routes.ADD_PRODUCT) {
+            ProductReviewScreen(
+                storeId = LOCAL_STORE_ID,
+                onBack = { navController.popBackStack() }
+            )
         }
         composable(Routes.INVENTORY) {
             FoundationPlaceholder("Inventory", "Stock, batches and movements")
