@@ -10,47 +10,50 @@ export async function processSaleCommand(
   idempotencyKey: string
 ) {
   return await prisma.$transaction(async (tx) => {
-    // 1. Idempotency Check
-    const existingLog = await tx.syncCommandLog.findUnique({
-      where: { idempotencyKey }
+    const existingLog = await tx.syncCommandLog.findUnique({ where: { idempotencyKey } });
+    if (existingLog) return { status: "ALREADY_PROCESSED", message: "Command already applied" };
+
+    const productIds = [...new Set(command.items.map((i) => i.productId))];
+    const productsList = await tx.product.findMany({ where: { storeId, id: { in: productIds } } });
+    if (productsList.length !== productIds.length) throw new Error("One or more products do not belong to this store");
+
+    const productMap = new Map(productsList.map((p) => [p.id, p]));
+    const productPriceMap = new Map(productsList.map((p) => [p.id, {
+      mrpPaise: p.mrpPaise,
+      sellingPricePaise: p.sellingPricePaise,
+      purchasePricePaise: p.purchasePricePaise,
+      gstRate: Number(p.gstRate),
+      isTaxInclusive: p.isTaxInclusive
+    }]));
+
+    const billing = calculateBilling(productPriceMap, command.items, command.isInterstate, command.discountPaise);
+
+    if (command.amountReceivedPaise < 0n) throw new Error("Amount received cannot be negative");
+    if (command.paymentMethod === "CREDIT" && !command.customerId) throw new Error("Customer is required for credit sales");
+
+    const now = new Date();
+    const yearMonth = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
+    const sequence = await tx.storeInvoiceSequence.upsert({
+      where: { storeId_yearMonth: { storeId, yearMonth } },
+      create: { storeId, yearMonth, lastSequence: 1 },
+      update: { lastSequence: { increment: 1 } }
     });
-    if (existingLog) {
-      return { status: "ALREADY_PROCESSED", message: "Command already applied" };
+    const officialInvoiceNumber = `INV-${yearMonth}-${String(sequence.lastSequence).padStart(6, "0")}`;
+
+    // Lock the product rows by updating them only when sufficient stock exists.
+    // PostgreSQL's row-level locking makes concurrent sales serialize safely here.
+    for (const item of command.items) {
+      const updated = await tx.product.updateMany({
+        where: {
+          id: item.productId,
+          storeId,
+          currentStock: { gte: item.quantity }
+        },
+        data: { currentStock: { decrement: item.quantity }, version: { increment: 1 } }
+      });
+      if (updated.count !== 1) throw new Error(`Insufficient stock for product ${item.productId}`);
     }
 
-    // 2. Fetch authoritative product metadata
-    const productIds = command.items.map((i) => i.productId);
-    const productsList = await tx.product.findMany({
-      where: { storeId, id: { in: productIds } }
-    });
-    const productMap = new Map(productsList.map((p) => [p.id, p]));
-
-    // 3. Server-Authoritative Billing Calculation
-    const productPriceMap = new Map(
-      productsList.map((p) => [
-        p.id,
-        {
-          mrpPaise: p.mrpPaise,
-          sellingPricePaise: p.sellingPricePaise,
-          gstRate: Number(p.gstRate),
-          isTaxInclusive: p.isTaxInclusive
-        }
-      ])
-    );
-
-    const billing = calculateBilling(
-      productPriceMap,
-      command.items,
-      command.isInterstate,
-      command.discountPaise
-    );
-
-    // 4. Generate Sequential Official Invoice Number
-    const count = await tx.invoice.count({ where: { storeId } });
-    const year = new Date().getFullYear();
-    const officialInvoiceNumber = `INV-${year}-${String(count + 1).padStart(6, "0")}`;
-
-    // 5. Create Invoice & Invoice Items
     const invoice = await tx.invoice.create({
       data: {
         storeId,
@@ -67,10 +70,7 @@ export async function processSaleCommand(
         grandTotalPaise: billing.grandTotalPaise,
         paymentMethod: command.paymentMethod,
         amountReceivedPaise: command.amountReceivedPaise,
-        changeDuePaise:
-          command.amountReceivedPaise > billing.grandTotalPaise
-            ? command.amountReceivedPaise - billing.grandTotalPaise
-            : 0n,
+        changeDuePaise: command.amountReceivedPaise > billing.grandTotalPaise ? command.amountReceivedPaise - billing.grandTotalPaise : 0n,
         isInterstate: command.isInterstate,
         items: {
           create: billing.calculatedItems.map((item) => ({
@@ -78,6 +78,7 @@ export async function processSaleCommand(
             quantity: item.quantity,
             mrpPaise: item.mrpPaise,
             unitPricePaise: item.unitPricePaise,
+            purchasePricePaise: item.purchasePricePaise,
             gstRate: item.gstRate,
             taxableAmountPaise: item.taxableAmountPaise,
             cgstPaise: item.cgstPaise,
@@ -89,67 +90,56 @@ export async function processSaleCommand(
       }
     });
 
-    // 6. FEFO Batch Allocation & Atomic Stock Decrement with Versioning
     for (const item of command.items) {
-      const prod = productMap.get(item.productId);
-      if (!prod) continue;
-
-      // FEFO Batch Deduction
       const batches = await tx.batch.findMany({
         where: { storeId, productId: item.productId, quantity: { gt: 0 } },
-        orderBy: { expiryDate: "asc" }
+        orderBy: [{ expiryDate: "asc" }, { createdAt: "asc" }]
       });
-
       let remainingToAllocate = item.quantity;
       for (const batch of batches) {
         if (remainingToAllocate <= 0) break;
         const available = Number(batch.quantity);
         const take = Math.min(available, remainingToAllocate);
-
-        await tx.batch.update({
-          where: { id: batch.id },
-          data: { quantity: { decrement: take }, version: { increment: 1 } }
+        if (take <= 0) continue;
+        await tx.batch.update({ where: { id: batch.id }, data: { quantity: { decrement: take }, version: { increment: 1 } } });
+        await tx.stockMovement.create({
+          data: {
+            storeId,
+            productId: item.productId,
+            batchId: batch.id,
+            invoiceId: invoice.id,
+            type: "SALE",
+            quantity: -take,
+            balanceAfter: batch.quantity.minus(take)
+          }
         });
-
         remainingToAllocate -= take;
       }
+      if (remainingToAllocate > 0) throw new Error(`Batch stock is inconsistent for product ${item.productId}`);
 
-      // Main product stock decrement
-      const updatedProd = await tx.product.update({
-        where: { id: prod.id },
-        data: {
-          currentStock: { decrement: item.quantity },
-          version: { increment: 1 }
-        }
-      });
-
-      // Stock Movement Log
+      const currentProduct = await tx.product.findUniqueOrThrow({ where: { id: item.productId } });
       await tx.stockMovement.create({
         data: {
           storeId,
-          productId: prod.id,
+          productId: item.productId,
           invoiceId: invoice.id,
           type: "SALE",
           quantity: -item.quantity,
-          balanceAfter: updatedProd.currentStock
+          balanceAfter: currentProduct.currentStock
         }
       });
     }
 
-    // 7. Customer Credit Ledger Update
-    if (command.paymentMethod === "CREDIT" && command.customerId) {
-      const updatedCustomer = await tx.customer.update({
-        where: { id: command.customerId },
-        data: {
-          currentBalancePaise: { increment: billing.grandTotalPaise },
-          version: { increment: 1 }
-        }
-      });
-
+    if (command.paymentMethod === "CREDIT") {
+      const customer = await tx.customer.findFirst({ where: { id: command.customerId!, storeId } });
+      if (!customer) throw new Error("Customer does not belong to this store");
+      const newBalance = customer.currentBalancePaise + billing.grandTotalPaise;
+      if (newBalance > customer.creditLimitPaise) throw new Error("Customer credit limit exceeded");
+      const updatedCustomer = await tx.customer.update({ where: { id: customer.id }, data: { currentBalancePaise: newBalance, version: { increment: 1 } } });
       await tx.customerLedger.create({
         data: {
           storeId,
-          customerId: command.customerId,
+          customerId: customer.id,
           invoiceId: invoice.id,
           type: "DEBIT",
           amountPaise: billing.grandTotalPaise,
@@ -159,7 +149,6 @@ export async function processSaleCommand(
       });
     }
 
-    // 8. Log Command Execution
     await tx.syncCommandLog.create({
       data: {
         storeId,
@@ -171,12 +160,7 @@ export async function processSaleCommand(
       }
     });
 
-    return {
-      status: "SUCCESS",
-      officialInvoiceNumber,
-      invoiceId: invoice.id,
-      grandTotalPaise: billing.grandTotalPaise
-    };
+    return { status: "SUCCESS", officialInvoiceNumber, invoiceId: invoice.id, grandTotalPaise: billing.grandTotalPaise };
   });
 }
 
@@ -187,23 +171,21 @@ export async function processCustomerPaymentCommand(
   idempotencyKey: string
 ) {
   return await prisma.$transaction(async (tx) => {
-    const existingLog = await tx.syncCommandLog.findUnique({
-      where: { idempotencyKey }
-    });
+    const existingLog = await tx.syncCommandLog.findUnique({ where: { idempotencyKey } });
     if (existingLog) return { status: "ALREADY_PROCESSED" };
 
-    const updatedCustomer = await tx.customer.update({
-      where: { id: command.customerId },
-      data: {
-        currentBalancePaise: { decrement: command.amountPaise },
-        version: { increment: 1 }
-      }
-    });
+    const customer = await tx.customer.findFirst({ where: { id: command.customerId, storeId } });
+    if (!customer) throw new Error("Customer does not belong to this store");
+    if (command.amountPaise <= 0n) throw new Error("Payment must be greater than zero");
+
+    const newBalance = customer.currentBalancePaise - command.amountPaise;
+    if (newBalance < 0n) throw new Error("Payment cannot exceed outstanding customer balance");
+    const updatedCustomer = await tx.customer.update({ where: { id: customer.id }, data: { currentBalancePaise: newBalance, version: { increment: 1 } } });
 
     const ledger = await tx.customerLedger.create({
       data: {
         storeId,
-        customerId: command.customerId,
+        customerId: customer.id,
         type: "CREDIT",
         amountPaise: command.amountPaise,
         balanceAfterPaise: updatedCustomer.currentBalancePaise,
@@ -222,10 +204,6 @@ export async function processCustomerPaymentCommand(
       }
     });
 
-    return {
-      status: "SUCCESS",
-      ledgerId: ledger.id,
-      newBalancePaise: updatedCustomer.currentBalancePaise
-    };
+    return { status: "SUCCESS", ledgerId: ledger.id, newBalancePaise: updatedCustomer.currentBalancePaise };
   });
 }
