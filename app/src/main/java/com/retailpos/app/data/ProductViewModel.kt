@@ -1,8 +1,8 @@
 package com.retailpos.app.data
 
 import android.app.Application
-import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -15,13 +15,11 @@ class ProductViewModel(
     private val storeId: String
 ) : AndroidViewModel(application) {
     private val repository = ProductRepository(RetailDatabase.get(application).productDao())
-    val query = mutableStateOf("")
+    private val _query = MutableStateFlow("")
+    val query: StateFlow<String> = _query
 
     val products: StateFlow<List<ProductEntity>> =
-        kotlinx.coroutines.flow.combine(
-            MutableStateFlow(Unit),
-            kotlinx.coroutines.flow.flow { emit(Unit) }
-        ) { _, _ -> query.value }
+        _query
             .flatMapLatest { search ->
                 if (search.isBlank()) repository.observeProducts(storeId)
                 else repository.searchProducts(storeId, search)
@@ -29,19 +27,20 @@ class ProductViewModel(
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun setQuery(value: String) {
-        query.value = value
+        _query.value = value
     }
 }
 
 class ProductViewModelFactory(
     private val storeId: String
-) : androidx.lifecycle.ViewModelProvider.Factory {
-    override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+) : ViewModelProvider.Factory {
+    override fun <T : androidx.lifecycle.ViewModel> create(
+        modelClass: Class<T>,
+        extras: androidx.lifecycle.viewmodel.MutableCreationExtras
+    ): T {
+        val application = extras[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY]
+            ?: error("Application is required")
         @Suppress("UNCHECKED_CAST")
-        return ProductViewModel(
-            androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY
-                .get(Application::class.java),
-            storeId
-        ) as T
+        return ProductViewModel(application, storeId) as T
     }
 }
