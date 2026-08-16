@@ -45,6 +45,7 @@ export function calculateBilling(
   grandTotalPaise: bigint;
   calculatedItems: ItemBillingResult[];
 } {
+  if (items.length === 0) throw new Error("At least one sale item is required");
   if (discountPaise < 0n) throw new Error("Discount cannot be negative");
 
   let subtotalPaise = 0n;
@@ -52,6 +53,7 @@ export function calculateBilling(
   let cgstPaise = 0n;
   let sgstPaise = 0n;
   let igstPaise = 0n;
+  let containsTaxExclusiveItem = false;
   const calculatedItems: ItemBillingResult[] = [];
 
   for (const item of items) {
@@ -59,21 +61,24 @@ export function calculateBilling(
     if (!prod) throw new Error(`Product ${item.productId} not found in product master`);
 
     const grossLineTotal = multiplyPaise(prod.sellingPricePaise, item.quantity);
-    const purchaseLineTotal = multiplyPaise(prod.purchasePricePaise, item.quantity);
     const gstRateNum = prod.gstRate;
+    const rateBasisPoints = BigInt(Math.round(gstRateNum * 100));
+    if (rateBasisPoints < 0n) throw new Error("GST rate cannot be negative");
 
     let taxable: bigint;
     let taxAmount: bigint;
+    let lineTotal: bigint;
 
     if (prod.isTaxInclusive) {
-      const rateBasisPoints = BigInt(Math.round(gstRateNum * 100));
-      if (rateBasisPoints < 0n) throw new Error("GST rate cannot be negative");
-      taxable = (grossLineTotal * 10_000n + (10_000n + rateBasisPoints) / 2n) / (10_000n + rateBasisPoints);
+      const denominator = 10_000n + rateBasisPoints;
+      taxable = (grossLineTotal * 10_000n + denominator / 2n) / denominator;
       taxAmount = grossLineTotal - taxable;
+      lineTotal = grossLineTotal;
     } else {
+      containsTaxExclusiveItem = true;
       taxable = grossLineTotal;
-      const rateBasisPoints = BigInt(Math.round(gstRateNum * 100));
       taxAmount = (grossLineTotal * rateBasisPoints + 5_000n) / 10_000n;
+      lineTotal = grossLineTotal + taxAmount;
     }
 
     let lineCgst = 0n;
@@ -86,7 +91,7 @@ export function calculateBilling(
       lineSgst = taxAmount - lineCgst;
     }
 
-    subtotalPaise += grossLineTotal;
+    subtotalPaise += lineTotal;
     taxableValuePaise += taxable;
     cgstPaise += lineCgst;
     sgstPaise += lineSgst;
@@ -103,17 +108,16 @@ export function calculateBilling(
       cgstPaise: lineCgst,
       sgstPaise: lineSgst,
       igstPaise: lineIgst,
-      lineTotalPaise: grossLineTotal
+      lineTotalPaise: lineTotal
     });
   }
 
-  const totalTax = isInterstate ? igstPaise : cgstPaise + sgstPaise;
-  const rawGrandTotal = subtotalPaise - discountPaise;
-  const grandTotalPaise = rawGrandTotal < 0n ? 0n : rawGrandTotal;
+  const grandTotalPaise = subtotalPaise - discountPaise;
+  if (grandTotalPaise < 0n) throw new Error("Discount cannot exceed subtotal");
 
-  if (grandTotalPaise !== subtotalPaise - discountPaise) {
-    throw new Error("Invalid discount exceeds subtotal");
-  }
+  // Tax is already included in tax-inclusive prices. For tax-exclusive products it is
+  // included in each line total above, so no tax is added a second time here.
+  void containsTaxExclusiveItem;
 
   return {
     subtotalPaise,
