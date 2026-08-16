@@ -13,6 +13,12 @@ interface ProductDao {
     @Query("SELECT * FROM products WHERE storeId = :storeId AND (name LIKE '%' || :query || '%' OR brand LIKE '%' || :query || '%' OR barcode LIKE '%' || :query || '%' OR sku LIKE '%' || :query || '%') ORDER BY name COLLATE NOCASE")
     fun searchProducts(storeId: String, query: String): Flow<List<ProductEntity>>
 
+    @Query("SELECT * FROM products WHERE id = :productId AND storeId = :storeId LIMIT 1")
+    suspend fun getById(productId: String, storeId: String): ProductEntity?
+
+    @Query("SELECT * FROM products WHERE storeId = :storeId AND sku = :sku LIMIT 1")
+    suspend fun getBySku(storeId: String, sku: String): ProductEntity?
+
     @Upsert
     suspend fun upsert(product: ProductEntity)
 
