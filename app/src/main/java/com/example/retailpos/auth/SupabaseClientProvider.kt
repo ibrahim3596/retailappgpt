@@ -9,7 +9,10 @@ object SupabaseClientProvider {
     private val supabaseKey = BuildConfig.SUPABASE_ANON_KEY.trim()
 
     val isConfigured: Boolean
-        get() = supabaseUrl.isNotBlank() && supabaseKey.isNotBlank()
+        get() = supabaseUrl.isNotBlank() &&
+            supabaseKey.isNotBlank() &&
+            supabaseUrl != "https://placeholder.invalid" &&
+            supabaseKey != "CONFIGURE_ME"
 
     val client by lazy {
         require(isConfigured) {
