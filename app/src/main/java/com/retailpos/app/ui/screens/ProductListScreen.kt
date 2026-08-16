@@ -1,8 +1,10 @@
 package com.retailpos.app.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -27,6 +29,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.retailpos.app.data.ProductEntity
@@ -38,7 +41,8 @@ import com.retailpos.app.data.ProductViewModelFactory
 fun ProductListScreen(
     storeId: String,
     onBack: () -> Unit,
-    onAddProduct: () -> Unit
+    onAddProduct: () -> Unit,
+    onEditProduct: (String) -> Unit
 ) {
     val factory = remember(storeId) { ProductViewModelFactory(storeId) }
     val viewModel: ProductViewModel = viewModel(factory = factory)
@@ -47,9 +51,7 @@ fun ProductListScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("PRODUCTS", fontWeight = FontWeight.Black) }
-            )
+            TopAppBar(title = { Text("PRODUCTS", fontWeight = FontWeight.Black) })
         },
         floatingActionButton = {
             FloatingActionButton(onClick = onAddProduct) {
@@ -67,15 +69,22 @@ fun ProductListScreen(
             OutlinedTextField(
                 value = query,
                 onValueChange = viewModel::setQuery,
-                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 12.dp),
                 singleLine = true,
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                placeholder = { Text("Search name, brand, barcode or SKU") }
+                placeholder = { Text("Search name, SKU, barcode or brand") }
             )
 
             if (products.isEmpty()) {
+                val message = if (query.isBlank()) {
+                    "No products yet. Add your first product to start billing."
+                } else {
+                    "No products match \"$query\". Try another name, SKU, barcode or brand."
+                }
                 Text(
-                    "No products yet. Add your first product to start billing.",
+                    message,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 8.dp)
                 )
@@ -85,7 +94,7 @@ fun ProductListScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(products, key = { it.id }) { product ->
-                        ProductRow(product)
+                        ProductRow(product, onClick = { onEditProduct(product.id) })
                     }
                 }
             }
@@ -94,25 +103,45 @@ fun ProductListScreen(
 }
 
 @Composable
-private fun ProductRow(product: ProductEntity) {
+private fun ProductRow(product: ProductEntity, onClick: () -> Unit) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(Modifier.padding(16.dp)) {
             Text(
                 product.name,
                 style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
             if (product.brand.isNotBlank()) {
-                Text(product.brand, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    product.brand,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
-            Text(
-                "₹${"%.2f".format(product.sellingPrice)}  •  Stock ${"%.2f".format(product.stock)} ${product.unit}"
-            )
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                Text(
+                    "₹${"%.2f".format(product.sellingPrice)}",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    "Stock ${"%.2f".format(product.stock)} ${product.unit}",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
             product.sku?.takeIf { it.isNotBlank() }?.let {
                 Text("SKU $it", style = MaterialTheme.typography.labelMedium)
+            }
+            product.barcode?.takeIf { it.isNotBlank() }?.let {
+                Text("Barcode $it", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
