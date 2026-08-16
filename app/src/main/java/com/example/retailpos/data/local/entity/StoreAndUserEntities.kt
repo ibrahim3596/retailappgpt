@@ -1,6 +1,7 @@
 package com.example.retailpos.data.local.entity
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
 @Entity(tableName = "stores")
@@ -18,7 +19,10 @@ data class StoreEntity(
     val updatedAt: Long = System.currentTimeMillis()
 )
 
-@Entity(tableName = "users")
+@Entity(
+    tableName = "users",
+    indices = [Index(value = ["supabaseUserId"], unique = true)]
+)
 data class UserEntity(
     @PrimaryKey val id: String,
     val storeId: String,
