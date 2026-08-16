@@ -1,0 +1,6 @@
+{
+  "name": "RetailPOS",
+  "description": "Production-grade offline-first Indian retail POS and inventory management system with GST calculation, FEFO stock allocation, real OCR, and multi-device sync.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

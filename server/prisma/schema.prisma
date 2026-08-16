@@ -1,0 +1,282 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Store {
+  id           String     @id @default(uuid())
+  name         String
+  gstin        String?
+  stateCode    String     @default("27")
+  address      String?
+  phone        String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  users        User[]
+  products     Product[]
+  customers    Customer[]
+  invoices     Invoice[]
+  batches      Batch[]
+  stockMoves   StockMovement[]
+  ledgers      CustomerLedger[]
+  syncCommands SyncCommandLog[]
+
+  @@map("stores")
+}
+
+model User {
+  id           String     @id @default(uuid())
+  storeId      String
+  username     String
+  passwordHash String
+  fullName     String
+  role         Role       @default(CASHIER)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  store        Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  refreshTokens RefreshToken[]
+
+  @@unique([storeId, username])
+  @@map("users")
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  CASHIER
+}
+
+model RefreshToken {
+  id             String    @id @default(uuid())
+  userId         String
+  tokenHash      String    @unique
+  installationId String
+  revoked        Boolean   @default(false)
+  expiresAt      DateTime
+  createdAt      DateTime  @default(now())
+
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+model Product {
+  id                String          @id @default(uuid())
+  storeId           String
+  sku               String
+  barcode           String?
+  normalizedBarcode String?
+  name              String
+  brand             String?
+  category          String          @default("General")
+  variant           String?
+  hsnCode           String?
+  mrpPaise          BigInt
+  sellingPricePaise BigInt
+  purchasePricePaise BigInt
+  gstRate           Decimal         @db.Decimal(5, 2)
+  isTaxInclusive    Boolean         @default(true)
+  currentStock      Decimal         @db.Decimal(12, 3) @default(0)
+  version           Int             @default(1)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  store             Store           @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  batches           Batch[]
+  invoiceItems      InvoiceItem[]
+  stockMovements    StockMovement[]
+
+  @@unique([storeId, normalizedBarcode])
+  @@index([storeId, name])
+  @@map("products")
+}
+
+model Batch {
+  id                String          @id @default(uuid())
+  storeId           String
+  productId         String
+  batchNumber       String
+  mfgDate           DateTime?
+  expiryDate        DateTime?
+  quantity          Decimal         @db.Decimal(12, 3)
+  mrpPaise          BigInt
+  sellingPricePaise BigInt
+  purchasePricePaise BigInt
+  version           Int             @default(1)
+  createdAt         DateTime        @default(now())
+
+  store             Store           @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  product           Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  stockMovements    StockMovement[]
+
+  @@index([storeId, productId, expiryDate])
+  @@map("batches")
+}
+
+model Customer {
+  id                  String          @id @default(uuid())
+  storeId             String
+  name                String
+  phone               String?
+  gstin               String?
+  currentBalancePaise BigInt          @default(0)
+  creditLimitPaise    BigInt          @default(1000000) // Default ₹10,000 in paise
+  version             Int             @default(1)
+  updatedAt           DateTime        @updatedAt
+
+  store               Store           @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  invoices            Invoice[]
+  ledgers             CustomerLedger[]
+
+  @@index([storeId, phone])
+  @@map("customers")
+}
+
+model Invoice {
+  id                    String          @id @default(uuid())
+  storeId               String
+  installationId        String
+  localTransactionId    String
+  officialInvoiceNumber String          @unique
+  customerId            String?
+  subtotalPaise         BigInt
+  discountPaise         BigInt          @default(0)
+  taxableValuePaise     BigInt
+  cgstPaise             BigInt
+  sgstPaise             BigInt
+  igstPaise             BigInt
+  grandTotalPaise       BigInt
+  paymentMethod         PaymentMethod
+  amountReceivedPaise   BigInt
+  changeDuePaise        BigInt          @default(0)
+  isInterstate          Boolean         @default(false)
+  status                InvoiceStatus   @default(COMPLETED)
+  createdAt             DateTime        @default(now())
+
+  store                 Store           @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customer              Customer?       @relation(fields: [customerId], references: [id])
+  items                 InvoiceItem[]
+  stockMovements        StockMovement[]
+  ledgers               CustomerLedger[]
+
+  @@unique([storeId, installationId, localTransactionId])
+  @@map("invoices")
+}
+
+enum PaymentMethod {
+  CASH
+  UPI
+  CARD
+  CREDIT
+}
+
+enum InvoiceStatus {
+  COMPLETED
+  CANCELLED
+}
+
+model InvoiceItem {
+  id                 String          @id @default(uuid())
+  invoiceId          String
+  productId          String
+  quantity           Decimal         @db.Decimal(12, 3)
+  mrpPaise           BigInt
+  unitPricePaise     BigInt
+  gstRate            Decimal         @db.Decimal(5, 2)
+  taxableAmountPaise BigInt
+  cgstPaise          BigInt
+  sgstPaise          BigInt
+  igstPaise          BigInt
+  lineTotalPaise     BigInt
+
+  invoice            Invoice         @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  product            Product         @relation(fields: [productId], references: [id])
+
+  @@map("invoice_items")
+}
+
+model StockMovement {
+  id                String          @id @default(uuid())
+  storeId           String
+  productId         String
+  batchId           String?
+  invoiceId         String?
+  type              MovementType
+  quantity          Decimal         @db.Decimal(12, 3)
+  balanceAfter      Decimal         @db.Decimal(12, 3)
+  createdAt         DateTime        @default(now())
+
+  store             Store           @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  product           Product         @relation(fields: [productId], references: [id])
+  batch             Batch?          @relation(fields: [batchId], references: [id])
+  invoice           Invoice?        @relation(fields: [invoiceId], references: [id])
+
+  @@map("stock_movements")
+}
+
+enum MovementType {
+  SALE
+  PURCHASE
+  RETURN
+  ADJUSTMENT
+}
+
+model CustomerLedger {
+  id                String          @id @default(uuid())
+  storeId           String
+  customerId        String
+  invoiceId         String?
+  type              LedgerType
+  amountPaise       BigInt
+  balanceAfterPaise BigInt
+  notes             String?
+  createdAt         DateTime        @default(now())
+
+  store             Store           @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customer          Customer        @relation(fields: [customerId], references: [id])
+  invoice           Invoice?        @relation(fields: [invoiceId], references: [id])
+
+  @@map("customer_ledgers")
+}
+
+enum LedgerType {
+  DEBIT
+  CREDIT
+}
+
+model SyncCommandLog {
+  id                    String      @id @default(uuid())
+  storeId               String
+  installationId        String
+  localTransactionId    String
+  commandType           CommandType
+  idempotencyKey        String      @unique
+  status                SyncStatus  @default(SUCCESS)
+  errorMessage          String?
+  processedAt           DateTime    @default(now())
+
+  store                 Store       @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, installationId, localTransactionId])
+  @@map("sync_command_logs")
+}
+
+enum CommandType {
+  SALE
+  PURCHASE
+  RETURN
+  CUSTOMER_PAYMENT
+  STOCK_ADJUSTMENT
+}
+
+enum SyncStatus {
+  SUCCESS
+  CONFLICT
+  FAILED
+}
