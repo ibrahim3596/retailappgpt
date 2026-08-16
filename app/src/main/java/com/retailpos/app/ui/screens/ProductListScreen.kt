@@ -11,6 +11,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -18,8 +21,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -32,6 +33,7 @@ import com.retailpos.app.data.ProductEntity
 import com.retailpos.app.data.ProductViewModel
 import com.retailpos.app.data.ProductViewModelFactory
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProductListScreen(
     storeId: String,
@@ -41,10 +43,14 @@ fun ProductListScreen(
     val factory = remember(storeId) { ProductViewModelFactory(storeId) }
     val viewModel: ProductViewModel = viewModel(factory = factory)
     val products by viewModel.products.collectAsState()
-    var queryState = viewModel.query
+    val query by viewModel.query.collectAsState()
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("PRODUCTS", fontWeight = FontWeight.Black) }) },
+        topBar = {
+            TopAppBar(
+                title = { Text("PRODUCTS", fontWeight = FontWeight.Black) }
+            )
+        },
         floatingActionButton = {
             FloatingActionButton(onClick = onAddProduct) {
                 Icon(Icons.Default.Add, contentDescription = "Add product")
@@ -52,11 +58,14 @@ fun ProductListScreen(
         }
     ) { padding ->
         Column(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             OutlinedTextField(
-                value = queryState.value,
+                value = query,
                 onValueChange = viewModel::setQuery,
                 modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
                 singleLine = true,
@@ -91,12 +100,20 @@ private fun ProductRow(product: ProductEntity) {
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(Modifier.padding(16.dp)) {
-            Text(product.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(
+                product.name,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
             if (product.brand.isNotBlank()) {
                 Text(product.brand, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Text("₹${"%.2f".format(product.sellingPrice)}  •  Stock ${"%.2f".format(product.stock)} ${product.unit}")
-            product.sku?.takeIf { it.isNotBlank() }?.let { Text("SKU $it", style = MaterialTheme.typography.labelMedium) }
+            Text(
+                "₹${"%.2f".format(product.sellingPrice)}  •  Stock ${"%.2f".format(product.stock)} ${product.unit}"
+            )
+            product.sku?.takeIf { it.isNotBlank() }?.let {
+                Text("SKU $it", style = MaterialTheme.typography.labelMedium)
+            }
         }
     }
 }
