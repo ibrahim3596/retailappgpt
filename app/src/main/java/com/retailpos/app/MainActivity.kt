@@ -18,9 +18,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.retailpos.app.ui.screens.HomeScreen
 import com.retailpos.app.ui.screens.PosScreen
 import com.retailpos.app.ui.screens.ProductListScreen
@@ -32,6 +34,7 @@ private object Routes {
     const val POS = "pos"
     const val PRODUCTS = "products"
     const val ADD_PRODUCT = "products/add"
+    const val EDIT_PRODUCT = "products/edit/{productId}"
     const val INVENTORY = "inventory"
     const val CUSTOMERS = "customers"
     const val ANALYTICS = "analytics"
@@ -72,12 +75,24 @@ private fun RetailPosApp() {
             ProductListScreen(
                 storeId = LOCAL_STORE_ID,
                 onBack = { navController.popBackStack() },
-                onAddProduct = { navController.navigate(Routes.ADD_PRODUCT) }
+                onAddProduct = { navController.navigate(Routes.ADD_PRODUCT) },
+                onEditProduct = { productId -> navController.navigate("products/edit/$productId") }
             )
         }
         composable(Routes.ADD_PRODUCT) {
             ProductReviewScreen(
                 storeId = LOCAL_STORE_ID,
+                productId = null,
+                onBack = { navController.popBackStack() }
+            )
+        }
+        composable(
+            route = Routes.EDIT_PRODUCT,
+            arguments = listOf(navArgument("productId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            ProductReviewScreen(
+                storeId = LOCAL_STORE_ID,
+                productId = backStackEntry.arguments?.getString("productId"),
                 onBack = { navController.popBackStack() }
             )
         }
