@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.CreationExtras
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -72,7 +73,7 @@ class ProductViewModelFactory(
 ) : ViewModelProvider.Factory {
     override fun <T : androidx.lifecycle.ViewModel> create(
         modelClass: Class<T>,
-        extras: androidx.lifecycle.viewmodel.MutableCreationExtras
+        extras: CreationExtras
     ): T {
         val application = extras[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY]
             ?: error("Application is required")
