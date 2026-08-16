@@ -8,46 +8,47 @@ generator client {
 }
 
 model Store {
-  id           String     @id @default(uuid())
-  name         String
-  gstin        String?
-  stateCode    String     @default("27")
-  address      String?
-  phone        String?
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  id                    String                @id @default(uuid())
+  name                  String
+  gstin                 String?
+  stateCode             String                @default("27")
+  address               String?
+  phone                 String?
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
 
-  users        User[]
-  products     Product[]
-  customers    Customer[]
-  invoices     Invoice[]
-  batches      Batch[]
-  stockMoves   StockMovement[]
-  ledgers      CustomerLedger[]
-  syncCommands SyncCommandLog[]
+  users                 User[]
+  products              Product[]
+  customers             Customer[]
+  invoices              Invoice[]
+  batches               Batch[]
+  stockMoves            StockMovement[]
+  ledgers               CustomerLedger[]
+  syncCommands          SyncCommandLog[]
+  invoiceSequences      StoreInvoiceSequence[]
 
   @@map("stores")
 }
 
 model User {
-  id           String     @id @default(uuid())
-  storeId      String
-  username     String
-  passwordHash String
-  fullName     String
-  role         Role       @default(CASHIER)
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  id             String         @id @default(uuid())
+  storeId        String
+  username       String
+  passwordHash   String
+  fullName       String
+  role           Role           @default(CASHIER)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 
-  store        Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  refreshTokens RefreshToken[]
+  store          Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  refreshTokens  RefreshToken[]
 
   @@unique([storeId, username])
   @@map("users")
 }
 
 enum Role {
-  ADMIN
+  OWNER
   MANAGER
   CASHIER
 }
@@ -64,6 +65,19 @@ model RefreshToken {
   user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("refresh_tokens")
+}
+
+model StoreInvoiceSequence {
+  storeId      String   @map("store_id")
+  yearMonth    String   @map("year_month")
+  lastSequence Int      @default(0) @map("last_sequence")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@id([storeId, yearMonth])
+  @@map("store_invoice_sequences")
 }
 
 model Product {
@@ -93,6 +107,7 @@ model Product {
   stockMovements    StockMovement[]
 
   @@unique([storeId, normalizedBarcode])
+  @@unique([storeId, sku])
   @@index([storeId, name])
   @@map("products")
 }
@@ -108,7 +123,7 @@ model Batch {
   mrpPaise          BigInt
   sellingPricePaise BigInt
   purchasePricePaise BigInt
-  version           Int             @default(1)
+  version            Int            @default(1)
   createdAt         DateTime        @default(now())
 
   store             Store           @relation(fields: [storeId], references: [id], onDelete: Cascade)
@@ -126,7 +141,7 @@ model Customer {
   phone               String?
   gstin               String?
   currentBalancePaise BigInt          @default(0)
-  creditLimitPaise    BigInt          @default(1000000) // Default ₹10,000 in paise
+  creditLimitPaise    BigInt          @default(1000000)
   version             Int             @default(1)
   updatedAt           DateTime        @updatedAt
 
@@ -188,6 +203,7 @@ model InvoiceItem {
   quantity           Decimal         @db.Decimal(12, 3)
   mrpPaise           BigInt
   unitPricePaise     BigInt
+  purchasePricePaise BigInt
   gstRate            Decimal         @db.Decimal(5, 2)
   taxableAmountPaise BigInt
   cgstPaise          BigInt
