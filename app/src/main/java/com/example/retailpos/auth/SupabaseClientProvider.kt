@@ -5,6 +5,8 @@ import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.createSupabaseClient
 
 object SupabaseClientProvider {
+    const val AUTH_CALLBACK_URL = "retailpos://login-callback"
+
     private val supabaseUrl = BuildConfig.SUPABASE_URL.trim()
     private val supabaseKey = BuildConfig.SUPABASE_ANON_KEY.trim()
 
