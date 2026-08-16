@@ -19,7 +19,9 @@ class ProductViewModel(
 ) : AndroidViewModel(application) {
     private val repository = ProductRepository(RetailDatabase.get(application).productDao())
     private val _query = MutableStateFlow("")
+    private val _editingProduct = MutableStateFlow<ProductEntity?>(null)
     val query: StateFlow<String> = _query
+    val editingProduct: StateFlow<ProductEntity?> = _editingProduct
 
     val products: StateFlow<List<ProductEntity>> =
         _query
@@ -33,7 +35,18 @@ class ProductViewModel(
         _query.value = value
     }
 
+    fun loadProduct(productId: String?) {
+        if (productId == null) {
+            _editingProduct.value = null
+            return
+        }
+        viewModelScope.launch {
+            _editingProduct.value = repository.getById(productId, storeId)
+        }
+    }
+
     fun saveProduct(
+        productId: String?,
         name: String,
         brand: String,
         barcode: String,
@@ -43,29 +56,54 @@ class ProductViewModel(
         purchasePrice: Double,
         stock: Double,
         unit: String,
-        onSaved: () -> Unit
+        onResult: (SaveProductResult) -> Unit
     ) {
-        if (name.isBlank() || mrp < 0 || sellingPrice < 0 || purchasePrice < 0 || stock < 0) return
+        val normalizedSku = sku.trim().ifBlank { null }
+        if (name.isBlank() || mrp < 0 || sellingPrice < 0 || purchasePrice < 0 || stock < 0) {
+            onResult(SaveProductResult.InvalidInput)
+            return
+        }
+
         viewModelScope.launch {
-            repository.save(
-                ProductEntity(
-                    id = UUID.randomUUID().toString(),
+            try {
+                if (normalizedSku != null) {
+                    val existing = repository.getBySku(storeId, normalizedSku)
+                    if (existing != null && existing.id != productId) {
+                        onResult(SaveProductResult.DuplicateSku)
+                        return@launch
+                    }
+                }
+
+                val current = productId?.let { repository.getById(it, storeId) }
+                val product = ProductEntity(
+                    id = productId ?: UUID.randomUUID().toString(),
                     storeId = storeId,
                     name = name.trim(),
                     brand = brand.trim(),
                     barcode = barcode.trim().ifBlank { null },
-                    sku = sku.trim().ifBlank { null },
+                    sku = normalizedSku,
                     mrp = mrp,
                     sellingPrice = sellingPrice,
                     purchasePrice = purchasePrice,
-                    stock = stock,
+                    stock = if (current != null) current.stock else stock,
                     unit = unit.trim().ifBlank { "pcs" },
+                    lowStockThreshold = current?.lowStockThreshold ?: 5.0,
                     updatedAt = System.currentTimeMillis()
                 )
-            )
-            onSaved()
+                repository.save(product)
+                onResult(SaveProductResult.Success)
+            } catch (_: Exception) {
+                onResult(SaveProductResult.Error)
+            }
         }
     }
+}
+
+enum class SaveProductResult {
+    Success,
+    DuplicateSku,
+    InvalidInput,
+    Error
 }
 
 class ProductViewModelFactory(
