@@ -9,6 +9,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import java.util.UUID
 
 class ProductViewModel(
     application: Application,
@@ -28,6 +30,40 @@ class ProductViewModel(
 
     fun setQuery(value: String) {
         _query.value = value
+    }
+
+    fun saveProduct(
+        name: String,
+        brand: String,
+        barcode: String,
+        sku: String,
+        mrp: Double,
+        sellingPrice: Double,
+        purchasePrice: Double,
+        stock: Double,
+        unit: String,
+        onSaved: () -> Unit
+    ) {
+        if (name.isBlank() || mrp < 0 || sellingPrice < 0 || purchasePrice < 0 || stock < 0) return
+        viewModelScope.launch {
+            repository.save(
+                ProductEntity(
+                    id = UUID.randomUUID().toString(),
+                    storeId = storeId,
+                    name = name.trim(),
+                    brand = brand.trim(),
+                    barcode = barcode.trim().ifBlank { null },
+                    sku = sku.trim().ifBlank { null },
+                    mrp = mrp,
+                    sellingPrice = sellingPrice,
+                    purchasePrice = purchasePrice,
+                    stock = stock,
+                    unit = unit.trim().ifBlank { "pcs" },
+                    updatedAt = System.currentTimeMillis()
+                )
+            )
+            onSaved()
+        }
     }
 }
 
