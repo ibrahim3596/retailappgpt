@@ -37,7 +37,8 @@ object DatabaseMigrations {
 
     val MIGRATION_3_4 = object : Migration(3, 4) {
         override fun migrate(db: SupportSQLiteDatabase) {
-            db.execSQL("ALTER TABLE sales ADD COLUMN idempotencyKey TEXT NOT NULL DEFAULT '__legacy__'")
+            db.execSQL("ALTER TABLE sales ADD COLUMN idempotencyKey TEXT NOT NULL DEFAULT ''")
+            db.execSQL("UPDATE sales SET idempotencyKey = '__legacy__:' || id WHERE idempotencyKey = ''")
             db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_sales_storeId_idempotencyKey ON sales(storeId, idempotencyKey)")
         }
     }
