@@ -39,7 +39,8 @@ fun InventoryScreen(
     repository: ProductRepository,
     inventoryMovements: suspend () -> List<InventoryMovementEntity>,
     onBack: () -> Unit,
-    onAdjustProduct: (String) -> Unit
+    onAdjustProduct: (String) -> Unit,
+    onReceiveProduct: (String) -> Unit
 ) {
     val products by repository.observeProducts(storeId).collectAsState(initial = emptyList())
     var movements by remember { mutableStateOf<List<InventoryMovementEntity>>(emptyList()) }
@@ -85,8 +86,13 @@ fun InventoryScreen(
                                 Text("LOW STOCK • threshold ${product.lowStockThreshold}", color = MaterialTheme.colorScheme.error)
                             }
                             product.sku?.takeIf { it.isNotBlank() }?.let { Text("SKU $it", style = MaterialTheme.typography.labelMedium) }
-                            OutlinedButton(onClick = { onAdjustProduct(product.id) }, modifier = Modifier.fillMaxWidth()) {
-                                Text("ADJUST STOCK")
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(onClick = { onReceiveProduct(product.id) }, modifier = Modifier.weight(1f)) {
+                                    Text("RECEIVE")
+                                }
+                                OutlinedButton(onClick = { onAdjustProduct(product.id) }, modifier = Modifier.weight(1f)) {
+                                    Text("ADJUST")
+                                }
                             }
                         }
                     }
