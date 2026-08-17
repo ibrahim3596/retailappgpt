@@ -57,14 +57,18 @@ object DatabaseMigrations {
                 val stockIndex = cursor.getColumnIndexOrThrow("stock")
                 val updatedAtIndex = cursor.getColumnIndexOrThrow("updatedAt")
                 while (cursor.moveToNext()) {
+                    val productId = cursor.getString(idIndex)
+                    val storeId = cursor.getString(storeIdIndex)
+                    val stock = cursor.getDouble(stockIndex)
+                    val updatedAt = cursor.getLong(updatedAtIndex)
                     val batchId = UUID.randomUUID().toString()
                     db.execSQL(
                         "INSERT INTO inventory_movements (id, storeId, productId, quantityDelta, reason, referenceType, referenceId, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                        arrayOf(UUID.randomUUID().toString(), cursor.getString(storeIdIndex), cursor.getString(idIndex), cursor.getDouble(stockIndex), "INITIAL_STOCK", "MIGRATION", "4_5", cursor.getLong(updatedAtIndex))
+                        arrayOf(UUID.randomUUID().toString(), storeId, productId, stock, "INITIAL_STOCK", "MIGRATION", "4_5", updatedAt)
                     )
                     db.execSQL(
                         "INSERT INTO inventory_batches (id, storeId, productId, batchNumber, expiryDate, quantity, purchasePrice, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                        arrayOf(batchId, cursor.getString(storeIdIndex), cursor.getString(idIndex), null, null, cursor.getDouble(stockIndex), 0.0, cursor.getLong(updatedAtIndex))
+                        arrayOf(batchId, storeId, productId, null, null, stock, 0.0, updatedAt)
                     )
                 }
             }
@@ -75,6 +79,18 @@ object DatabaseMigrations {
         override fun migrate(db: SupportSQLiteDatabase) {
             db.execSQL("ALTER TABLE inventory_movements ADD COLUMN batchId TEXT")
             db.execSQL("CREATE INDEX IF NOT EXISTS index_inventory_movements_batchId ON inventory_movements(batchId)")
+            db.query("SELECT p.id, p.storeId, p.stock, p.updatedAt FROM products p WHERE p.stock > 0 AND NOT EXISTS (SELECT 1 FROM inventory_batches b WHERE b.productId = p.id AND b.storeId = p.storeId AND b.quantity > 0)").use { cursor ->
+                val idIndex = cursor.getColumnIndexOrThrow("id")
+                val storeIdIndex = cursor.getColumnIndexOrThrow("storeId")
+                val stockIndex = cursor.getColumnIndexOrThrow("stock")
+                val updatedAtIndex = cursor.getColumnIndexOrThrow("updatedAt")
+                while (cursor.moveToNext()) {
+                    db.execSQL(
+                        "INSERT INTO inventory_batches (id, storeId, productId, batchNumber, expiryDate, quantity, purchasePrice, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                        arrayOf(UUID.randomUUID().toString(), cursor.getString(storeIdIndex), cursor.getString(idIndex), null, null, cursor.getDouble(stockIndex), 0.0, cursor.getLong(updatedAtIndex))
+                    )
+                }
+            }
         }
     }
 }
