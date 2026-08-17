@@ -45,6 +45,7 @@ import com.retailpos.app.ui.screens.BarcodeScannerScreen
 import com.retailpos.app.ui.screens.CheckoutScreen
 import com.retailpos.app.ui.screens.HomeScreen
 import com.retailpos.app.ui.screens.InventoryAdjustmentScreen
+import com.retailpos.app.ui.screens.InventoryReceiveScreen
 import com.retailpos.app.ui.screens.InventoryScreen
 import com.retailpos.app.ui.screens.PosScreen
 import com.retailpos.app.ui.screens.ProductListScreen
@@ -65,6 +66,7 @@ private object Routes {
     const val BILLING_SCANNER = "scanner/billing"
     const val INVENTORY = "inventory"
     const val INVENTORY_ADJUST = "inventory/adjust/{productId}"
+    const val INVENTORY_RECEIVE = "inventory/receive/{productId}"
     const val CUSTOMERS = "customers"
     const val ANALYTICS = "analytics"
     const val SETTINGS = "settings"
@@ -99,6 +101,7 @@ private fun RetailPosApp() {
     var receiptSale by remember { mutableStateOf<SaleEntity?>(null) }
     var receiptLines by remember { mutableStateOf<List<SaleLineEntity>>(emptyList()) }
     var inventoryAdjustmentError by remember { mutableStateOf<String?>(null) }
+    var inventoryReceiveError by remember { mutableStateOf<String?>(null) }
     val searchResults by repository.searchProducts(LOCAL_STORE_ID, posQuery).collectAsState(initial = emptyList())
 
     fun addProductToCart(product: com.retailpos.app.data.ProductEntity) {
@@ -182,6 +185,25 @@ private fun RetailPosApp() {
                 navController.popBackStack()
             } catch (error: Exception) {
                 inventoryAdjustmentError = error.message ?: "Stock adjustment failed."
+            }
+        }
+    }
+
+    fun receiveInventory(productId: String, quantity: Double, batchNumber: String?, expiryDate: Long?, purchasePrice: Double) {
+        scope.launch {
+            try {
+                database.inventoryDao().receiveStock(
+                    storeId = LOCAL_STORE_ID,
+                    productId = productId,
+                    quantity = quantity,
+                    batchNumber = batchNumber,
+                    expiryDate = expiryDate,
+                    purchasePrice = purchasePrice
+                )
+                inventoryReceiveError = null
+                navController.popBackStack()
+            } catch (error: Exception) {
+                inventoryReceiveError = error.message ?: "Stock receiving failed."
             }
         }
     }
@@ -283,7 +305,8 @@ private fun RetailPosApp() {
                 repository = repository,
                 inventoryMovements = { database.inventoryDao().getMovements(LOCAL_STORE_ID) },
                 onBack = { navController.popBackStack() },
-                onAdjustProduct = { productId -> navController.navigate("inventory/adjust/$productId") }
+                onAdjustProduct = { productId -> navController.navigate("inventory/adjust/$productId") },
+                onReceiveProduct = { productId -> navController.navigate("inventory/receive/$productId") }
             )
         }
         composable(Routes.INVENTORY_ADJUST, arguments = listOf(navArgument("productId") { type = NavType.StringType })) { entry ->
@@ -304,6 +327,27 @@ private fun RetailPosApp() {
                     onBack = { navController.popBackStack() },
                     onAdjust = ::adjustInventory,
                     error = inventoryAdjustmentError
+                )
+            }
+        }
+        composable(Routes.INVENTORY_RECEIVE, arguments = listOf(navArgument("productId") { type = NavType.StringType })) { entry ->
+            val productId = entry.arguments?.getString("productId")
+            val product by if (productId == null) {
+                remember { mutableStateOf(null) }
+            } else {
+                androidx.compose.runtime.produceState<com.retailpos.app.data.ProductEntity?>(initialValue = null, productId) {
+                    value = database.productDao().getById(productId, LOCAL_STORE_ID)
+                }
+            }
+            val currentProduct = product
+            if (currentProduct == null) {
+                FoundationPlaceholder("Product", "Product could not be loaded")
+            } else {
+                InventoryReceiveScreen(
+                    product = currentProduct,
+                    onBack = { navController.popBackStack() },
+                    onReceive = ::receiveInventory,
+                    error = inventoryReceiveError
                 )
             }
         }
