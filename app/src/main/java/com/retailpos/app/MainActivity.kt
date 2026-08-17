@@ -17,6 +17,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,7 +32,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.retailpos.app.data.CartLine
+import com.retailpos.app.data.AddToCartResult
+import com.retailpos.app.data.CartManager
 import com.retailpos.app.data.ProductRepository
 import com.retailpos.app.data.RetailDatabase
 import com.retailpos.app.ui.screens.BarcodeScannerScreen
@@ -74,23 +76,21 @@ private fun RetailPosApp() {
         val db = RetailDatabase.get(context)
         ProductRepository(db.productDao(), db.productBarcodeDao())
     }
-    var cart by remember { mutableStateOf<List<CartLine>>(emptyList()) }
+    val cartManager = remember { CartManager() }
+    var cart by remember { mutableStateOf(cartManager.lines) }
+    var posQuery by remember { mutableStateOf("") }
     var unknownBarcode by remember { mutableStateOf<String?>(null) }
+    var cartError by remember { mutableStateOf<String?>(null) }
+    val searchResults by repository.searchProducts(LOCAL_STORE_ID, posQuery).collectAsState(initial = emptyList())
 
     fun addProductToCart(product: com.retailpos.app.data.ProductEntity) {
-        val existing = cart.firstOrNull { it.productId == product.id }
-        cart = if (existing == null) {
-            cart + CartLine(
-                productId = product.id,
-                name = product.name,
-                sku = product.sku,
-                unit = product.unit,
-                unitPrice = product.sellingPrice
-            )
-        } else {
-            cart.map {
-                if (it.productId == product.id) it.copy(quantity = it.quantity + 1.0) else it
+        when (cartManager.add(product)) {
+            AddToCartResult.Added -> {
+                cart = cartManager.lines
+                posQuery = ""
             }
+            AddToCartResult.OutOfStock -> cartError = "${product.name} is out of stock."
+            AddToCartResult.InsufficientStock -> cartError = "Only ${product.stock} ${product.unit} of ${product.name} is available."
         }
     }
 
@@ -104,7 +104,13 @@ private fun RetailPosApp() {
         composable(Routes.POS) {
             PosScreen(
                 cart = cart,
-                onRemoveFromCart = { productId -> cart = cart.filterNot { it.productId == productId } },
+                searchResults = searchResults,
+                onSearchQueryChanged = { posQuery = it },
+                onAddProduct = ::addProductToCart,
+                onRemoveFromCart = { productId ->
+                    cartManager.remove(productId)
+                    cart = cartManager.lines
+                },
                 onBack = { navController.popBackStack() },
                 onOpenScanner = { navController.navigate(Routes.BILLING_SCANNER) }
             )
@@ -119,11 +125,12 @@ private fun RetailPosApp() {
                         val product = barcode?.let { repository.getById(it.productId, LOCAL_STORE_ID) }
                         if (product == null) {
                             unknownBarcode = raw
-                        } else if (product.stock > 0.0) {
-                            addProductToCart(product)
-                            navController.popBackStack()
                         } else {
-                            unknownBarcode = raw
+                            val before = cartManager.lines.size
+                            addProductToCart(product)
+                            if (cartManager.lines.size != before || cartManager.lines.any { it.productId == product.id }) {
+                                if (cartError == null) navController.popBackStack()
+                            }
                         }
                     }
                 }
@@ -174,6 +181,15 @@ private fun RetailPosApp() {
             dismissButton = {
                 TextButton(onClick = { unknownBarcode = null }) { Text("CANCEL") }
             }
+        )
+    }
+
+    cartError?.let { message ->
+        AlertDialog(
+            onDismissRequest = { cartError = null },
+            title = { Text("Cannot add product") },
+            text = { Text(message) },
+            confirmButton = { TextButton(onClick = { cartError = null }) { Text("OK") } }
         )
     }
 }
