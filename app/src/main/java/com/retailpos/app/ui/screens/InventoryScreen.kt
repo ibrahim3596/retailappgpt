@@ -38,7 +38,8 @@ fun InventoryScreen(
     storeId: String,
     repository: ProductRepository,
     inventoryMovements: suspend () -> List<InventoryMovementEntity>,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onAdjustProduct: (String) -> Unit
 ) {
     val products by repository.observeProducts(storeId).collectAsState(initial = emptyList())
     var movements by remember { mutableStateOf<List<InventoryMovementEntity>>(emptyList()) }
@@ -66,17 +67,13 @@ fun InventoryScreen(
                     InventoryStat("LOW STOCK", lowStock.toString(), Modifier.weight(1f))
                 }
             }
-            item {
-                Text("Stock", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
-            }
+            item { Text("Stock", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black) }
             if (products.isEmpty()) {
-                item {
-                    Text("No products yet. Add products before managing inventory.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+                item { Text("No products yet. Add products before managing inventory.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
             } else {
                 items(products, key = { it.id }) { product ->
                     Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text(product.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                             if (product.brand.isNotBlank()) Text(product.brand, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text(
@@ -88,6 +85,9 @@ fun InventoryScreen(
                                 Text("LOW STOCK • threshold ${product.lowStockThreshold}", color = MaterialTheme.colorScheme.error)
                             }
                             product.sku?.takeIf { it.isNotBlank() }?.let { Text("SKU $it", style = MaterialTheme.typography.labelMedium) }
+                            OutlinedButton(onClick = { onAdjustProduct(product.id) }, modifier = Modifier.fillMaxWidth()) {
+                                Text("ADJUST STOCK")
+                            }
                         }
                     }
                 }
@@ -110,9 +110,7 @@ fun InventoryScreen(
                     }
                 }
             }
-            item {
-                OutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text("BACK") }
-            }
+            item { OutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text("BACK") } }
         }
     }
 }
