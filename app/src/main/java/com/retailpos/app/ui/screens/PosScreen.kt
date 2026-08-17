@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AddShoppingCart
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Search
@@ -38,12 +39,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.retailpos.app.data.CartLine
+import com.retailpos.app.data.ProductEntity
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PosScreen(
     cart: List<CartLine>,
+    searchResults: List<ProductEntity>,
+    onSearchQueryChanged: (String) -> Unit,
+    onAddProduct: (ProductEntity) -> Unit,
     onRemoveFromCart: (String) -> Unit,
     onBack: () -> Unit,
     onOpenScanner: () -> Unit
@@ -51,6 +56,7 @@ fun PosScreen(
     var query by remember { mutableStateOf("") }
     val total = cart.sumOf { it.lineTotal }
     val itemCount = cart.sumOf { it.quantity }
+    val showingSearch = query.trim().isNotEmpty()
 
     Scaffold(
         topBar = {
@@ -91,7 +97,10 @@ fun PosScreen(
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
                         value = query,
-                        onValueChange = { query = it },
+                        onValueChange = {
+                            query = it
+                            onSearchQueryChanged(it)
+                        },
                         modifier = Modifier.weight(1f),
                         singleLine = true,
                         leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
@@ -103,7 +112,50 @@ fun PosScreen(
                 }
             }
 
-            if (cart.isEmpty()) {
+            if (showingSearch) {
+                item {
+                    Text("PRODUCTS", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                }
+                if (searchResults.isEmpty()) {
+                    item {
+                        Card(modifier = Modifier.fillMaxWidth()) {
+                            Column(Modifier.padding(20.dp)) {
+                                Icon(Icons.Default.Search, contentDescription = null)
+                                Spacer(Modifier.height(8.dp))
+                                Text("No products found", fontWeight = FontWeight.Bold)
+                                Spacer(Modifier.height(4.dp))
+                                Text("Try a different name, SKU or barcode.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                } else {
+                    items(searchResults, key = { it.id }) { product ->
+                        Card(modifier = Modifier.fillMaxWidth()) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(14.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(product.name, fontWeight = FontWeight.Bold)
+                                    if (product.brand.isNotBlank()) {
+                                        Text(product.brand, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                    Text(
+                                        "${product.stock.clean()} ${product.unit} available • ${money(product.sellingPrice)}",
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                IconButton(
+                                    onClick = { onAddProduct(product) },
+                                    enabled = product.stock > 0.0
+                                ) {
+                                    Icon(Icons.Default.AddShoppingCart, contentDescription = "Add ${product.name}")
+                                }
+                            }
+                        }
+                    }
+                }
+            } else if (cart.isEmpty()) {
                 item {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -122,6 +174,9 @@ fun PosScreen(
                     }
                 }
             } else {
+                item {
+                    Text("CURRENT BILL", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                }
                 items(cart, key = { it.productId }) { line ->
                     Card(modifier = Modifier.fillMaxWidth()) {
                         Row(
