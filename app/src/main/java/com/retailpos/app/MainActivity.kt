@@ -325,7 +325,7 @@ private fun RetailPosApp() {
                 InventoryAdjustmentScreen(
                     product = currentProduct,
                     onBack = { navController.popBackStack() },
-                    onAdjust = ::adjustInventory,
+                    onAdjust = { quantityDelta, reason -> adjustInventory(currentProduct.id, quantityDelta, reason) },
                     error = inventoryAdjustmentError
                 )
             }
@@ -346,7 +346,7 @@ private fun RetailPosApp() {
                 InventoryReceiveScreen(
                     product = currentProduct,
                     onBack = { navController.popBackStack() },
-                    onReceive = ::receiveInventory,
+                    onReceive = { quantity, batchNumber, expiryDate, purchasePrice -> receiveInventory(currentProduct.id, quantity, batchNumber, expiryDate, purchasePrice) },
                     error = inventoryReceiveError
                 )
             }
