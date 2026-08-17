@@ -131,6 +131,9 @@ fun BarcodeScannerScreen(
                                     p.surfaceProvider = previewView.surfaceProvider
                                 }
 
+                                // Product checkout scanning intentionally excludes QR codes.
+                                // QR is commonly used for payments/links and must not be treated
+                                // as a retail product identifier in the standard POS scanner.
                                 val scannerOptions = BarcodeScannerOptions.Builder()
                                     .setBarcodeFormats(
                                         Barcode.FORMAT_EAN_8,
@@ -142,7 +145,6 @@ fun BarcodeScannerScreen(
                                         Barcode.FORMAT_CODE_39,
                                         Barcode.FORMAT_CODE_93,
                                         Barcode.FORMAT_CODABAR,
-                                        Barcode.FORMAT_QR_CODE,
                                         Barcode.FORMAT_DATA_MATRIX,
                                         Barcode.FORMAT_PDF417,
                                         Barcode.FORMAT_AZTEC
@@ -165,7 +167,10 @@ fun BarcodeScannerScreen(
                                                         imageProxy.imageInfo.rotationDegrees
                                                     )
                                                 ).addOnSuccessListener { barcodes ->
-                                                    val hit = barcodes.firstOrNull { !it.rawValue.isNullOrBlank() }
+                                                    val hit = barcodes.firstOrNull {
+                                                        !it.rawValue.isNullOrBlank() &&
+                                                            it.format != Barcode.FORMAT_QR_CODE
+                                                    }
                                                     val raw = hit?.rawValue
                                                     if (raw != null) {
                                                         val now = System.currentTimeMillis()
@@ -224,9 +229,9 @@ fun BarcodeScannerScreen(
                                 Icon(Icons.Default.FlashOn, contentDescription = "Flash")
                             }
                             Column(Modifier.weight(1f)) {
-                                Text("Align barcode inside the frame", style = MaterialTheme.typography.titleSmall)
+                                Text("Align product barcode inside the frame", style = MaterialTheme.typography.titleSmall)
                                 Spacer(Modifier.height(2.dp))
-                                Text("EAN, UPC, Code 128, QR and other supported formats", style = MaterialTheme.typography.bodySmall)
+                                Text("QR codes are not accepted in the product scanner", style = MaterialTheme.typography.bodySmall)
                             }
                         }
                     }
