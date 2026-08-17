@@ -57,12 +57,24 @@ object DatabaseMigrations {
                 val stockIndex = cursor.getColumnIndexOrThrow("stock")
                 val updatedAtIndex = cursor.getColumnIndexOrThrow("updatedAt")
                 while (cursor.moveToNext()) {
+                    val batchId = UUID.randomUUID().toString()
                     db.execSQL(
                         "INSERT INTO inventory_movements (id, storeId, productId, quantityDelta, reason, referenceType, referenceId, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                         arrayOf(UUID.randomUUID().toString(), cursor.getString(storeIdIndex), cursor.getString(idIndex), cursor.getDouble(stockIndex), "INITIAL_STOCK", "MIGRATION", "4_5", cursor.getLong(updatedAtIndex))
                     )
+                    db.execSQL(
+                        "INSERT INTO inventory_batches (id, storeId, productId, batchNumber, expiryDate, quantity, purchasePrice, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                        arrayOf(batchId, cursor.getString(storeIdIndex), cursor.getString(idIndex), null, null, cursor.getDouble(stockIndex), 0.0, cursor.getLong(updatedAtIndex))
+                    )
                 }
             }
+        }
+    }
+
+    val MIGRATION_5_6 = object : Migration(5, 6) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE inventory_movements ADD COLUMN batchId TEXT")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_inventory_movements_batchId ON inventory_movements(batchId)")
         }
     }
 }
