@@ -1,5 +1,6 @@
 package com.retailpos.app
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -25,6 +26,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavType
@@ -36,12 +38,15 @@ import com.retailpos.app.data.AddToCartResult
 import com.retailpos.app.data.CartManager
 import com.retailpos.app.data.ProductRepository
 import com.retailpos.app.data.RetailDatabase
+import com.retailpos.app.data.SaleEntity
+import com.retailpos.app.data.SaleLineEntity
 import com.retailpos.app.ui.screens.BarcodeScannerScreen
 import com.retailpos.app.ui.screens.CheckoutScreen
 import com.retailpos.app.ui.screens.HomeScreen
 import com.retailpos.app.ui.screens.PosScreen
 import com.retailpos.app.ui.screens.ProductListScreen
 import com.retailpos.app.ui.screens.ProductReviewScreen
+import com.retailpos.app.ui.screens.ReceiptScreen
 import com.retailpos.app.ui.theme.RetailPosTheme
 import kotlinx.coroutines.launch
 import java.util.UUID
@@ -50,6 +55,7 @@ private object Routes {
     const val HOME = "home"
     const val POS = "pos"
     const val CHECKOUT = "checkout"
+    const val RECEIPT = "receipt"
     const val PRODUCTS = "products"
     const val ADD_PRODUCT = "products/add"
     const val EDIT_PRODUCT = "products/edit/{productId}"
@@ -73,7 +79,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun RetailPosApp() {
     val navController = rememberNavController()
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val database = remember(context) { RetailDatabase.get(context) }
     val repository = remember(database) { ProductRepository(database.productDao(), database.productBarcodeDao()) }
@@ -86,6 +92,8 @@ private fun RetailPosApp() {
     var checkoutProcessing by remember { mutableStateOf(false) }
     var completedSale by remember { mutableStateOf<String?>(null) }
     var checkoutIdempotencyKey by remember { mutableStateOf<String?>(null) }
+    var receiptSale by remember { mutableStateOf<SaleEntity?>(null) }
+    var receiptLines by remember { mutableStateOf<List<SaleLineEntity>>(emptyList()) }
     val searchResults by repository.searchProducts(LOCAL_STORE_ID, posQuery).collectAsState(initial = emptyList())
 
     fun addProductToCart(product: com.retailpos.app.data.ProductEntity) {
@@ -96,6 +104,19 @@ private fun RetailPosApp() {
             }
             AddToCartResult.OutOfStock -> cartError = "${product.name} is out of stock."
             AddToCartResult.InsufficientStock -> cartError = "Only ${product.stock} ${product.unit} of ${product.name} is available."
+        }
+    }
+
+    fun openReceipt(saleId: String) {
+        scope.launch {
+            val sale = database.saleDao().getSale(LOCAL_STORE_ID, saleId)
+            if (sale == null) {
+                checkoutError = "Receipt could not be loaded."
+                return@launch
+            }
+            receiptSale = sale
+            receiptLines = database.saleDao().getSaleLines(sale.id)
+            navController.navigate(Routes.RECEIPT)
         }
     }
 
@@ -127,6 +148,18 @@ private fun RetailPosApp() {
                 checkoutError = error.message ?: "Sale could not be completed. No stock was deducted."
             }
         }
+    }
+
+    fun shareReceipt(receipt: String) {
+        context.startActivity(
+            Intent.createChooser(
+                Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_TEXT, receipt)
+                },
+                "Share receipt"
+            )
+        )
     }
 
     NavHost(navController = navController, startDestination = Routes.HOME) {
@@ -164,6 +197,22 @@ private fun RetailPosApp() {
                 isProcessing = checkoutProcessing,
                 error = checkoutError
             )
+        }
+        composable(Routes.RECEIPT) {
+            receiptSale?.let { sale ->
+                ReceiptScreen(
+                    sale = sale,
+                    lines = receiptLines,
+                    onBack = {
+                        receiptSale = null
+                        receiptLines = emptyList()
+                        navController.navigate(Routes.HOME) {
+                            popUpTo(Routes.RECEIPT) { inclusive = true }
+                        }
+                    },
+                    onShare = ::shareReceipt
+                )
+            }
         }
         composable(Routes.BILLING_SCANNER) {
             BarcodeScannerScreen(
@@ -239,7 +288,13 @@ private fun RetailPosApp() {
             onDismissRequest = { completedSale = null },
             title = { Text("Sale completed") },
             text = { Text("Sale saved successfully.\nReceipt ID: $saleId") },
-            confirmButton = { Button(onClick = { completedSale = null }) { Text("DONE") } }
+            confirmButton = {
+                Button(onClick = {
+                    completedSale = null
+                    openReceipt(saleId)
+                }) { Text("VIEW RECEIPT") }
+            },
+            dismissButton = { TextButton(onClick = { completedSale = null }) { Text("DONE") } }
         )
     }
 }
