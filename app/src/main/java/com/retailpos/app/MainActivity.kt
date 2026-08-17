@@ -45,6 +45,7 @@ import com.retailpos.app.ui.screens.BarcodeScannerScreen
 import com.retailpos.app.ui.screens.CheckoutScreen
 import com.retailpos.app.ui.screens.HomeScreen
 import com.retailpos.app.ui.screens.InventoryAdjustmentScreen
+import com.retailpos.app.ui.screens.InventoryDetailScreen
 import com.retailpos.app.ui.screens.InventoryReceiveScreen
 import com.retailpos.app.ui.screens.InventoryScreen
 import com.retailpos.app.ui.screens.PosScreen
@@ -65,6 +66,7 @@ private object Routes {
     const val EDIT_PRODUCT = "products/edit/{productId}"
     const val BILLING_SCANNER = "scanner/billing"
     const val INVENTORY = "inventory"
+    const val INVENTORY_DETAIL = "inventory/detail/{productId}"
     const val INVENTORY_ADJUST = "inventory/adjust/{productId}"
     const val INVENTORY_RECEIVE = "inventory/receive/{productId}"
     const val CUSTOMERS = "customers"
@@ -305,9 +307,33 @@ private fun RetailPosApp() {
                 repository = repository,
                 inventoryMovements = { database.inventoryDao().getMovements(LOCAL_STORE_ID) },
                 onBack = { navController.popBackStack() },
+                onOpenProduct = { productId -> navController.navigate("inventory/detail/$productId") },
                 onAdjustProduct = { productId -> navController.navigate("inventory/adjust/$productId") },
                 onReceiveProduct = { productId -> navController.navigate("inventory/receive/$productId") }
             )
+        }
+        composable(Routes.INVENTORY_DETAIL, arguments = listOf(navArgument("productId") { type = NavType.StringType })) { entry ->
+            val productId = entry.arguments?.getString("productId")
+            val product by if (productId == null) {
+                remember { mutableStateOf(null) }
+            } else {
+                androidx.compose.runtime.produceState<com.retailpos.app.data.ProductEntity?>(initialValue = null, productId) {
+                    value = database.productDao().getById(productId, LOCAL_STORE_ID)
+                }
+            }
+            val currentProduct = product
+            if (currentProduct == null) {
+                FoundationPlaceholder("Product", "Product could not be loaded")
+            } else {
+                InventoryDetailScreen(
+                    product = currentProduct,
+                    batchesLoader = { database.inventoryDao().getAvailableBatchesFefo(LOCAL_STORE_ID, currentProduct.id) },
+                    movementsLoader = { database.inventoryDao().getProductMovements(LOCAL_STORE_ID, currentProduct.id) },
+                    onBack = { navController.popBackStack() },
+                    onAdjust = { navController.navigate("inventory/adjust/${currentProduct.id}") },
+                    onReceive = { navController.navigate("inventory/receive/${currentProduct.id}") }
+                )
+            }
         }
         composable(Routes.INVENTORY_ADJUST, arguments = listOf(navArgument("productId") { type = NavType.StringType })) { entry ->
             val productId = entry.arguments?.getString("productId")
