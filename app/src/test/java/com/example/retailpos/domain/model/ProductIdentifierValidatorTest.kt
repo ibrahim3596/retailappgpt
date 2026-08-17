@@ -7,13 +7,13 @@ import org.junit.Test
 class ProductIdentifierValidatorTest {
     @Test
     fun validGtinsAreAccepted() {
-        assertTrue(ProductIdentifierValidator.isValidGtIn("8901030896411"))
+        assertTrue(ProductIdentifierValidator.isValidGtIn("4006381333931"))
         assertTrue(ProductIdentifierValidator.isValidGtIn("036000291452"))
     }
 
     @Test
     fun invalidCheckDigitIsRejected() {
-        assertFalse(ProductIdentifierValidator.isValidGtIn("8901030896412"))
+        assertFalse(ProductIdentifierValidator.isValidGtIn("4006381333932"))
     }
 
     @Test
