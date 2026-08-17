@@ -39,6 +39,7 @@ fun InventoryScreen(
     repository: ProductRepository,
     inventoryMovements: suspend () -> List<InventoryMovementEntity>,
     onBack: () -> Unit,
+    onOpenProduct: (String) -> Unit,
     onAdjustProduct: (String) -> Unit,
     onReceiveProduct: (String) -> Unit
 ) {
@@ -73,7 +74,7 @@ fun InventoryScreen(
                 item { Text("No products yet. Add products before managing inventory.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
             } else {
                 items(products, key = { it.id }) { product ->
-                    Card(modifier = Modifier.fillMaxWidth()) {
+                    Card(modifier = Modifier.fillMaxWidth(), onClick = { onOpenProduct(product.id) }) {
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text(product.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                             if (product.brand.isNotBlank()) Text(product.brand, color = MaterialTheme.colorScheme.onSurfaceVariant)
