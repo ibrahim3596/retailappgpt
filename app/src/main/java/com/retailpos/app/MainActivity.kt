@@ -23,6 +23,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.retailpos.app.ui.screens.BarcodeScannerScreen
 import com.retailpos.app.ui.screens.HomeScreen
 import com.retailpos.app.ui.screens.PosScreen
 import com.retailpos.app.ui.screens.ProductListScreen
@@ -35,6 +36,7 @@ private object Routes {
     const val PRODUCTS = "products"
     const val ADD_PRODUCT = "products/add"
     const val EDIT_PRODUCT = "products/edit/{productId}"
+    const val BILLING_SCANNER = "scanner/billing"
     const val INVENTORY = "inventory"
     const val CUSTOMERS = "customers"
     const val ANALYTICS = "analytics"
@@ -68,7 +70,16 @@ private fun RetailPosApp() {
         composable(Routes.POS) {
             PosScreen(
                 onBack = { navController.popBackStack() },
-                onOpenScanner = { }
+                onOpenScanner = { navController.navigate(Routes.BILLING_SCANNER) }
+            )
+        }
+        composable(Routes.BILLING_SCANNER) {
+            BarcodeScannerScreen(
+                title = "BILLING SCANNER",
+                onBack = { navController.popBackStack() },
+                onBarcodeDetected = { _, _ ->
+                    // Cart insertion is intentionally deferred until the V2 cart domain is implemented.
+                }
             )
         }
         composable(Routes.PRODUCTS) {
