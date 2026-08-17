@@ -37,6 +37,7 @@ import com.retailpos.app.data.CartManager
 import com.retailpos.app.data.ProductRepository
 import com.retailpos.app.data.RetailDatabase
 import com.retailpos.app.ui.screens.BarcodeScannerScreen
+import com.retailpos.app.ui.screens.CheckoutScreen
 import com.retailpos.app.ui.screens.HomeScreen
 import com.retailpos.app.ui.screens.PosScreen
 import com.retailpos.app.ui.screens.ProductListScreen
@@ -47,6 +48,7 @@ import kotlinx.coroutines.launch
 private object Routes {
     const val HOME = "home"
     const val POS = "pos"
+    const val CHECKOUT = "checkout"
     const val PRODUCTS = "products"
     const val ADD_PRODUCT = "products/add"
     const val EDIT_PRODUCT = "products/edit/{productId}"
@@ -72,15 +74,16 @@ private fun RetailPosApp() {
     val navController = rememberNavController()
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
-    val repository = remember(context) {
-        val db = RetailDatabase.get(context)
-        ProductRepository(db.productDao(), db.productBarcodeDao())
-    }
+    val database = remember(context) { RetailDatabase.get(context) }
+    val repository = remember(database) { ProductRepository(database.productDao(), database.productBarcodeDao()) }
     val cartManager = remember { CartManager() }
     var cart by remember { mutableStateOf(cartManager.lines) }
     var posQuery by remember { mutableStateOf("") }
     var unknownBarcode by remember { mutableStateOf<String?>(null) }
     var cartError by remember { mutableStateOf<String?>(null) }
+    var checkoutError by remember { mutableStateOf<String?>(null) }
+    var checkoutProcessing by remember { mutableStateOf(false) }
+    var completedSale by remember { mutableStateOf<String?>(null) }
     val searchResults by repository.searchProducts(LOCAL_STORE_ID, posQuery).collectAsState(initial = emptyList())
 
     fun addProductToCart(product: com.retailpos.app.data.ProductEntity) {
@@ -91,6 +94,33 @@ private fun RetailPosApp() {
             }
             AddToCartResult.OutOfStock -> cartError = "${product.name} is out of stock."
             AddToCartResult.InsufficientStock -> cartError = "Only ${product.stock} ${product.unit} of ${product.name} is available."
+        }
+    }
+
+    fun completeSale(paymentMethod: String) {
+        if (checkoutProcessing || cart.isEmpty()) return
+        checkoutProcessing = true
+        checkoutError = null
+        val cartSnapshot = cart.toList()
+        scope.launch {
+            try {
+                val result = database.saleDao().checkout(
+                    storeId = LOCAL_STORE_ID,
+                    cart = cartSnapshot,
+                    paymentMethod = paymentMethod
+                )
+                cartManager.clear()
+                cart = emptyList()
+                posQuery = ""
+                checkoutProcessing = false
+                navController.navigate(Routes.HOME) {
+                    popUpTo(Routes.POS) { inclusive = true }
+                }
+                completedSale = result.saleId
+            } catch (error: Exception) {
+                checkoutProcessing = false
+                checkoutError = error.message ?: "Sale could not be completed. No stock was deducted."
+            }
         }
     }
 
@@ -112,7 +142,17 @@ private fun RetailPosApp() {
                     cart = cartManager.lines
                 },
                 onBack = { navController.popBackStack() },
-                onOpenScanner = { navController.navigate(Routes.BILLING_SCANNER) }
+                onOpenScanner = { navController.navigate(Routes.BILLING_SCANNER) },
+                onCheckout = { navController.navigate(Routes.CHECKOUT) }
+            )
+        }
+        composable(Routes.CHECKOUT) {
+            CheckoutScreen(
+                cart = cart,
+                onBack = { navController.popBackStack() },
+                onComplete = ::completeSale,
+                isProcessing = checkoutProcessing,
+                error = checkoutError
             )
         }
         composable(Routes.BILLING_SCANNER) {
@@ -145,19 +185,12 @@ private fun RetailPosApp() {
             )
         }
         composable(Routes.ADD_PRODUCT) {
-            ProductReviewScreen(
-                storeId = LOCAL_STORE_ID,
-                productId = null,
-                onBack = { navController.popBackStack() }
-            )
+            ProductReviewScreen(storeId = LOCAL_STORE_ID, productId = null, onBack = { navController.popBackStack() })
         }
-        composable(
-            route = Routes.EDIT_PRODUCT,
-            arguments = listOf(navArgument("productId") { type = NavType.StringType })
-        ) { backStackEntry ->
+        composable(Routes.EDIT_PRODUCT, arguments = listOf(navArgument("productId") { type = NavType.StringType })) { entry ->
             ProductReviewScreen(
                 storeId = LOCAL_STORE_ID,
-                productId = backStackEntry.arguments?.getString("productId"),
+                productId = entry.arguments?.getString("productId"),
                 onBack = { navController.popBackStack() }
             )
         }
@@ -178,9 +211,7 @@ private fun RetailPosApp() {
                     navController.navigate(Routes.ADD_PRODUCT)
                 }) { Text("ADD PRODUCT") }
             },
-            dismissButton = {
-                TextButton(onClick = { unknownBarcode = null }) { Text("CANCEL") }
-            }
+            dismissButton = { TextButton(onClick = { unknownBarcode = null }) { Text("CANCEL") } }
         )
     }
 
@@ -190,6 +221,15 @@ private fun RetailPosApp() {
             title = { Text("Cannot add product") },
             text = { Text(message) },
             confirmButton = { TextButton(onClick = { cartError = null }) { Text("OK") } }
+        )
+    }
+
+    completedSale?.let { saleId ->
+        AlertDialog(
+            onDismissRequest = { completedSale = null },
+            title = { Text("Sale completed") },
+            text = { Text("Sale saved successfully.\nReceipt ID: $saleId") },
+            confirmButton = { Button(onClick = { completedSale = null }) { Text("DONE") } }
         )
     }
 }
