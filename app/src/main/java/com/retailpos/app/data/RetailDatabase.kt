@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 
 @Database(
     entities = [ProductEntity::class, ProductBarcodeEntity::class, SaleEntity::class, SaleLineEntity::class],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class RetailDatabase : RoomDatabase() {
@@ -26,7 +26,11 @@ abstract class RetailDatabase : RoomDatabase() {
                     RetailDatabase::class.java,
                     "retailpos.db"
                 )
-                    .addMigrations(DatabaseMigrations.MIGRATION_1_2, DatabaseMigrations.MIGRATION_2_3)
+                    .addMigrations(
+                        DatabaseMigrations.MIGRATION_1_2,
+                        DatabaseMigrations.MIGRATION_2_3,
+                        DatabaseMigrations.MIGRATION_3_4
+                    )
                     .build()
                     .also { INSTANCE = it }
             }
