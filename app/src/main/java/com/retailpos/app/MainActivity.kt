@@ -44,6 +44,7 @@ import com.retailpos.app.ui.screens.ProductListScreen
 import com.retailpos.app.ui.screens.ProductReviewScreen
 import com.retailpos.app.ui.theme.RetailPosTheme
 import kotlinx.coroutines.launch
+import java.util.UUID
 
 private object Routes {
     const val HOME = "home"
@@ -84,6 +85,7 @@ private fun RetailPosApp() {
     var checkoutError by remember { mutableStateOf<String?>(null) }
     var checkoutProcessing by remember { mutableStateOf(false) }
     var completedSale by remember { mutableStateOf<String?>(null) }
+    var checkoutIdempotencyKey by remember { mutableStateOf<String?>(null) }
     val searchResults by repository.searchProducts(LOCAL_STORE_ID, posQuery).collectAsState(initial = emptyList())
 
     fun addProductToCart(product: com.retailpos.app.data.ProductEntity) {
@@ -102,16 +104,19 @@ private fun RetailPosApp() {
         checkoutProcessing = true
         checkoutError = null
         val cartSnapshot = cart.toList()
+        val idempotencyKey = checkoutIdempotencyKey ?: UUID.randomUUID().toString().also { checkoutIdempotencyKey = it }
         scope.launch {
             try {
                 val result = database.saleDao().checkout(
                     storeId = LOCAL_STORE_ID,
                     cart = cartSnapshot,
-                    paymentMethod = paymentMethod
+                    paymentMethod = paymentMethod,
+                    idempotencyKey = idempotencyKey
                 )
                 cartManager.clear()
                 cart = emptyList()
                 posQuery = ""
+                checkoutIdempotencyKey = null
                 checkoutProcessing = false
                 navController.navigate(Routes.HOME) {
                     popUpTo(Routes.POS) { inclusive = true }
@@ -143,7 +148,12 @@ private fun RetailPosApp() {
                 },
                 onBack = { navController.popBackStack() },
                 onOpenScanner = { navController.navigate(Routes.BILLING_SCANNER) },
-                onCheckout = { navController.navigate(Routes.CHECKOUT) }
+                onCheckout = {
+                    if (cart.isNotEmpty()) {
+                        checkoutIdempotencyKey = checkoutIdempotencyKey ?: UUID.randomUUID().toString()
+                        navController.navigate(Routes.CHECKOUT)
+                    }
+                }
             )
         }
         composable(Routes.CHECKOUT) {
