@@ -27,6 +27,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material3.Button
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -35,7 +36,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
@@ -58,6 +58,7 @@ import java.util.concurrent.Executors
 
 private enum class ScannerState { REQUESTING_PERMISSION, READY, DENIED }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BarcodeScannerScreen(
     title: String,
@@ -219,9 +220,7 @@ fun BarcodeScannerScreen(
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            IconButton(
-                                onClick = { torchEnabled = !torchEnabled }
-                            ) {
+                            IconButton(onClick = { torchEnabled = !torchEnabled }) {
                                 Icon(Icons.Default.FlashOn, contentDescription = "Flash")
                             }
                             Column(Modifier.weight(1f)) {
