@@ -31,6 +31,14 @@ abstract class InventoryDao {
         updatedAt: Long
     ): Int
 
+    @Query("UPDATE inventory_batches SET quantity = quantity + :quantityDelta WHERE id = :batchId AND storeId = :storeId AND productId = :productId AND quantity + :quantityDelta >= 0")
+    abstract suspend fun updateBatchQuantity(
+        storeId: String,
+        productId: String,
+        batchId: String,
+        quantityDelta: Double
+    ): Int
+
     @Transaction
     open suspend fun adjustStock(
         storeId: String,
@@ -54,6 +62,36 @@ abstract class InventoryDao {
                 reason = reason.name,
                 referenceType = referenceType,
                 referenceId = referenceId,
+                createdAt = now
+            )
+        )
+    }
+
+    @Transaction
+    open suspend fun adjustBatchStock(
+        storeId: String,
+        productId: String,
+        batchId: String,
+        quantityDelta: Double,
+        reason: InventoryMovementReason = InventoryMovementReason.ADJUSTMENT,
+        now: Long = System.currentTimeMillis()
+    ) {
+        require(quantityDelta != 0.0) { "Stock adjustment cannot be zero" }
+        require(reason != InventoryMovementReason.SALE) { "Sale stock changes must use checkout" }
+        val productUpdated = updateProductStock(storeId, productId, quantityDelta, now)
+        check(productUpdated == 1) { "Product stock cannot become negative" }
+        val batchUpdated = updateBatchQuantity(storeId, productId, batchId, quantityDelta)
+        check(batchUpdated == 1) { "Batch stock cannot become negative" }
+        insertMovement(
+            InventoryMovementEntity(
+                id = UUID.randomUUID().toString(),
+                storeId = storeId,
+                productId = productId,
+                batchId = batchId,
+                quantityDelta = quantityDelta,
+                reason = reason.name,
+                referenceType = "BATCH_ADJUSTMENT",
+                referenceId = batchId,
                 createdAt = now
             )
         )
