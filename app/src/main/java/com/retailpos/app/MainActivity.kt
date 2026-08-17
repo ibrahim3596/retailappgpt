@@ -43,6 +43,7 @@ import com.retailpos.app.data.SaleLineEntity
 import com.retailpos.app.ui.screens.BarcodeScannerScreen
 import com.retailpos.app.ui.screens.CheckoutScreen
 import com.retailpos.app.ui.screens.HomeScreen
+import com.retailpos.app.ui.screens.InventoryScreen
 import com.retailpos.app.ui.screens.PosScreen
 import com.retailpos.app.ui.screens.ProductListScreen
 import com.retailpos.app.ui.screens.ProductReviewScreen
@@ -253,7 +254,14 @@ private fun RetailPosApp() {
                 onBack = { navController.popBackStack() }
             )
         }
-        composable(Routes.INVENTORY) { FoundationPlaceholder("Inventory", "Stock, batches and movements") }
+        composable(Routes.INVENTORY) {
+            InventoryScreen(
+                storeId = LOCAL_STORE_ID,
+                repository = repository,
+                inventoryMovements = { database.inventoryDao().getMovements(LOCAL_STORE_ID) },
+                onBack = { navController.popBackStack() }
+            )
+        }
         composable(Routes.CUSTOMERS) { FoundationPlaceholder("Customers", "Khata and customer accounts") }
         composable(Routes.ANALYTICS) { FoundationPlaceholder("Analytics", "Today and business reporting") }
         composable(Routes.SETTINGS) { FoundationPlaceholder("Settings", "Store and device configuration") }
