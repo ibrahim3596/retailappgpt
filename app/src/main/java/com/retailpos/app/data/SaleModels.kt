@@ -6,7 +6,10 @@ import androidx.room.PrimaryKey
 
 @Entity(
     tableName = "sales",
-    indices = [Index(value = ["storeId", "createdAt"])]
+    indices = [
+        Index(value = ["storeId", "createdAt"]),
+        Index(value = ["storeId", "idempotencyKey"], unique = true)
+    ]
 )
 data class SaleEntity(
     @PrimaryKey val id: String,
@@ -14,6 +17,7 @@ data class SaleEntity(
     val subtotal: Double,
     val total: Double,
     val paymentMethod: String,
+    val idempotencyKey: String,
     val createdAt: Long
 )
 
