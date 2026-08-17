@@ -14,7 +14,7 @@ import androidx.room.RoomDatabase
         InventoryMovementEntity::class,
         InventoryBatchEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class RetailDatabase : RoomDatabase() {
@@ -38,7 +38,8 @@ abstract class RetailDatabase : RoomDatabase() {
                         DatabaseMigrations.MIGRATION_1_2,
                         DatabaseMigrations.MIGRATION_2_3,
                         DatabaseMigrations.MIGRATION_3_4,
-                        DatabaseMigrations.MIGRATION_4_5
+                        DatabaseMigrations.MIGRATION_4_5,
+                        DatabaseMigrations.MIGRATION_5_6
                     )
                     .build()
                     .also { INSTANCE = it }
