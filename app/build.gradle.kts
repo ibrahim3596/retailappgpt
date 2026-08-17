@@ -36,6 +36,8 @@ kotlin {
 dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2024.09.00")
     val roomVersion = "2.8.4"
+    val cameraVersion = "1.6.1"
+
     implementation(composeBom)
     androidTestImplementation(composeBom)
 
@@ -51,6 +53,12 @@ dependencies {
     implementation("androidx.room:room-runtime:$roomVersion")
     implementation("androidx.room:room-ktx:$roomVersion")
     ksp("androidx.room:room-compiler:$roomVersion")
+
+    implementation("androidx.camera:camera-camera2:$cameraVersion")
+    implementation("androidx.camera:camera-lifecycle:$cameraVersion")
+    implementation("androidx.camera:camera-view:$cameraVersion")
+    implementation("com.google.mlkit:barcode-scanning:17.3.0")
+
     debugImplementation("androidx.compose.ui:ui-tooling")
 
     testImplementation("junit:junit:4.13.2")
