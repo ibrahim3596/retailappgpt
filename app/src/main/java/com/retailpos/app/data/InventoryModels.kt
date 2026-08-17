@@ -8,13 +8,15 @@ import androidx.room.PrimaryKey
     tableName = "inventory_movements",
     indices = [
         Index(value = ["storeId", "productId", "createdAt"]),
-        Index(value = ["storeId", "referenceType", "referenceId"])
+        Index(value = ["storeId", "referenceType", "referenceId"]),
+        Index(value = ["batchId"])
     ]
 )
 data class InventoryMovementEntity(
     @PrimaryKey val id: String,
     val storeId: String,
     val productId: String,
+    val batchId: String? = null,
     val quantityDelta: Double,
     val reason: String,
     val referenceType: String?,
