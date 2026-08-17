@@ -17,7 +17,8 @@ class ProductViewModel(
     application: Application,
     private val storeId: String
 ) : AndroidViewModel(application) {
-    private val repository = ProductRepository(RetailDatabase.get(application).productDao())
+    private val database = RetailDatabase.get(application)
+    private val repository = ProductRepository(database.productDao(), database.productBarcodeDao())
     private val _query = MutableStateFlow("")
     private val _editingProduct = MutableStateFlow<ProductEntity?>(null)
     val query: StateFlow<String> = _query
@@ -59,6 +60,7 @@ class ProductViewModel(
         onResult: (SaveProductResult) -> Unit
     ) {
         val normalizedSku = sku.trim().ifBlank { null }
+        val normalizedBarcode = barcode.trim()
         if (name.isBlank() || mrp < 0 || sellingPrice < 0 || purchasePrice < 0 || stock < 0) {
             onResult(SaveProductResult.InvalidInput)
             return
@@ -74,13 +76,21 @@ class ProductViewModel(
                     }
                 }
 
+                if (normalizedBarcode.isNotBlank()) {
+                    val existing = repository.getByBarcode(storeId, normalizedBarcode)
+                    if (existing != null && existing.productId != productId) {
+                        onResult(SaveProductResult.DuplicateBarcode)
+                        return@launch
+                    }
+                }
+
                 val current = productId?.let { repository.getById(it, storeId) }
                 val product = ProductEntity(
                     id = productId ?: UUID.randomUUID().toString(),
                     storeId = storeId,
                     name = name.trim(),
                     brand = brand.trim(),
-                    barcode = barcode.trim().ifBlank { null },
+                    barcode = normalizedBarcode.ifBlank { null },
                     sku = normalizedSku,
                     mrp = mrp,
                     sellingPrice = sellingPrice,
@@ -91,6 +101,10 @@ class ProductViewModel(
                     updatedAt = System.currentTimeMillis()
                 )
                 repository.save(product)
+                if (!repository.savePrimaryBarcode(product.id, storeId, normalizedBarcode)) {
+                    onResult(SaveProductResult.DuplicateBarcode)
+                    return@launch
+                }
                 onResult(SaveProductResult.Success)
             } catch (_: Exception) {
                 onResult(SaveProductResult.Error)
@@ -102,6 +116,7 @@ class ProductViewModel(
 enum class SaveProductResult {
     Success,
     DuplicateSku,
+    DuplicateBarcode,
     InvalidInput,
     Error
 }
