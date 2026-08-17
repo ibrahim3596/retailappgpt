@@ -95,7 +95,7 @@ fun ProductReviewScreen(
 
             OutlinedTextField(name, { name = it; errorMessage = null }, Modifier.fillMaxWidth(), label = { Text("Product name") }, singleLine = true)
             OutlinedTextField(brand, { brand = it }, Modifier.fillMaxWidth(), label = { Text("Brand") }, singleLine = true)
-            OutlinedTextField(barcode, { barcode = it }, Modifier.fillMaxWidth(), label = { Text("Barcode / GTIN") }, singleLine = true)
+            OutlinedTextField(barcode, { barcode = it; errorMessage = null }, Modifier.fillMaxWidth(), label = { Text("Barcode / GTIN") }, singleLine = true)
             OutlinedTextField(sku, { sku = it; errorMessage = null }, Modifier.fillMaxWidth(), label = { Text("SKU / Item code") }, singleLine = true)
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
@@ -136,6 +136,7 @@ fun ProductReviewScreen(
                             when (result) {
                                 SaveProductResult.Success -> onBack()
                                 SaveProductResult.DuplicateSku -> errorMessage = "That SKU is already used by another product in this store."
+                                SaveProductResult.DuplicateBarcode -> errorMessage = "That barcode is already assigned to another product in this store."
                                 SaveProductResult.InvalidInput -> errorMessage = "Enter a product name and valid non-negative numeric values."
                                 SaveProductResult.Error -> errorMessage = "Unable to save the product. Please try again."
                             }
