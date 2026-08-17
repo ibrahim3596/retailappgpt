@@ -50,6 +50,7 @@ abstract class SaleDao {
         var remaining = requiredQuantity
         val batches = getAvailableBatchesFefo(storeId, productId)
         if (batches.isEmpty()) return false
+
         val movements = mutableListOf<InventoryMovementEntity>()
         for (batch in batches) {
             if (remaining <= 0.0) break
@@ -69,7 +70,8 @@ abstract class SaleDao {
             )
             remaining -= allocated
         }
-        if (remaining > 0.0) check(false) { "Insufficient batch stock" }
+
+        check(remaining <= 0.0) { "Insufficient batch stock" }
         insertInventoryMovements(movements)
         return true
     }
@@ -105,7 +107,10 @@ abstract class SaleDao {
         val fallbackMovements = mutableListOf<InventoryMovementEntity>()
         for (line in cart) {
             val allocatedToBatch = allocateFefo(storeId, line.productId, line.quantity, saleId, now)
-            if (!allocatedToBatch) {
+            if (allocatedToBatch) {
+                val updated = decrementStock(line.productId, storeId, line.quantity, now)
+                check(updated == 1) { "Insufficient product stock for ${line.name}" }
+            } else {
                 val updated = decrementStock(line.productId, storeId, line.quantity, now)
                 check(updated == 1) { "Insufficient stock for ${line.name}" }
                 fallbackMovements += InventoryMovementEntity(
