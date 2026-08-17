@@ -34,6 +34,46 @@ abstract class SaleDao {
         updatedAt: Long
     ): Int
 
+    @Query("SELECT * FROM inventory_batches WHERE storeId = :storeId AND productId = :productId AND quantity > 0 ORDER BY CASE WHEN expiryDate IS NULL THEN 1 ELSE 0 END, expiryDate ASC, createdAt ASC")
+    abstract suspend fun getAvailableBatchesFefo(storeId: String, productId: String): List<InventoryBatchEntity>
+
+    @Query("UPDATE inventory_batches SET quantity = quantity - :quantity WHERE id = :batchId AND storeId = :storeId AND quantity >= :quantity")
+    abstract suspend fun decrementBatch(batchId: String, storeId: String, quantity: Double): Int
+
+    private suspend fun allocateFefo(
+        storeId: String,
+        productId: String,
+        requiredQuantity: Double,
+        saleId: String,
+        now: Long
+    ): Boolean {
+        var remaining = requiredQuantity
+        val batches = getAvailableBatchesFefo(storeId, productId)
+        if (batches.isEmpty()) return false
+        val movements = mutableListOf<InventoryMovementEntity>()
+        for (batch in batches) {
+            if (remaining <= 0.0) break
+            val allocated = minOf(remaining, batch.quantity)
+            val updated = decrementBatch(batch.id, storeId, allocated)
+            check(updated == 1) { "Batch stock changed during checkout" }
+            movements += InventoryMovementEntity(
+                id = UUID.randomUUID().toString(),
+                storeId = storeId,
+                productId = productId,
+                batchId = batch.id,
+                quantityDelta = -allocated,
+                reason = InventoryMovementReason.SALE.name,
+                referenceType = "SALE",
+                referenceId = saleId,
+                createdAt = now
+            )
+            remaining -= allocated
+        }
+        if (remaining > 0.0) check(false) { "Insufficient batch stock" }
+        insertInventoryMovements(movements)
+        return true
+    }
+
     @Transaction
     open suspend fun checkout(
         storeId: String,
@@ -62,10 +102,27 @@ abstract class SaleDao {
             createdAt = now
         )
 
-        cart.forEach { line ->
-            val updated = decrementStock(line.productId, storeId, line.quantity, now)
-            check(updated == 1) { "Insufficient stock for ${line.name}" }
+        val fallbackMovements = mutableListOf<InventoryMovementEntity>()
+        for (line in cart) {
+            val allocatedToBatch = allocateFefo(storeId, line.productId, line.quantity, saleId, now)
+            if (!allocatedToBatch) {
+                val updated = decrementStock(line.productId, storeId, line.quantity, now)
+                check(updated == 1) { "Insufficient stock for ${line.name}" }
+                fallbackMovements += InventoryMovementEntity(
+                    id = UUID.randomUUID().toString(),
+                    storeId = storeId,
+                    productId = line.productId,
+                    batchId = null,
+                    quantityDelta = -line.quantity,
+                    reason = InventoryMovementReason.SALE.name,
+                    referenceType = "SALE",
+                    referenceId = saleId,
+                    createdAt = now
+                )
+            }
         }
+
+        if (fallbackMovements.isNotEmpty()) insertInventoryMovements(fallbackMovements)
 
         insertSale(sale)
         insertLines(cart.map { line ->
@@ -81,20 +138,6 @@ abstract class SaleDao {
                 lineTotal = line.lineTotal
             )
         })
-        insertInventoryMovements(
-            cart.map { line ->
-                InventoryMovementEntity(
-                    id = UUID.randomUUID().toString(),
-                    storeId = storeId,
-                    productId = line.productId,
-                    quantityDelta = -line.quantity,
-                    reason = InventoryMovementReason.SALE.name,
-                    referenceType = "SALE",
-                    referenceId = saleId,
-                    createdAt = now
-                )
-            }
-        )
 
         return CheckoutResult(saleId, subtotal)
     }
