@@ -17,6 +17,12 @@ abstract class SaleDao {
     @Query("SELECT * FROM sales WHERE storeId = :storeId AND idempotencyKey = :idempotencyKey LIMIT 1")
     abstract suspend fun findByIdempotencyKey(storeId: String, idempotencyKey: String): SaleEntity?
 
+    @Query("SELECT * FROM sales WHERE id = :saleId AND storeId = :storeId LIMIT 1")
+    abstract suspend fun getSale(storeId: String, saleId: String): SaleEntity?
+
+    @Query("SELECT * FROM sale_lines WHERE saleId = :saleId ORDER BY id")
+    abstract suspend fun getSaleLines(saleId: String): List<SaleLineEntity>
+
     @Query("UPDATE products SET stock = stock - :quantity, updatedAt = :updatedAt WHERE id = :productId AND storeId = :storeId AND stock >= :quantity")
     abstract suspend fun decrementStock(
         productId: String,
