@@ -33,10 +33,9 @@ abstract class SaleDao {
         idempotencyKey: String,
         now: Long = System.currentTimeMillis()
     ): CheckoutResult {
-        require(cart.isNotEmpty()) { "Cannot checkout an empty cart" }
-        require(paymentMethod in setOf("CASH", "UPI", "CARD")) { "Unsupported payment method" }
-        require(idempotencyKey.isNotBlank()) { "Missing checkout idempotency key" }
-        require(cart.all { it.quantity > 0.0 && it.unitPrice >= 0.0 }) { "Invalid cart line" }
+        require(CheckoutRules.validateCart(cart)) { "Invalid cart" }
+        require(CheckoutRules.validatePaymentMethod(paymentMethod)) { "Unsupported payment method" }
+        require(CheckoutRules.validateIdempotencyKey(idempotencyKey)) { "Missing checkout idempotency key" }
 
         findByIdempotencyKey(storeId, idempotencyKey)?.let {
             return CheckoutResult(it.id, it.total)
