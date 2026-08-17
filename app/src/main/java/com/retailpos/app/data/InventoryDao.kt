@@ -58,4 +58,48 @@ abstract class InventoryDao {
             )
         )
     }
+
+    @Transaction
+    open suspend fun receiveStock(
+        storeId: String,
+        productId: String,
+        quantity: Double,
+        batchNumber: String?,
+        expiryDate: Long?,
+        purchasePrice: Double,
+        now: Long = System.currentTimeMillis()
+    ) {
+        require(quantity > 0) { "Received quantity must be greater than zero" }
+        require(purchasePrice >= 0) { "Purchase price cannot be negative" }
+        require(expiryDate == null || expiryDate >= now) { "Expiry date cannot be in the past" }
+
+        val updated = updateProductStock(storeId, productId, quantity, now)
+        check(updated == 1) { "Product could not be updated" }
+
+        insertBatch(
+            InventoryBatchEntity(
+                id = UUID.randomUUID().toString(),
+                storeId = storeId,
+                productId = productId,
+                batchNumber = batchNumber?.trim()?.ifBlank { null },
+                expiryDate = expiryDate,
+                quantity = quantity,
+                purchasePrice = purchasePrice,
+                createdAt = now
+            )
+        )
+
+        insertMovement(
+            InventoryMovementEntity(
+                id = UUID.randomUUID().toString(),
+                storeId = storeId,
+                productId = productId,
+                quantityDelta = quantity,
+                reason = InventoryMovementReason.RECEIVE.name,
+                referenceType = "RECEIVING",
+                referenceId = null,
+                createdAt = now
+            )
+        )
+    }
 }
