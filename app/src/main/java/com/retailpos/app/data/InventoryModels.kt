@@ -26,6 +26,7 @@ enum class InventoryMovementReason {
     SALE,
     ADJUSTMENT,
     INITIAL_STOCK,
+    RECEIVE,
     RETURN,
     DAMAGE
 }
