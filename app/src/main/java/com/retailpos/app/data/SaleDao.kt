@@ -14,6 +14,9 @@ abstract class SaleDao {
     @Insert
     abstract suspend fun insertLines(lines: List<SaleLineEntity>)
 
+    @Insert
+    abstract suspend fun insertInventoryMovements(movements: List<InventoryMovementEntity>)
+
     @Query("SELECT * FROM sales WHERE storeId = :storeId AND idempotencyKey = :idempotencyKey LIMIT 1")
     abstract suspend fun findByIdempotencyKey(storeId: String, idempotencyKey: String): SaleEntity?
 
@@ -78,6 +81,20 @@ abstract class SaleDao {
                 lineTotal = line.lineTotal
             )
         })
+        insertInventoryMovements(
+            cart.map { line ->
+                InventoryMovementEntity(
+                    id = UUID.randomUUID().toString(),
+                    storeId = storeId,
+                    productId = line.productId,
+                    quantityDelta = -line.quantity,
+                    reason = InventoryMovementReason.SALE.name,
+                    referenceType = "SALE",
+                    referenceId = saleId,
+                    createdAt = now
+                )
+            }
+        )
 
         return CheckoutResult(saleId, subtotal)
     }
