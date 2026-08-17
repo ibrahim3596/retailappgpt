@@ -36,6 +36,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.retailpos.app.data.AddToCartResult
 import com.retailpos.app.data.CartManager
+import com.retailpos.app.data.InventoryMovementReason
 import com.retailpos.app.data.ProductRepository
 import com.retailpos.app.data.RetailDatabase
 import com.retailpos.app.data.SaleEntity
@@ -43,6 +44,7 @@ import com.retailpos.app.data.SaleLineEntity
 import com.retailpos.app.ui.screens.BarcodeScannerScreen
 import com.retailpos.app.ui.screens.CheckoutScreen
 import com.retailpos.app.ui.screens.HomeScreen
+import com.retailpos.app.ui.screens.InventoryAdjustmentScreen
 import com.retailpos.app.ui.screens.InventoryScreen
 import com.retailpos.app.ui.screens.PosScreen
 import com.retailpos.app.ui.screens.ProductListScreen
@@ -62,6 +64,7 @@ private object Routes {
     const val EDIT_PRODUCT = "products/edit/{productId}"
     const val BILLING_SCANNER = "scanner/billing"
     const val INVENTORY = "inventory"
+    const val INVENTORY_ADJUST = "inventory/adjust/{productId}"
     const val CUSTOMERS = "customers"
     const val ANALYTICS = "analytics"
     const val SETTINGS = "settings"
@@ -95,6 +98,7 @@ private fun RetailPosApp() {
     var checkoutIdempotencyKey by remember { mutableStateOf<String?>(null) }
     var receiptSale by remember { mutableStateOf<SaleEntity?>(null) }
     var receiptLines by remember { mutableStateOf<List<SaleLineEntity>>(emptyList()) }
+    var inventoryAdjustmentError by remember { mutableStateOf<String?>(null) }
     val searchResults by repository.searchProducts(LOCAL_STORE_ID, posQuery).collectAsState(initial = emptyList())
 
     fun addProductToCart(product: com.retailpos.app.data.ProductEntity) {
@@ -161,6 +165,25 @@ private fun RetailPosApp() {
                 "Share receipt"
             )
         )
+    }
+
+    fun adjustInventory(productId: String, quantityDelta: Double, reason: String) {
+        scope.launch {
+            try {
+                val movementReason = InventoryMovementReason.entries.firstOrNull { it.name == reason }
+                    ?: InventoryMovementReason.ADJUSTMENT
+                database.inventoryDao().adjustStock(
+                    storeId = LOCAL_STORE_ID,
+                    productId = productId,
+                    quantityDelta = quantityDelta,
+                    reason = movementReason
+                )
+                inventoryAdjustmentError = null
+                navController.popBackStack()
+            } catch (error: Exception) {
+                inventoryAdjustmentError = error.message ?: "Stock adjustment failed."
+            }
+        }
     }
 
     NavHost(navController = navController, startDestination = Routes.HOME) {
@@ -259,8 +282,30 @@ private fun RetailPosApp() {
                 storeId = LOCAL_STORE_ID,
                 repository = repository,
                 inventoryMovements = { database.inventoryDao().getMovements(LOCAL_STORE_ID) },
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                onAdjustProduct = { productId -> navController.navigate("inventory/adjust/$productId") }
             )
+        }
+        composable(Routes.INVENTORY_ADJUST, arguments = listOf(navArgument("productId") { type = NavType.StringType })) { entry ->
+            val productId = entry.arguments?.getString("productId")
+            val product by if (productId == null) {
+                remember { mutableStateOf(null) }
+            } else {
+                androidx.compose.runtime.produceState<com.retailpos.app.data.ProductEntity?>(initialValue = null, productId) {
+                    value = database.productDao().getById(productId, LOCAL_STORE_ID)
+                }
+            }
+            val currentProduct = product
+            if (currentProduct == null) {
+                FoundationPlaceholder("Product", "Product could not be loaded")
+            } else {
+                InventoryAdjustmentScreen(
+                    product = currentProduct,
+                    onBack = { navController.popBackStack() },
+                    onAdjust = ::adjustInventory,
+                    error = inventoryAdjustmentError
+                )
+            }
         }
         composable(Routes.CUSTOMERS) { FoundationPlaceholder("Customers", "Khata and customer accounts") }
         composable(Routes.ANALYTICS) { FoundationPlaceholder("Analytics", "Today and business reporting") }
