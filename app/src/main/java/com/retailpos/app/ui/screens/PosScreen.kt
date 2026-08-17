@@ -32,6 +32,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -47,7 +48,7 @@ fun PosScreen(
     onBack: () -> Unit,
     onOpenScanner: () -> Unit
 ) {
-    var query by mutableStateOf("")
+    var query by remember { mutableStateOf("") }
     val total = cart.sumOf { it.lineTotal }
     val itemCount = cart.sumOf { it.quantity }
 
@@ -56,9 +57,7 @@ fun PosScreen(
             TopAppBar(
                 title = { Text("BILLING", fontWeight = FontWeight.Black) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Text("‹", style = MaterialTheme.typography.headlineMedium)
-                    }
+                    IconButton(onClick = onBack) { Text("‹", style = MaterialTheme.typography.headlineMedium) }
                 },
                 actions = {
                     IconButton(onClick = onOpenScanner) {
@@ -70,25 +69,15 @@ fun PosScreen(
         bottomBar = {
             Surface(tonalElevation = 4.dp, shadowElevation = 8.dp) {
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    OutlinedButton(
-                        onClick = {},
-                        modifier = Modifier.weight(1f).height(56.dp)
-                    ) { Text("HOLD BILL") }
+                    OutlinedButton(onClick = {}, modifier = Modifier.weight(1f).height(56.dp)) { Text("HOLD BILL") }
                     Button(
                         onClick = {},
                         modifier = Modifier.weight(1.35f).height(56.dp),
                         enabled = cart.isNotEmpty()
-                    ) {
-                        Text(
-                            "CHECKOUT ${money(total)}",
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+                    ) { Text("CHECKOUT ${money(total)}", fontWeight = FontWeight.Bold) }
                 }
             }
         }
@@ -99,10 +88,7 @@ fun PosScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
                         value = query,
                         onValueChange = { query = it },
@@ -154,12 +140,11 @@ fun PosScreen(
                         }
                     }
                 }
-                item { Text("$itemCount items", style = MaterialTheme.typography.labelLarge) }
+                item { Text("${itemCount.clean()} items", style = MaterialTheme.typography.labelLarge) }
             }
         }
     }
 }
 
 private fun money(value: Double): String = String.format(Locale.US, "₹%.2f", value)
-
 private fun Double.clean(): String = if (this % 1.0 == 0.0) toInt().toString() else String.format(Locale.US, "%.2f", this)
