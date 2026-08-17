@@ -34,8 +34,11 @@ abstract class SaleDao {
         updatedAt: Long
     ): Int
 
-    @Query("SELECT * FROM inventory_batches WHERE storeId = :storeId AND productId = :productId AND quantity > 0 ORDER BY CASE WHEN expiryDate IS NULL THEN 1 ELSE 0 END, expiryDate ASC, createdAt ASC")
-    abstract suspend fun getAvailableBatchesFefo(storeId: String, productId: String): List<InventoryBatchEntity>
+    @Query("SELECT * FROM inventory_batches WHERE storeId = :storeId AND productId = :productId AND quantity > 0 AND (expiryDate IS NULL OR expiryDate > :now) ORDER BY CASE WHEN expiryDate IS NULL THEN 1 ELSE 0 END, expiryDate ASC, createdAt ASC")
+    abstract suspend fun getAvailableBatchesFefo(storeId: String, productId: String, now: Long): List<InventoryBatchEntity>
+
+    @Query("SELECT EXISTS(SELECT 1 FROM inventory_batches WHERE storeId = :storeId AND productId = :productId AND quantity > 0)")
+    abstract suspend fun hasPositiveBatchStock(storeId: String, productId: String): Boolean
 
     @Query("UPDATE inventory_batches SET quantity = quantity - :quantity WHERE id = :batchId AND storeId = :storeId AND quantity >= :quantity")
     abstract suspend fun decrementBatch(batchId: String, storeId: String, quantity: Double): Int
@@ -48,8 +51,11 @@ abstract class SaleDao {
         now: Long
     ): Boolean {
         var remaining = requiredQuantity
-        val batches = getAvailableBatchesFefo(storeId, productId)
-        if (batches.isEmpty()) return false
+        val batches = getAvailableBatchesFefo(storeId, productId, now)
+        if (batches.isEmpty()) {
+            check(!hasPositiveBatchStock(storeId, productId)) { "Only expired batch stock is available" }
+            return false
+        }
 
         val movements = mutableListOf<InventoryMovementEntity>()
         for (batch in batches) {
@@ -71,7 +77,7 @@ abstract class SaleDao {
             remaining -= allocated
         }
 
-        check(remaining <= 0.0) { "Insufficient batch stock" }
+        check(remaining <= 0.0) { "Insufficient unexpired batch stock" }
         insertInventoryMovements(movements)
         return true
     }
