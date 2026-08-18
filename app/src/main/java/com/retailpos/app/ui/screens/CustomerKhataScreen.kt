@@ -67,6 +67,7 @@ fun CustomerKhataScreen(storeId: String, customer: CustomerEntity, dao: KhataDao
 
     if (showPayment) {
         PaymentDialog(
+            outstanding = balance,
             onDismiss = { showPayment = false },
             onSave = { amount, note ->
                 scope.launch {
@@ -79,17 +80,25 @@ fun CustomerKhataScreen(storeId: String, customer: CustomerEntity, dao: KhataDao
 }
 
 @Composable
-private fun PaymentDialog(onDismiss: () -> Unit, onSave: (Double, String) -> Unit) {
+private fun PaymentDialog(outstanding: Double, onDismiss: () -> Unit, onSave: (Double, String) -> Unit) {
     var amount by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
     AlertDialog(onDismissRequest = onDismiss, title = { Text("Record payment") }, text = {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Outstanding: ${money(outstanding)}", color = MaterialTheme.colorScheme.onSurfaceVariant)
             OutlinedTextField(value = amount, onValueChange = { amount = it }, singleLine = true, label = { Text("Amount") })
             OutlinedTextField(value = note, onValueChange = { note = it }, singleLine = true, label = { Text("Note (optional)") })
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         }
-    }, confirmButton = { Button(onClick = { val value = amount.toDoubleOrNull(); if (value == null || value <= 0.0) error = "Enter a valid positive amount." else onSave(value, note.trim()) }) { Text("SAVE PAYMENT") } }, dismissButton = { TextButton(onClick = onDismiss) { Text("CANCEL") } })
+    }, confirmButton = { Button(onClick = {
+        val value = amount.toDoubleOrNull()
+        when {
+            value == null || value <= 0.0 -> error = "Enter a valid positive amount."
+            value > outstanding + 0.000001 -> error = "Payment cannot exceed the outstanding amount."
+            else -> onSave(value, note.trim())
+        }
+    }) { Text("SAVE PAYMENT") } }, dismissButton = { TextButton(onClick = onDismiss) { Text("CANCEL") } })
 }
 
 private fun money(value: Double): String = String.format(Locale.US, "₹%.2f", value)
