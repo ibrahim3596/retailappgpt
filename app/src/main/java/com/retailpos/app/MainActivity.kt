@@ -43,6 +43,7 @@ import com.retailpos.app.data.SaleEntity
 import com.retailpos.app.data.SaleLineEntity
 import com.retailpos.app.ui.screens.BarcodeScannerScreen
 import com.retailpos.app.ui.screens.CheckoutScreen
+import com.retailpos.app.ui.screens.CustomersScreen
 import com.retailpos.app.ui.screens.HomeScreen
 import com.retailpos.app.ui.screens.InventoryAdjustmentScreen
 import com.retailpos.app.ui.screens.InventoryDetailScreen
@@ -212,10 +213,7 @@ private fun RetailPosApp() {
 
     NavHost(navController = navController, startDestination = Routes.HOME) {
         composable(Routes.HOME) {
-            HomeScreen(
-                onNewBill = { navController.navigate(Routes.POS) },
-                onNavigate = navController::navigate
-            )
+            HomeScreen(onNewBill = { navController.navigate(Routes.POS) }, onNavigate = navController::navigate)
         }
         composable(Routes.POS) {
             PosScreen(
@@ -223,10 +221,7 @@ private fun RetailPosApp() {
                 searchResults = searchResults,
                 onSearchQueryChanged = { posQuery = it },
                 onAddProduct = ::addProductToCart,
-                onRemoveFromCart = { productId ->
-                    cartManager.remove(productId)
-                    cart = cartManager.lines
-                },
+                onRemoveFromCart = { productId -> cartManager.remove(productId).also { cart = cartManager.lines } },
                 onBack = { navController.popBackStack() },
                 onOpenScanner = { navController.navigate(Routes.BILLING_SCANNER) },
                 onCheckout = {
@@ -238,13 +233,7 @@ private fun RetailPosApp() {
             )
         }
         composable(Routes.CHECKOUT) {
-            CheckoutScreen(
-                cart = cart,
-                onBack = { navController.popBackStack() },
-                onComplete = ::completeSale,
-                isProcessing = checkoutProcessing,
-                error = checkoutError
-            )
+            CheckoutScreen(cart = cart, onBack = { navController.popBackStack() }, onComplete = ::completeSale, isProcessing = checkoutProcessing, error = checkoutError)
         }
         composable(Routes.RECEIPT) {
             receiptSale?.let { sale ->
@@ -254,9 +243,7 @@ private fun RetailPosApp() {
                     onBack = {
                         receiptSale = null
                         receiptLines = emptyList()
-                        navController.navigate(Routes.HOME) {
-                            popUpTo(Routes.RECEIPT) { inclusive = true }
-                        }
+                        navController.navigate(Routes.HOME) { popUpTo(Routes.RECEIPT) { inclusive = true } }
                     },
                     onShare = ::shareReceipt
                 )
@@ -275,31 +262,18 @@ private fun RetailPosApp() {
                         } else {
                             val before = cartManager.lines.size
                             addProductToCart(product)
-                            if (cartManager.lines.size != before || cartManager.lines.any { it.productId == product.id }) {
-                                if (cartError == null) navController.popBackStack()
-                            }
+                            if ((cartManager.lines.size != before || cartManager.lines.any { it.productId == product.id }) && cartError == null) navController.popBackStack()
                         }
                     }
                 }
             )
         }
         composable(Routes.PRODUCTS) {
-            ProductListScreen(
-                storeId = LOCAL_STORE_ID,
-                onBack = { navController.popBackStack() },
-                onAddProduct = { navController.navigate(Routes.ADD_PRODUCT) },
-                onEditProduct = { productId -> navController.navigate("products/edit/$productId") }
-            )
+            ProductListScreen(storeId = LOCAL_STORE_ID, onBack = { navController.popBackStack() }, onAddProduct = { navController.navigate(Routes.ADD_PRODUCT) }, onEditProduct = { productId -> navController.navigate("products/edit/$productId") })
         }
-        composable(Routes.ADD_PRODUCT) {
-            ProductReviewScreen(storeId = LOCAL_STORE_ID, productId = null, onBack = { navController.popBackStack() })
-        }
+        composable(Routes.ADD_PRODUCT) { ProductReviewScreen(storeId = LOCAL_STORE_ID, productId = null, onBack = { navController.popBackStack() }) }
         composable(Routes.EDIT_PRODUCT, arguments = listOf(navArgument("productId") { type = NavType.StringType })) { entry ->
-            ProductReviewScreen(
-                storeId = LOCAL_STORE_ID,
-                productId = entry.arguments?.getString("productId"),
-                onBack = { navController.popBackStack() }
-            )
+            ProductReviewScreen(storeId = LOCAL_STORE_ID, productId = entry.arguments?.getString("productId"), onBack = { navController.popBackStack() })
         }
         composable(Routes.INVENTORY) {
             InventoryScreen(
@@ -314,111 +288,35 @@ private fun RetailPosApp() {
         }
         composable(Routes.INVENTORY_DETAIL, arguments = listOf(navArgument("productId") { type = NavType.StringType })) { entry ->
             val productId = entry.arguments?.getString("productId")
-            val product by if (productId == null) {
-                remember { mutableStateOf(null) }
-            } else {
-                androidx.compose.runtime.produceState<com.retailpos.app.data.ProductEntity?>(initialValue = null, productId) {
-                    value = database.productDao().getById(productId, LOCAL_STORE_ID)
-                }
-            }
+            val product by if (productId == null) remember { mutableStateOf(null) } else androidx.compose.runtime.produceState<com.retailpos.app.data.ProductEntity?>(initialValue = null, productId) { value = database.productDao().getById(productId, LOCAL_STORE_ID) }
             val currentProduct = product
-            if (currentProduct == null) {
-                FoundationPlaceholder("Product", "Product could not be loaded")
-            } else {
-                InventoryDetailScreen(
-                    product = currentProduct,
-                    batchesLoader = { database.inventoryDao().getAvailableBatchesFefo(LOCAL_STORE_ID, currentProduct.id) },
-                    movementsLoader = { database.inventoryDao().getProductMovements(LOCAL_STORE_ID, currentProduct.id) },
-                    onBack = { navController.popBackStack() },
-                    onAdjust = { navController.navigate("inventory/adjust/${currentProduct.id}") },
-                    onReceive = { navController.navigate("inventory/receive/${currentProduct.id}") }
-                )
-            }
+            if (currentProduct == null) FoundationPlaceholder("Product", "Product could not be loaded") else InventoryDetailScreen(product = currentProduct, batchesLoader = { database.inventoryDao().getAvailableBatchesFefo(LOCAL_STORE_ID, currentProduct.id) }, movementsLoader = { database.inventoryDao().getProductMovements(LOCAL_STORE_ID, currentProduct.id) }, onBack = { navController.popBackStack() }, onAdjust = { navController.navigate("inventory/adjust/${currentProduct.id}") }, onReceive = { navController.navigate("inventory/receive/${currentProduct.id}") })
         }
         composable(Routes.INVENTORY_ADJUST, arguments = listOf(navArgument("productId") { type = NavType.StringType })) { entry ->
             val productId = entry.arguments?.getString("productId")
-            val product by if (productId == null) {
-                remember { mutableStateOf(null) }
-            } else {
-                androidx.compose.runtime.produceState<com.retailpos.app.data.ProductEntity?>(initialValue = null, productId) {
-                    value = database.productDao().getById(productId, LOCAL_STORE_ID)
-                }
-            }
+            val product by if (productId == null) remember { mutableStateOf(null) } else androidx.compose.runtime.produceState<com.retailpos.app.data.ProductEntity?>(initialValue = null, productId) { value = database.productDao().getById(productId, LOCAL_STORE_ID) }
             val currentProduct = product
-            if (currentProduct == null) {
-                FoundationPlaceholder("Product", "Product could not be loaded")
-            } else {
-                InventoryAdjustmentScreen(
-                    product = currentProduct,
-                    onBack = { navController.popBackStack() },
-                    onAdjust = { quantityDelta, reason -> adjustInventory(currentProduct.id, quantityDelta, reason) },
-                    error = inventoryAdjustmentError
-                )
-            }
+            if (currentProduct == null) FoundationPlaceholder("Product", "Product could not be loaded") else InventoryAdjustmentScreen(product = currentProduct, onBack = { navController.popBackStack() }, onAdjust = { quantityDelta, reason -> adjustInventory(currentProduct.id, quantityDelta, reason) }, error = inventoryAdjustmentError)
         }
         composable(Routes.INVENTORY_RECEIVE, arguments = listOf(navArgument("productId") { type = NavType.StringType })) { entry ->
             val productId = entry.arguments?.getString("productId")
-            val product by if (productId == null) {
-                remember { mutableStateOf(null) }
-            } else {
-                androidx.compose.runtime.produceState<com.retailpos.app.data.ProductEntity?>(initialValue = null, productId) {
-                    value = database.productDao().getById(productId, LOCAL_STORE_ID)
-                }
-            }
+            val product by if (productId == null) remember { mutableStateOf(null) } else androidx.compose.runtime.produceState<com.retailpos.app.data.ProductEntity?>(initialValue = null, productId) { value = database.productDao().getById(productId, LOCAL_STORE_ID) }
             val currentProduct = product
-            if (currentProduct == null) {
-                FoundationPlaceholder("Product", "Product could not be loaded")
-            } else {
-                InventoryReceiveScreen(
-                    product = currentProduct,
-                    onBack = { navController.popBackStack() },
-                    onReceive = { quantity, batchNumber, expiryDate, purchasePrice -> receiveInventory(currentProduct.id, quantity, batchNumber, expiryDate, purchasePrice) },
-                    error = inventoryReceiveError
-                )
-            }
+            if (currentProduct == null) FoundationPlaceholder("Product", "Product could not be loaded") else InventoryReceiveScreen(product = currentProduct, onBack = { navController.popBackStack() }, onReceive = { quantity, batchNumber, expiryDate, purchasePrice -> receiveInventory(currentProduct.id, quantity, batchNumber, expiryDate, purchasePrice) }, error = inventoryReceiveError)
         }
-        composable(Routes.CUSTOMERS) { FoundationPlaceholder("Customers", "Khata and customer accounts") }
+        composable(Routes.CUSTOMERS) { CustomersScreen(storeId = LOCAL_STORE_ID, dao = database.customerDao(), onBack = { navController.popBackStack() }) }
         composable(Routes.ANALYTICS) { FoundationPlaceholder("Analytics", "Today and business reporting") }
         composable(Routes.SETTINGS) { FoundationPlaceholder("Settings", "Store and device configuration") }
     }
 
     unknownBarcode?.let { value ->
-        AlertDialog(
-            onDismissRequest = { unknownBarcode = null },
-            title = { Text("Product not found") },
-            text = { Text("No product is linked to barcode $value.") },
-            confirmButton = {
-                Button(onClick = {
-                    unknownBarcode = null
-                    navController.navigate(Routes.ADD_PRODUCT)
-                }) { Text("ADD PRODUCT") }
-            },
-            dismissButton = { TextButton(onClick = { unknownBarcode = null }) { Text("CANCEL") } }
-        )
+        AlertDialog(onDismissRequest = { unknownBarcode = null }, title = { Text("Product not found") }, text = { Text("No product is linked to barcode $value.") }, confirmButton = { Button(onClick = { unknownBarcode = null; navController.navigate(Routes.ADD_PRODUCT) }) { Text("ADD PRODUCT") } }, dismissButton = { TextButton(onClick = { unknownBarcode = null }) { Text("CANCEL") } })
     }
-
     cartError?.let { message ->
-        AlertDialog(
-            onDismissRequest = { cartError = null },
-            title = { Text("Cannot add product") },
-            text = { Text(message) },
-            confirmButton = { TextButton(onClick = { cartError = null }) { Text("OK") } }
-        )
+        AlertDialog(onDismissRequest = { cartError = null }, title = { Text("Cannot add product") }, text = { Text(message) }, confirmButton = { TextButton(onClick = { cartError = null }) { Text("OK") } })
     }
-
     completedSale?.let { saleId ->
-        AlertDialog(
-            onDismissRequest = { completedSale = null },
-            title = { Text("Sale completed") },
-            text = { Text("Sale saved successfully.\nReceipt ID: $saleId") },
-            confirmButton = {
-                Button(onClick = {
-                    completedSale = null
-                    openReceipt(saleId)
-                }) { Text("VIEW RECEIPT") }
-            },
-            dismissButton = { TextButton(onClick = { completedSale = null }) { Text("DONE") } }
-        )
+        AlertDialog(onDismissRequest = { completedSale = null }, title = { Text("Sale completed") }, text = { Text("Sale saved successfully.\nReceipt ID: $saleId") }, confirmButton = { Button(onClick = { completedSale = null; openReceipt(saleId) }) { Text("VIEW RECEIPT") } }, dismissButton = { TextButton(onClick = { completedSale = null }) { Text("DONE") } })
     }
 }
 
@@ -426,11 +324,7 @@ private fun RetailPosApp() {
 @Composable
 private fun FoundationPlaceholder(title: String, subtitle: String) {
     Scaffold(topBar = { TopAppBar(title = { Text(title, fontWeight = FontWeight.Bold) }) }) { padding ->
-        Column(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
+        Column(modifier = Modifier.fillMaxSize().padding(padding).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
             Text(title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black)
             Spacer(Modifier.padding(4.dp))
             Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant)
