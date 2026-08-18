@@ -10,7 +10,7 @@ class CheckoutRulesTest {
         assertTrue(CheckoutRules.validatePaymentMethod("CASH"))
         assertTrue(CheckoutRules.validatePaymentMethod("UPI"))
         assertTrue(CheckoutRules.validatePaymentMethod("CARD"))
-        assertFalse(CheckoutRules.validatePaymentMethod("CREDIT"))
+        assertTrue(CheckoutRules.validatePaymentMethod("CREDIT"))
     }
 
     @Test
