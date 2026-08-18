@@ -8,12 +8,14 @@ import androidx.room.PrimaryKey
     tableName = "sales",
     indices = [
         Index(value = ["storeId", "createdAt"]),
-        Index(value = ["storeId", "idempotencyKey"], unique = true)
+        Index(value = ["storeId", "idempotencyKey"], unique = true),
+        Index(value = ["storeId", "customerId", "createdAt"])
     ]
 )
 data class SaleEntity(
     @PrimaryKey val id: String,
     val storeId: String,
+    val customerId: String?,
     val subtotal: Double,
     val total: Double,
     val paymentMethod: String,
