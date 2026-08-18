@@ -34,12 +34,14 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.retailpos.app.data.CustomerDao
 import com.retailpos.app.data.CustomerEntity
+import kotlinx.coroutines.launch
 import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -49,8 +51,10 @@ fun CustomersScreen(
     dao: CustomerDao,
     onBack: () -> Unit
 ) {
+    val scope = rememberCoroutineScope()
     var query by remember { mutableStateOf("") }
     var showAdd by remember { mutableStateOf(false) }
+    var deleteCustomer by remember { mutableStateOf<CustomerEntity?>(null) }
     val customers by dao.search(storeId, query.trim()).collectAsState(initial = emptyList())
 
     Scaffold(
@@ -97,7 +101,7 @@ fun CustomersScreen(
                                 if (customer.phone.isNotBlank()) Text(customer.phone)
                                 if (customer.address.isNotBlank()) Text(customer.address, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
-                            IconButton(onClick = { /* deletion confirmation handled below */ }) {
+                            IconButton(onClick = { deleteCustomer = customer }) {
                                 Icon(Icons.Default.DeleteOutline, contentDescription = "Delete ${customer.name}")
                             }
                         }
@@ -109,20 +113,30 @@ fun CustomersScreen(
     }
 
     if (showAdd) {
-        AddCustomerDialog(
-            storeId = storeId,
-            dao = dao,
-            onDismiss = { showAdd = false }
+        AddCustomerDialog(storeId = storeId, dao = dao, onDismiss = { showAdd = false })
+    }
+
+    deleteCustomer?.let { customer ->
+        AlertDialog(
+            onDismissRequest = { deleteCustomer = null },
+            title = { Text("Delete customer?") },
+            text = { Text("Remove ${customer.name} from this store's customer list?") },
+            confirmButton = {
+                Button(onClick = {
+                    scope.launch {
+                        dao.delete(customer.id, storeId)
+                        deleteCustomer = null
+                    }
+                }) { Text("DELETE") }
+            },
+            dismissButton = { TextButton(onClick = { deleteCustomer = null }) { Text("CANCEL") } }
         )
     }
 }
 
 @Composable
-private fun AddCustomerDialog(
-    storeId: String,
-    dao: CustomerDao,
-    onDismiss: () -> Unit
-) {
+private fun AddCustomerDialog(storeId: String, dao: CustomerDao, onDismiss: () -> Unit) {
+    val scope = rememberCoroutineScope()
     var name by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
     var address by remember { mutableStateOf("") }
@@ -146,7 +160,7 @@ private fun AddCustomerDialog(
                 if (cleanName.isBlank()) {
                     error = "Customer name is required."
                 } else {
-                    kotlinx.coroutines.MainScope().launch {
+                    scope.launch {
                         try {
                             if (cleanPhone.isNotBlank() && dao.getByPhone(storeId, cleanPhone) != null) {
                                 error = "A customer with this phone number already exists."
