@@ -33,7 +33,7 @@ import com.retailpos.app.data.CartLine
 import com.retailpos.app.data.CustomerEntity
 import java.util.Locale
 
-private val PAYMENT_METHODS = listOf("CASH", "UPI", "CARD")
+private val PAYMENT_METHODS = listOf("CASH", "UPI", "CARD", "CREDIT")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -42,17 +42,13 @@ fun CheckoutScreen(cart: List<CartLine>, customers: List<CustomerEntity>, onBack
     var selectedCustomer by remember { mutableStateOf<CustomerEntity?>(null) }
     var showCustomerPicker by remember { mutableStateOf(false) }
     val total = cart.sumOf { it.lineTotal }
+    val creditWithoutCustomer = paymentMethod == "CREDIT" && selectedCustomer == null
 
     Scaffold(topBar = { TopAppBar(title = { Text("CHECKOUT", fontWeight = FontWeight.Black) }) }) { padding ->
         LazyColumn(modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item { Text("BILL SUMMARY", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold) }
             items(cart, key = { it.productId }) { line ->
-                Card(Modifier.fillMaxWidth()) {
-                    Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Column(Modifier.weight(1f)) { Text(line.name, fontWeight = FontWeight.Bold); Text("${line.quantity.clean()} ${line.unit} × ${money(line.unitPrice)}") }
-                        Text(money(line.lineTotal), fontWeight = FontWeight.Bold)
-                    }
-                }
+                Card(Modifier.fillMaxWidth()) { Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) { Column(Modifier.weight(1f)) { Text(line.name, fontWeight = FontWeight.Bold); Text("${line.quantity.clean()} ${line.unit} × ${money(line.unitPrice)}") }; Text(money(line.lineTotal), fontWeight = FontWeight.Bold) } }
             }
             item {
                 Card(Modifier.fillMaxWidth()) {
@@ -67,19 +63,15 @@ fun CheckoutScreen(cart: List<CartLine>, customers: List<CustomerEntity>, onBack
                 }
             }
             item {
-                Card(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(16.dp)) {
-                        Text("PAYMENT METHOD", fontWeight = FontWeight.Bold)
-                        PAYMENT_METHODS.forEach { method -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) { RadioButton(selected = paymentMethod == method, onClick = { paymentMethod = method }); Text(method, modifier = Modifier.padding(top = 12.dp)) } }
-                    }
-                }
+                Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp)) { Text("PAYMENT METHOD", fontWeight = FontWeight.Bold); PAYMENT_METHODS.forEach { method -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) { RadioButton(selected = paymentMethod == method, onClick = { paymentMethod = method }); Text(method, modifier = Modifier.padding(top = 12.dp)) } } } }
             }
+            item { if (paymentMethod == "CREDIT") Text("Credit sale will be added to this customer's Khata.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
             item { Text("TOTAL  ${money(total)}", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black) }
             if (error != null) item { Text(error, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold) }
             item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedButton(onClick = onBack, enabled = !isProcessing, modifier = Modifier.weight(1f).height(56.dp)) { Text("BACK") }
-                    Button(onClick = { onComplete(paymentMethod, selectedCustomer?.id) }, enabled = cart.isNotEmpty() && !isProcessing, modifier = Modifier.weight(1.4f).height(56.dp)) { Text(if (isProcessing) "PROCESSING…" else "COMPLETE SALE", fontWeight = FontWeight.Bold) }
+                    Button(onClick = { onComplete(paymentMethod, selectedCustomer?.id) }, enabled = cart.isNotEmpty() && !isProcessing && !creditWithoutCustomer, modifier = Modifier.weight(1.4f).height(56.dp)) { Text(if (isProcessing) "PROCESSING…" else "COMPLETE SALE", fontWeight = FontWeight.Bold) }
                 }
             }
         }
