@@ -51,6 +51,7 @@ fun ProductReviewScreen(
     var purchasePrice by remember { mutableStateOf("") }
     var stock by remember { mutableStateOf("") }
     var unit by remember { mutableStateOf("pcs") }
+    var lowStockThreshold by remember { mutableStateOf("5") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(productId) {
@@ -68,6 +69,7 @@ fun ProductReviewScreen(
             purchasePrice = product.purchasePrice.toString()
             stock = product.stock.toString()
             unit = product.unit
+            lowStockThreshold = product.lowStockThreshold.toString()
             errorMessage = null
         }
     }
@@ -113,7 +115,16 @@ fun ProductReviewScreen(
                     enabled = !isEdit
                 )
             }
-            OutlinedTextField(unit, { unit = it }, Modifier.fillMaxWidth(), label = { Text("Unit") }, singleLine = true)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(unit, { unit = it }, Modifier.weight(1f), label = { Text("Unit") }, singleLine = true)
+                OutlinedTextField(lowStockThreshold, { lowStockThreshold = it }, Modifier.weight(1f), label = { Text("Low-stock alert") }, singleLine = true)
+            }
+
+            Text(
+                "Sale price cannot exceed MRP. Stock is managed separately after product creation.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
 
             errorMessage?.let {
                 Text(it, color = MaterialTheme.colorScheme.error)
@@ -121,23 +132,29 @@ fun ProductReviewScreen(
 
             Button(
                 onClick = {
+                    val mrpValue = mrp.toDoubleOrNull() ?: -1.0
+                    val saleValue = sellingPrice.toDoubleOrNull() ?: -1.0
+                    val purchaseValue = purchasePrice.toDoubleOrNull() ?: -1.0
+                    val stockValue = stock.toDoubleOrNull() ?: -1.0
+                    val thresholdValue = lowStockThreshold.toDoubleOrNull() ?: -1.0
                     viewModel.saveProduct(
                         productId = productId,
                         name = name,
                         brand = brand,
                         barcode = barcode,
                         sku = sku,
-                        mrp = mrp.toDoubleOrNull() ?: -1.0,
-                        sellingPrice = sellingPrice.toDoubleOrNull() ?: -1.0,
-                        purchasePrice = purchasePrice.toDoubleOrNull() ?: -1.0,
-                        stock = stock.toDoubleOrNull() ?: -1.0,
+                        mrp = mrpValue,
+                        sellingPrice = saleValue,
+                        purchasePrice = purchaseValue,
+                        stock = stockValue,
                         unit = unit,
+                        lowStockThreshold = thresholdValue,
                         onResult = { result ->
                             when (result) {
                                 SaveProductResult.Success -> onBack()
                                 SaveProductResult.DuplicateSku -> errorMessage = "That SKU is already used by another product in this store."
                                 SaveProductResult.DuplicateBarcode -> errorMessage = "That barcode is already assigned to another product in this store."
-                                SaveProductResult.InvalidInput -> errorMessage = "Enter a product name and valid non-negative numeric values."
+                                SaveProductResult.InvalidInput -> errorMessage = "Check the product name and numbers. Sale price must not exceed MRP, and stock/threshold cannot be negative."
                                 SaveProductResult.Error -> errorMessage = "Unable to save the product. Please try again."
                             }
                         }
