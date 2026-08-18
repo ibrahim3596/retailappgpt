@@ -1,0 +1,1 @@
+Temporary CI verification marker for the current retailpos-v2 head. Do not merge.
