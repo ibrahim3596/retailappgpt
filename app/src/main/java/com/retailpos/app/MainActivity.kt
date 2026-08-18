@@ -106,13 +106,11 @@ private fun RetailPosApp() {
     var inventoryAdjustmentError by remember { mutableStateOf<String?>(null) }
     var inventoryReceiveError by remember { mutableStateOf<String?>(null) }
     val searchResults by repository.searchProducts(LOCAL_STORE_ID, posQuery).collectAsState(initial = emptyList())
+    val customers by database.customerDao().observeAll(LOCAL_STORE_ID).collectAsState(initial = emptyList())
 
     fun addProductToCart(product: com.retailpos.app.data.ProductEntity) {
         when (cartManager.add(product)) {
-            AddToCartResult.Added -> {
-                cart = cartManager.lines
-                posQuery = ""
-            }
+            AddToCartResult.Added -> { cart = cartManager.lines; posQuery = "" }
             AddToCartResult.OutOfStock -> cartError = "${product.name} is out of stock."
             AddToCartResult.InsufficientStock -> cartError = "Only ${product.stock} ${product.unit} of ${product.name} is available."
         }
@@ -121,17 +119,14 @@ private fun RetailPosApp() {
     fun openReceipt(saleId: String) {
         scope.launch {
             val sale = database.saleDao().getSale(LOCAL_STORE_ID, saleId)
-            if (sale == null) {
-                checkoutError = "Receipt could not be loaded."
-                return@launch
-            }
+            if (sale == null) { checkoutError = "Receipt could not be loaded."; return@launch }
             receiptSale = sale
             receiptLines = database.saleDao().getSaleLines(sale.id)
             navController.navigate(Routes.RECEIPT)
         }
     }
 
-    fun completeSale(paymentMethod: String) {
+    fun completeSale(paymentMethod: String, customerId: String?) {
         if (checkoutProcessing || cart.isEmpty()) return
         checkoutProcessing = true
         checkoutError = null
@@ -143,16 +138,15 @@ private fun RetailPosApp() {
                     storeId = LOCAL_STORE_ID,
                     cart = cartSnapshot,
                     paymentMethod = paymentMethod,
-                    idempotencyKey = idempotencyKey
+                    idempotencyKey = idempotencyKey,
+                    customerId = customerId?.takeIf { it.isNotBlank() }
                 )
                 cartManager.clear()
                 cart = emptyList()
                 posQuery = ""
                 checkoutIdempotencyKey = null
                 checkoutProcessing = false
-                navController.navigate(Routes.HOME) {
-                    popUpTo(Routes.POS) { inclusive = true }
-                }
+                navController.navigate(Routes.HOME) { popUpTo(Routes.POS) { inclusive = true } }
                 completedSale = result.saleId
             } catch (error: Exception) {
                 checkoutProcessing = false
@@ -162,130 +156,58 @@ private fun RetailPosApp() {
     }
 
     fun shareReceipt(receipt: String) {
-        context.startActivity(
-            Intent.createChooser(
-                Intent(Intent.ACTION_SEND).apply {
-                    type = "text/plain"
-                    putExtra(Intent.EXTRA_TEXT, receipt)
-                },
-                "Share receipt"
-            )
-        )
+        context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(Intent.EXTRA_TEXT, receipt) }, "Share receipt"))
     }
 
     fun adjustInventory(productId: String, quantityDelta: Double, reason: String) {
         scope.launch {
             try {
-                val movementReason = InventoryMovementReason.entries.firstOrNull { it.name == reason }
-                    ?: InventoryMovementReason.ADJUSTMENT
-                database.inventoryDao().adjustStock(
-                    storeId = LOCAL_STORE_ID,
-                    productId = productId,
-                    quantityDelta = quantityDelta,
-                    reason = movementReason
-                )
+                val movementReason = InventoryMovementReason.entries.firstOrNull { it.name == reason } ?: InventoryMovementReason.ADJUSTMENT
+                database.inventoryDao().adjustStock(LOCAL_STORE_ID, productId, quantityDelta, movementReason)
                 inventoryAdjustmentError = null
                 navController.popBackStack()
-            } catch (error: Exception) {
-                inventoryAdjustmentError = error.message ?: "Stock adjustment failed."
-            }
+            } catch (error: Exception) { inventoryAdjustmentError = error.message ?: "Stock adjustment failed." }
         }
     }
 
     fun receiveInventory(productId: String, quantity: Double, batchNumber: String?, expiryDate: Long?, purchasePrice: Double) {
         scope.launch {
             try {
-                database.inventoryDao().receiveStock(
-                    storeId = LOCAL_STORE_ID,
-                    productId = productId,
-                    quantity = quantity,
-                    batchNumber = batchNumber,
-                    expiryDate = expiryDate,
-                    purchasePrice = purchasePrice
-                )
+                database.inventoryDao().receiveStock(LOCAL_STORE_ID, productId, quantity, batchNumber, expiryDate, purchasePrice)
                 inventoryReceiveError = null
                 navController.popBackStack()
-            } catch (error: Exception) {
-                inventoryReceiveError = error.message ?: "Stock receiving failed."
-            }
+            } catch (error: Exception) { inventoryReceiveError = error.message ?: "Stock receiving failed." }
         }
     }
 
     NavHost(navController = navController, startDestination = Routes.HOME) {
-        composable(Routes.HOME) {
-            HomeScreen(onNewBill = { navController.navigate(Routes.POS) }, onNavigate = navController::navigate)
-        }
+        composable(Routes.HOME) { HomeScreen(onNewBill = { navController.navigate(Routes.POS) }, onNavigate = navController::navigate) }
         composable(Routes.POS) {
-            PosScreen(
-                cart = cart,
-                searchResults = searchResults,
-                onSearchQueryChanged = { posQuery = it },
-                onAddProduct = ::addProductToCart,
+            PosScreen(cart = cart, searchResults = searchResults, onSearchQueryChanged = { posQuery = it }, onAddProduct = ::addProductToCart,
                 onRemoveFromCart = { productId -> cartManager.remove(productId).also { cart = cartManager.lines } },
-                onBack = { navController.popBackStack() },
-                onOpenScanner = { navController.navigate(Routes.BILLING_SCANNER) },
-                onCheckout = {
-                    if (cart.isNotEmpty()) {
-                        checkoutIdempotencyKey = checkoutIdempotencyKey ?: UUID.randomUUID().toString()
-                        navController.navigate(Routes.CHECKOUT)
-                    }
-                }
-            )
+                onBack = { navController.popBackStack() }, onOpenScanner = { navController.navigate(Routes.BILLING_SCANNER) },
+                onCheckout = { if (cart.isNotEmpty()) { checkoutIdempotencyKey = checkoutIdempotencyKey ?: UUID.randomUUID().toString(); navController.navigate(Routes.CHECKOUT) } })
         }
         composable(Routes.CHECKOUT) {
-            CheckoutScreen(cart = cart, onBack = { navController.popBackStack() }, onComplete = ::completeSale, isProcessing = checkoutProcessing, error = checkoutError)
+            CheckoutScreen(cart = cart, customers = customers, onBack = { navController.popBackStack() }, onComplete = ::completeSale, isProcessing = checkoutProcessing, error = checkoutError)
         }
         composable(Routes.RECEIPT) {
-            receiptSale?.let { sale ->
-                ReceiptScreen(
-                    sale = sale,
-                    lines = receiptLines,
-                    onBack = {
-                        receiptSale = null
-                        receiptLines = emptyList()
-                        navController.navigate(Routes.HOME) { popUpTo(Routes.RECEIPT) { inclusive = true } }
-                    },
-                    onShare = ::shareReceipt
-                )
-            }
+            receiptSale?.let { sale -> ReceiptScreen(sale = sale, lines = receiptLines,
+                onBack = { receiptSale = null; receiptLines = emptyList(); navController.navigate(Routes.HOME) { popUpTo(Routes.RECEIPT) { inclusive = true } } }, onShare = ::shareReceipt) }
         }
         composable(Routes.BILLING_SCANNER) {
-            BarcodeScannerScreen(
-                title = "BILLING SCANNER",
-                onBack = { navController.popBackStack() },
-                onBarcodeDetected = { raw, _ ->
-                    scope.launch {
-                        val barcode = repository.getByBarcode(LOCAL_STORE_ID, raw)
-                        val product = barcode?.let { repository.getById(it.productId, LOCAL_STORE_ID) }
-                        if (product == null) {
-                            unknownBarcode = raw
-                        } else {
-                            val before = cartManager.lines.size
-                            addProductToCart(product)
-                            if ((cartManager.lines.size != before || cartManager.lines.any { it.productId == product.id }) && cartError == null) navController.popBackStack()
-                        }
-                    }
+            BarcodeScannerScreen(title = "BILLING SCANNER", onBack = { navController.popBackStack() }, onBarcodeDetected = { raw, _ ->
+                scope.launch {
+                    val barcode = repository.getByBarcode(LOCAL_STORE_ID, raw)
+                    val product = barcode?.let { repository.getById(it.productId, LOCAL_STORE_ID) }
+                    if (product == null) unknownBarcode = raw else { val before = cartManager.lines.size; addProductToCart(product); if ((cartManager.lines.size != before || cartManager.lines.any { it.productId == product.id }) && cartError == null) navController.popBackStack() }
                 }
-            )
+            })
         }
-        composable(Routes.PRODUCTS) {
-            ProductListScreen(storeId = LOCAL_STORE_ID, onBack = { navController.popBackStack() }, onAddProduct = { navController.navigate(Routes.ADD_PRODUCT) }, onEditProduct = { productId -> navController.navigate("products/edit/$productId") })
-        }
+        composable(Routes.PRODUCTS) { ProductListScreen(storeId = LOCAL_STORE_ID, onBack = { navController.popBackStack() }, onAddProduct = { navController.navigate(Routes.ADD_PRODUCT) }, onEditProduct = { productId -> navController.navigate("products/edit/$productId") }) }
         composable(Routes.ADD_PRODUCT) { ProductReviewScreen(storeId = LOCAL_STORE_ID, productId = null, onBack = { navController.popBackStack() }) }
-        composable(Routes.EDIT_PRODUCT, arguments = listOf(navArgument("productId") { type = NavType.StringType })) { entry ->
-            ProductReviewScreen(storeId = LOCAL_STORE_ID, productId = entry.arguments?.getString("productId"), onBack = { navController.popBackStack() })
-        }
-        composable(Routes.INVENTORY) {
-            InventoryScreen(
-                storeId = LOCAL_STORE_ID,
-                repository = repository,
-                inventoryMovements = { database.inventoryDao().getMovements(LOCAL_STORE_ID) },
-                onBack = { navController.popBackStack() },
-                onOpenProduct = { productId -> navController.navigate("inventory/detail/$productId") },
-                onAdjustProduct = { productId -> navController.navigate("inventory/adjust/$productId") },
-                onReceiveProduct = { productId -> navController.navigate("inventory/receive/$productId") }
-            )
-        }
+        composable(Routes.EDIT_PRODUCT, arguments = listOf(navArgument("productId") { type = NavType.StringType })) { entry -> ProductReviewScreen(storeId = LOCAL_STORE_ID, productId = entry.arguments?.getString("productId"), onBack = { navController.popBackStack() }) }
+        composable(Routes.INVENTORY) { InventoryScreen(storeId = LOCAL_STORE_ID, repository = repository, inventoryMovements = { database.inventoryDao().getMovements(LOCAL_STORE_ID) }, onBack = { navController.popBackStack() }, onOpenProduct = { navController.navigate("inventory/detail/$it") }, onAdjustProduct = { navController.navigate("inventory/adjust/$it") }, onReceiveProduct = { navController.navigate("inventory/receive/$it") }) }
         composable(Routes.INVENTORY_DETAIL, arguments = listOf(navArgument("productId") { type = NavType.StringType })) { entry ->
             val productId = entry.arguments?.getString("productId")
             val product by if (productId == null) remember { mutableStateOf(null) } else androidx.compose.runtime.produceState<com.retailpos.app.data.ProductEntity?>(initialValue = null, productId) { value = database.productDao().getById(productId, LOCAL_STORE_ID) }
@@ -309,15 +231,9 @@ private fun RetailPosApp() {
         composable(Routes.SETTINGS) { FoundationPlaceholder("Settings", "Store and device configuration") }
     }
 
-    unknownBarcode?.let { value ->
-        AlertDialog(onDismissRequest = { unknownBarcode = null }, title = { Text("Product not found") }, text = { Text("No product is linked to barcode $value.") }, confirmButton = { Button(onClick = { unknownBarcode = null; navController.navigate(Routes.ADD_PRODUCT) }) { Text("ADD PRODUCT") } }, dismissButton = { TextButton(onClick = { unknownBarcode = null }) { Text("CANCEL") } })
-    }
-    cartError?.let { message ->
-        AlertDialog(onDismissRequest = { cartError = null }, title = { Text("Cannot add product") }, text = { Text(message) }, confirmButton = { TextButton(onClick = { cartError = null }) { Text("OK") } })
-    }
-    completedSale?.let { saleId ->
-        AlertDialog(onDismissRequest = { completedSale = null }, title = { Text("Sale completed") }, text = { Text("Sale saved successfully.\nReceipt ID: $saleId") }, confirmButton = { Button(onClick = { completedSale = null; openReceipt(saleId) }) { Text("VIEW RECEIPT") } }, dismissButton = { TextButton(onClick = { completedSale = null }) { Text("DONE") } })
-    }
+    unknownBarcode?.let { value -> AlertDialog(onDismissRequest = { unknownBarcode = null }, title = { Text("Product not found") }, text = { Text("No product is linked to barcode $value.") }, confirmButton = { Button(onClick = { unknownBarcode = null; navController.navigate(Routes.ADD_PRODUCT) }) { Text("ADD PRODUCT") } }, dismissButton = { TextButton(onClick = { unknownBarcode = null }) { Text("CANCEL") } }) }
+    cartError?.let { message -> AlertDialog(onDismissRequest = { cartError = null }, title = { Text("Cannot add product") }, text = { Text(message) }, confirmButton = { TextButton(onClick = { cartError = null }) { Text("OK") } }) }
+    completedSale?.let { saleId -> AlertDialog(onDismissRequest = { completedSale = null }, title = { Text("Sale completed") }, text = { Text("Sale saved successfully.\nReceipt ID: $saleId") }, confirmButton = { Button(onClick = { completedSale = null; openReceipt(saleId) }) { Text("VIEW RECEIPT") } }, dismissButton = { TextButton(onClick = { completedSale = null }) { Text("DONE") } }) }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
