@@ -19,6 +19,16 @@ abstract class SaleDao {
     abstract suspend fun getSale(storeId: String, saleId: String): SaleEntity?
     @Query("SELECT * FROM sale_lines WHERE saleId = :saleId ORDER BY id")
     abstract suspend fun getSaleLines(saleId: String): List<SaleLineEntity>
+    @Query("SELECT COALESCE(SUM(total), 0) FROM sales WHERE storeId = :storeId AND createdAt >= :start AND createdAt < :end")
+    abstract suspend fun getSalesTotal(storeId: String, start: Long, end: Long): Double
+    @Query("SELECT COUNT(*) FROM sales WHERE storeId = :storeId AND createdAt >= :start AND createdAt < :end")
+    abstract suspend fun getSalesCount(storeId: String, start: Long, end: Long): Int
+    @Query("SELECT COALESCE(SUM(sl.quantity), 0) FROM sale_lines sl INNER JOIN sales s ON s.id = sl.saleId WHERE s.storeId = :storeId AND s.createdAt >= :start AND s.createdAt < :end")
+    abstract suspend fun getItemsSold(storeId: String, start: Long, end: Long): Double
+    @Query("SELECT paymentMethod, COUNT(*) AS transactionCount, COALESCE(SUM(total), 0) AS total FROM sales WHERE storeId = :storeId AND createdAt >= :start AND createdAt < :end GROUP BY paymentMethod ORDER BY total DESC")
+    abstract suspend fun getPaymentSummary(storeId: String, start: Long, end: Long): List<PaymentSummary>
+    @Query("SELECT * FROM sales WHERE storeId = :storeId ORDER BY createdAt DESC LIMIT :limit")
+    abstract suspend fun getRecentSales(storeId: String, limit: Int): List<SaleEntity>
     @Query("UPDATE products SET stock = stock - :quantity, updatedAt = :updatedAt WHERE id = :productId AND storeId = :storeId AND stock >= :quantity")
     abstract suspend fun decrementStock(productId: String, storeId: String, quantity: Double, updatedAt: Long): Int
     @Query("SELECT * FROM inventory_batches WHERE storeId = :storeId AND productId = :productId AND quantity > 0 AND (expiryDate IS NULL OR expiryDate > :now) ORDER BY CASE WHEN expiryDate IS NULL THEN 1 ELSE 0 END, expiryDate ASC, createdAt ASC")
