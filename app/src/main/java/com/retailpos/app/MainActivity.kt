@@ -42,6 +42,7 @@ import com.retailpos.app.data.ProductRepository
 import com.retailpos.app.data.RetailDatabase
 import com.retailpos.app.data.SaleEntity
 import com.retailpos.app.data.SaleLineEntity
+import com.retailpos.app.ui.screens.AnalyticsScreen
 import com.retailpos.app.ui.screens.BarcodeScannerScreen
 import com.retailpos.app.ui.screens.CheckoutScreen
 import com.retailpos.app.ui.screens.CustomerKhataScreen
@@ -144,7 +145,7 @@ private fun RetailPosApp() {
         composable(Routes.INVENTORY_RECEIVE, arguments = listOf(navArgument("productId") { type = NavType.StringType })) { entry -> val id = entry.arguments?.getString("productId"); val product by if (id == null) remember { mutableStateOf(null) } else androidx.compose.runtime.produceState<com.retailpos.app.data.ProductEntity?>(initialValue = null, id) { value = database.productDao().getById(id, LOCAL_STORE_ID) }; val p = product; if (p == null) FoundationPlaceholder("Product", "Product could not be loaded") else InventoryReceiveScreen(product = p, onBack = { navController.popBackStack() }, onReceive = { q, b, e, pp -> receiveInventory(p.id, q, b, e, pp) }, error = inventoryReceiveError) }
         composable(Routes.CUSTOMERS) { CustomersScreen(storeId = LOCAL_STORE_ID, dao = database.customerDao(), khataDao = database.khataDao(), onOpenCustomer = { navController.navigate("customers/khata/${it.id}") }, onBack = { navController.popBackStack() }) }
         composable(Routes.CUSTOMER_KHATA, arguments = listOf(navArgument("customerId") { type = NavType.StringType })) { entry -> val id = entry.arguments?.getString("customerId"); val customer by if (id == null) remember { mutableStateOf(null) } else androidx.compose.runtime.produceState<CustomerEntity?>(initialValue = null, id) { value = database.customerDao().getById(id, LOCAL_STORE_ID) }; val c = customer; if (c == null) FoundationPlaceholder("Customer", "Customer could not be loaded") else CustomerKhataScreen(storeId = LOCAL_STORE_ID, customer = c, dao = database.khataDao(), onBack = { navController.popBackStack() }) }
-        composable(Routes.ANALYTICS) { FoundationPlaceholder("Analytics", "Today and business reporting") }
+        composable(Routes.ANALYTICS) { AnalyticsScreen(storeId = LOCAL_STORE_ID, saleDao = database.saleDao(), onBack = { navController.popBackStack() }) }
         composable(Routes.SETTINGS) { FoundationPlaceholder("Settings", "Store and device configuration") }
     }
     unknownBarcode?.let { value -> AlertDialog(onDismissRequest = { unknownBarcode = null }, title = { Text("Product not found") }, text = { Text("No product is linked to barcode $value.") }, confirmButton = { Button(onClick = { unknownBarcode = null; navController.navigate(Routes.ADD_PRODUCT) }) { Text("ADD PRODUCT") } }, dismissButton = { TextButton(onClick = { unknownBarcode = null }) { Text("CANCEL") } }) }
