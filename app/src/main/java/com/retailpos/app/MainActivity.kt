@@ -56,6 +56,7 @@ import com.retailpos.app.ui.screens.PosScreen
 import com.retailpos.app.ui.screens.ProductListScreen
 import com.retailpos.app.ui.screens.ProductReviewScreen
 import com.retailpos.app.ui.screens.ReceiptScreen
+import com.retailpos.app.ui.screens.SettingsScreen
 import com.retailpos.app.ui.theme.RetailPosTheme
 import kotlinx.coroutines.launch
 import java.util.UUID
@@ -146,7 +147,7 @@ private fun RetailPosApp() {
         composable(Routes.CUSTOMERS) { CustomersScreen(storeId = LOCAL_STORE_ID, dao = database.customerDao(), khataDao = database.khataDao(), onOpenCustomer = { navController.navigate("customers/khata/${it.id}") }, onBack = { navController.popBackStack() }) }
         composable(Routes.CUSTOMER_KHATA, arguments = listOf(navArgument("customerId") { type = NavType.StringType })) { entry -> val id = entry.arguments?.getString("customerId"); val customer by if (id == null) remember { mutableStateOf(null) } else androidx.compose.runtime.produceState<CustomerEntity?>(initialValue = null, id) { value = database.customerDao().getById(id, LOCAL_STORE_ID) }; val c = customer; if (c == null) FoundationPlaceholder("Customer", "Customer could not be loaded") else CustomerKhataScreen(storeId = LOCAL_STORE_ID, customer = c, dao = database.khataDao(), onBack = { navController.popBackStack() }) }
         composable(Routes.ANALYTICS) { AnalyticsScreen(storeId = LOCAL_STORE_ID, saleDao = database.saleDao(), onBack = { navController.popBackStack() }) }
-        composable(Routes.SETTINGS) { FoundationPlaceholder("Settings", "Store and device configuration") }
+        composable(Routes.SETTINGS) { SettingsScreen(context = context, onBack = { navController.popBackStack() }) }
     }
     unknownBarcode?.let { value -> AlertDialog(onDismissRequest = { unknownBarcode = null }, title = { Text("Product not found") }, text = { Text("No product is linked to barcode $value.") }, confirmButton = { Button(onClick = { unknownBarcode = null; navController.navigate(Routes.ADD_PRODUCT) }) { Text("ADD PRODUCT") } }, dismissButton = { TextButton(onClick = { unknownBarcode = null }) { Text("CANCEL") } }) }
     cartError?.let { message -> AlertDialog(onDismissRequest = { cartError = null }, title = { Text("Cannot add product") }, text = { Text(message) }, confirmButton = { TextButton(onClick = { cartError = null }) { Text("OK") } }) }
