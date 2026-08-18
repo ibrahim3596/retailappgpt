@@ -62,22 +62,11 @@ import kotlinx.coroutines.launch
 import java.util.UUID
 
 private object Routes {
-    const val HOME = "home"
-    const val POS = "pos"
-    const val CHECKOUT = "checkout"
-    const val RECEIPT = "receipt"
-    const val PRODUCTS = "products"
-    const val ADD_PRODUCT = "products/add"
-    const val EDIT_PRODUCT = "products/edit/{productId}"
-    const val BILLING_SCANNER = "scanner/billing"
-    const val INVENTORY = "inventory"
-    const val INVENTORY_DETAIL = "inventory/detail/{productId}"
-    const val INVENTORY_ADJUST = "inventory/adjust/{productId}"
-    const val INVENTORY_RECEIVE = "inventory/receive/{productId}"
-    const val CUSTOMERS = "customers"
-    const val CUSTOMER_KHATA = "customers/khata/{customerId}"
-    const val ANALYTICS = "analytics"
-    const val SETTINGS = "settings"
+    const val HOME = "home"; const val POS = "pos"; const val CHECKOUT = "checkout"; const val RECEIPT = "receipt"
+    const val PRODUCTS = "products"; const val ADD_PRODUCT = "products/add"; const val EDIT_PRODUCT = "products/edit/{productId}"
+    const val BILLING_SCANNER = "scanner/billing"; const val PRODUCT_SCANNER = "scanner/product/{productId}"
+    const val INVENTORY = "inventory"; const val INVENTORY_DETAIL = "inventory/detail/{productId}"; const val INVENTORY_ADJUST = "inventory/adjust/{productId}"; const val INVENTORY_RECEIVE = "inventory/receive/{productId}"
+    const val CUSTOMERS = "customers"; const val CUSTOMER_KHATA = "customers/khata/{customerId}"; const val ANALYTICS = "analytics"; const val SETTINGS = "settings"
 }
 private const val LOCAL_STORE_ID = "local-store"
 
@@ -88,45 +77,16 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun RetailPosApp() {
-    val navController = rememberNavController()
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val database = remember(context) { RetailDatabase.get(context) }
-    val repository = remember(database) { ProductRepository(database.productDao(), database.productBarcodeDao()) }
-    val cartManager = remember { CartManager() }
-    var cart by remember { mutableStateOf(cartManager.lines) }
-    var posQuery by remember { mutableStateOf("") }
-    var unknownBarcode by remember { mutableStateOf<String?>(null) }
-    var cartError by remember { mutableStateOf<String?>(null) }
-    var checkoutError by remember { mutableStateOf<String?>(null) }
-    var checkoutProcessing by remember { mutableStateOf(false) }
-    var completedSale by remember { mutableStateOf<String?>(null) }
-    var checkoutIdempotencyKey by remember { mutableStateOf<String?>(null) }
-    var receiptSale by remember { mutableStateOf<SaleEntity?>(null) }
-    var receiptLines by remember { mutableStateOf<List<SaleLineEntity>>(emptyList()) }
-    var inventoryAdjustmentError by remember { mutableStateOf<String?>(null) }
-    var inventoryReceiveError by remember { mutableStateOf<String?>(null) }
-    val searchResults by repository.searchProducts(LOCAL_STORE_ID, posQuery).collectAsState(initial = emptyList())
-    val customers by database.customerDao().observeAll(LOCAL_STORE_ID).collectAsState(initial = emptyList())
-
-    fun addProductToCart(product: com.retailpos.app.data.ProductEntity) {
-        when (cartManager.add(product)) {
-            AddToCartResult.Added -> { cart = cartManager.lines; posQuery = "" }
-            AddToCartResult.OutOfStock -> cartError = "${product.name} is out of stock."
-            AddToCartResult.InsufficientStock -> cartError = "Only ${product.stock} ${product.unit} of ${product.name} is available."
-        }
-    }
+    val navController = rememberNavController(); val context = LocalContext.current; val scope = rememberCoroutineScope()
+    val database = remember(context) { RetailDatabase.get(context) }; val repository = remember(database) { ProductRepository(database.productDao(), database.productBarcodeDao()) }
+    val cartManager = remember { CartManager() }; var cart by remember { mutableStateOf(cartManager.lines) }; var posQuery by remember { mutableStateOf("") }
+    var unknownBarcode by remember { mutableStateOf<String?>(null) }; var productScanResult by remember { mutableStateOf<String?>(null) }; var cartError by remember { mutableStateOf<String?>(null) }
+    var checkoutError by remember { mutableStateOf<String?>(null) }; var checkoutProcessing by remember { mutableStateOf(false) }; var completedSale by remember { mutableStateOf<String?>(null) }; var checkoutIdempotencyKey by remember { mutableStateOf<String?>(null) }
+    var receiptSale by remember { mutableStateOf<SaleEntity?>(null) }; var receiptLines by remember { mutableStateOf<List<SaleLineEntity>>(emptyList()) }; var inventoryAdjustmentError by remember { mutableStateOf<String?>(null) }; var inventoryReceiveError by remember { mutableStateOf<String?>(null) }
+    val searchResults by repository.searchProducts(LOCAL_STORE_ID, posQuery).collectAsState(initial = emptyList()); val customers by database.customerDao().observeAll(LOCAL_STORE_ID).collectAsState(initial = emptyList())
+    fun addProductToCart(product: com.retailpos.app.data.ProductEntity) { when (cartManager.add(product)) { AddToCartResult.Added -> { cart = cartManager.lines; posQuery = "" }; AddToCartResult.OutOfStock -> cartError = "${product.name} is out of stock."; AddToCartResult.InsufficientStock -> cartError = "Only ${product.stock} ${product.unit} of ${product.name} is available." } }
     fun openReceipt(saleId: String) { scope.launch { val sale = database.saleDao().getSale(LOCAL_STORE_ID, saleId); if (sale == null) { checkoutError = "Receipt could not be loaded."; return@launch }; receiptSale = sale; receiptLines = database.saleDao().getSaleLines(sale.id); navController.navigate(Routes.RECEIPT) } }
-    fun completeSale(paymentMethod: String, customerId: String?) {
-        if (checkoutProcessing || cart.isEmpty()) return
-        checkoutProcessing = true; checkoutError = null
-        val cartSnapshot = cart.toList(); val idempotencyKey = checkoutIdempotencyKey ?: UUID.randomUUID().toString().also { checkoutIdempotencyKey = it }
-        scope.launch { try {
-            val result = database.saleDao().checkout(LOCAL_STORE_ID, cartSnapshot, paymentMethod, idempotencyKey, customerId?.takeIf { it.isNotBlank() })
-            cartManager.clear(); cart = emptyList(); posQuery = ""; checkoutIdempotencyKey = null; checkoutProcessing = false
-            navController.navigate(Routes.HOME) { popUpTo(Routes.POS) { inclusive = true } }; completedSale = result.saleId
-        } catch (error: Exception) { checkoutProcessing = false; checkoutError = error.message ?: "Sale could not be completed. No stock was deducted." } }
-    }
+    fun completeSale(paymentMethod: String, customerId: String?) { if (checkoutProcessing || cart.isEmpty()) return; checkoutProcessing = true; checkoutError = null; val cartSnapshot = cart.toList(); val idempotencyKey = checkoutIdempotencyKey ?: UUID.randomUUID().toString().also { checkoutIdempotencyKey = it }; scope.launch { try { val result = database.saleDao().checkout(LOCAL_STORE_ID, cartSnapshot, paymentMethod, idempotencyKey, customerId?.takeIf { it.isNotBlank() }); cartManager.clear(); cart = emptyList(); posQuery = ""; checkoutIdempotencyKey = null; checkoutProcessing = false; navController.navigate(Routes.HOME) { popUpTo(Routes.POS) { inclusive = true } }; completedSale = result.saleId } catch (error: Exception) { checkoutProcessing = false; checkoutError = error.message ?: "Sale could not be completed. No stock was deducted." } } }
     fun shareReceipt(receipt: String) { context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(Intent.EXTRA_TEXT, receipt) }, "Share receipt")) }
     fun adjustInventory(productId: String, quantityDelta: Double, reason: String) { scope.launch { try { val movementReason = InventoryMovementReason.entries.firstOrNull { it.name == reason } ?: InventoryMovementReason.ADJUSTMENT; database.inventoryDao().adjustStock(LOCAL_STORE_ID, productId, quantityDelta, movementReason); inventoryAdjustmentError = null; navController.popBackStack() } catch (error: Exception) { inventoryAdjustmentError = error.message ?: "Stock adjustment failed." } } }
     fun receiveInventory(productId: String, quantity: Double, batchNumber: String?, expiryDate: Long?, purchasePrice: Double) { scope.launch { try { database.inventoryDao().receiveStock(LOCAL_STORE_ID, productId, quantity, batchNumber, expiryDate, purchasePrice); inventoryReceiveError = null; navController.popBackStack() } catch (error: Exception) { inventoryReceiveError = error.message ?: "Stock receiving failed." } } }
@@ -138,8 +98,9 @@ private fun RetailPosApp() {
         composable(Routes.RECEIPT) { receiptSale?.let { sale -> ReceiptScreen(sale = sale, lines = receiptLines, onBack = { receiptSale = null; receiptLines = emptyList(); navController.navigate(Routes.HOME) { popUpTo(Routes.RECEIPT) { inclusive = true } } }, onShare = ::shareReceipt) } }
         composable(Routes.BILLING_SCANNER) { BarcodeScannerScreen(title = "BILLING SCANNER", onBack = { navController.popBackStack() }, onBarcodeDetected = { raw, _ -> scope.launch { val barcode = repository.getByBarcode(LOCAL_STORE_ID, raw); val product = barcode?.let { repository.getById(it.productId, LOCAL_STORE_ID) }; if (product == null) unknownBarcode = raw else { val before = cartManager.lines.size; addProductToCart(product); if ((cartManager.lines.size != before || cartManager.lines.any { it.productId == product.id }) && cartError == null) navController.popBackStack() } } }) }
         composable(Routes.PRODUCTS) { ProductListScreen(storeId = LOCAL_STORE_ID, onBack = { navController.popBackStack() }, onAddProduct = { navController.navigate(Routes.ADD_PRODUCT) }, onEditProduct = { navController.navigate("products/edit/$it") }) }
-        composable(Routes.ADD_PRODUCT) { ProductReviewScreen(storeId = LOCAL_STORE_ID, productId = null, onBack = { navController.popBackStack() }) }
-        composable(Routes.EDIT_PRODUCT, arguments = listOf(navArgument("productId") { type = NavType.StringType })) { entry -> ProductReviewScreen(storeId = LOCAL_STORE_ID, productId = entry.arguments?.getString("productId"), onBack = { navController.popBackStack() }) }
+        composable(Routes.ADD_PRODUCT) { ProductReviewScreen(LOCAL_STORE_ID, null, productScanResult, onScanBarcode = { productScanResult = null; navController.navigate(Routes.PRODUCT_SCANNER.replace("{productId}", "new")) }, onBack = { navController.popBackStack() }) }
+        composable(Routes.EDIT_PRODUCT, arguments = listOf(navArgument("productId") { type = NavType.StringType })) { entry -> val id = entry.arguments?.getString("productId"); ProductReviewScreen(LOCAL_STORE_ID, id, productScanResult, onScanBarcode = { productScanResult = null; navController.navigate("scanner/product/$id") }, onBack = { navController.popBackStack() }) }
+        composable(Routes.PRODUCT_SCANNER, arguments = listOf(navArgument("productId") { type = NavType.StringType })) { BarcodeScannerScreen(title = "SCAN PRODUCT BARCODE", onBack = { navController.popBackStack() }, onBarcodeDetected = { raw, _ -> productScanResult = raw; navController.popBackStack() }) }
         composable(Routes.INVENTORY) { InventoryScreen(storeId = LOCAL_STORE_ID, repository = repository, inventoryMovements = { database.inventoryDao().getMovements(LOCAL_STORE_ID) }, onBack = { navController.popBackStack() }, onOpenProduct = { navController.navigate("inventory/detail/$it") }, onAdjustProduct = { navController.navigate("inventory/adjust/$it") }, onReceiveProduct = { navController.navigate("inventory/receive/$it") }) }
         composable(Routes.INVENTORY_DETAIL, arguments = listOf(navArgument("productId") { type = NavType.StringType })) { entry -> val id = entry.arguments?.getString("productId"); val product by if (id == null) remember { mutableStateOf(null) } else androidx.compose.runtime.produceState<com.retailpos.app.data.ProductEntity?>(initialValue = null, id) { value = database.productDao().getById(id, LOCAL_STORE_ID) }; val p = product; if (p == null) FoundationPlaceholder("Product", "Product could not be loaded") else InventoryDetailScreen(product = p, batchesLoader = { database.inventoryDao().getAvailableBatchesFefo(LOCAL_STORE_ID, p.id) }, movementsLoader = { database.inventoryDao().getProductMovements(LOCAL_STORE_ID, p.id) }, onBack = { navController.popBackStack() }, onAdjust = { navController.navigate("inventory/adjust/${p.id}") }, onReceive = { navController.navigate("inventory/receive/${p.id}") }) }
         composable(Routes.INVENTORY_ADJUST, arguments = listOf(navArgument("productId") { type = NavType.StringType })) { entry -> val id = entry.arguments?.getString("productId"); val product by if (id == null) remember { mutableStateOf(null) } else androidx.compose.runtime.produceState<com.retailpos.app.data.ProductEntity?>(initialValue = null, id) { value = database.productDao().getById(id, LOCAL_STORE_ID) }; val p = product; if (p == null) FoundationPlaceholder("Product", "Product could not be loaded") else InventoryAdjustmentScreen(product = p, onBack = { navController.popBackStack() }, onAdjust = { q, r -> adjustInventory(p.id, q, r) }, error = inventoryAdjustmentError) }
