@@ -43,3 +43,9 @@ data class CheckoutResult(
     val saleId: String,
     val total: Double
 )
+
+data class PaymentSummary(
+    val paymentMethod: String,
+    val transactionCount: Int,
+    val total: Double
+)
