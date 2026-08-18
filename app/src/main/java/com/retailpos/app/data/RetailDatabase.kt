@@ -12,9 +12,10 @@ import androidx.room.RoomDatabase
         SaleEntity::class,
         SaleLineEntity::class,
         InventoryMovementEntity::class,
-        InventoryBatchEntity::class
+        InventoryBatchEntity::class,
+        CustomerEntity::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 abstract class RetailDatabase : RoomDatabase() {
@@ -22,6 +23,7 @@ abstract class RetailDatabase : RoomDatabase() {
     abstract fun productBarcodeDao(): ProductBarcodeDao
     abstract fun saleDao(): SaleDao
     abstract fun inventoryDao(): InventoryDao
+    abstract fun customerDao(): CustomerDao
 
     companion object {
         @Volatile
@@ -39,7 +41,8 @@ abstract class RetailDatabase : RoomDatabase() {
                         DatabaseMigrations.MIGRATION_2_3,
                         DatabaseMigrations.MIGRATION_3_4,
                         DatabaseMigrations.MIGRATION_4_5,
-                        DatabaseMigrations.MIGRATION_5_6
+                        DatabaseMigrations.MIGRATION_5_6,
+                        DatabaseMigrations.MIGRATION_6_7
                     )
                     .build()
                     .also { INSTANCE = it }
