@@ -1,7 +1,7 @@
 package com.retailpos.app.data
 
 object CheckoutRules {
-    val paymentMethods = setOf("CASH", "UPI", "CARD")
+    val paymentMethods = setOf("CASH", "UPI", "CARD", "CREDIT")
 
     fun validatePaymentMethod(paymentMethod: String): Boolean = paymentMethod in paymentMethods
 
