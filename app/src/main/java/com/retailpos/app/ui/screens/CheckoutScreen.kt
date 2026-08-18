@@ -15,6 +15,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -36,32 +37,19 @@ private val PAYMENT_METHODS = listOf("CASH", "UPI", "CARD")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CheckoutScreen(
-    cart: List<CartLine>,
-    customers: List<CustomerEntity>,
-    onBack: () -> Unit,
-    onComplete: (String, String?) -> Unit,
-    isProcessing: Boolean,
-    error: String?
-) {
+fun CheckoutScreen(cart: List<CartLine>, customers: List<CustomerEntity>, onBack: () -> Unit, onComplete: (String, String?) -> Unit, isProcessing: Boolean, error: String?) {
     var paymentMethod by remember { mutableStateOf(PAYMENT_METHODS.first()) }
     var selectedCustomer by remember { mutableStateOf<CustomerEntity?>(null) }
     var showCustomerPicker by remember { mutableStateOf(false) }
     val total = cart.sumOf { it.lineTotal }
 
     Scaffold(topBar = { TopAppBar(title = { Text("CHECKOUT", fontWeight = FontWeight.Black) }) }) { padding ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
+        LazyColumn(modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item { Text("BILL SUMMARY", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold) }
             items(cart, key = { it.productId }) { line ->
                 Card(Modifier.fillMaxWidth()) {
                     Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Column(Modifier.weight(1f)) {
-                            Text(line.name, fontWeight = FontWeight.Bold)
-                            Text("${line.quantity.clean()} ${line.unit} × ${money(line.unitPrice)}")
-                        }
+                        Column(Modifier.weight(1f)) { Text(line.name, fontWeight = FontWeight.Bold); Text("${line.quantity.clean()} ${line.unit} × ${money(line.unitPrice)}") }
                         Text(money(line.lineTotal), fontWeight = FontWeight.Bold)
                     }
                 }
@@ -82,12 +70,7 @@ fun CheckoutScreen(
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp)) {
                         Text("PAYMENT METHOD", fontWeight = FontWeight.Bold)
-                        PAYMENT_METHODS.forEach { method ->
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                RadioButton(selected = paymentMethod == method, onClick = { paymentMethod = method })
-                                Text(method, modifier = Modifier.padding(top = 12.dp))
-                            }
-                        }
+                        PAYMENT_METHODS.forEach { method -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) { RadioButton(selected = paymentMethod == method, onClick = { paymentMethod = method }); Text(method, modifier = Modifier.padding(top = 12.dp)) } }
                     }
                 }
             }
@@ -96,45 +79,26 @@ fun CheckoutScreen(
             item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedButton(onClick = onBack, enabled = !isProcessing, modifier = Modifier.weight(1f).height(56.dp)) { Text("BACK") }
-                    Button(onClick = { onComplete(paymentMethod, selectedCustomer?.id) }, enabled = cart.isNotEmpty() && !isProcessing, modifier = Modifier.weight(1.4f).height(56.dp)) {
-                        Text(if (isProcessing) "PROCESSING…" else "COMPLETE SALE", fontWeight = FontWeight.Bold)
-                    }
+                    Button(onClick = { onComplete(paymentMethod, selectedCustomer?.id) }, enabled = cart.isNotEmpty() && !isProcessing, modifier = Modifier.weight(1.4f).height(56.dp)) { Text(if (isProcessing) "PROCESSING…" else "COMPLETE SALE", fontWeight = FontWeight.Bold) }
                 }
             }
         }
     }
-
-    if (showCustomerPicker) {
-        CustomerPickerDialog(
-            customers = customers,
-            selectedId = selectedCustomer?.id,
-            onSelect = { selectedCustomer = it; showCustomerPicker = false },
-            onDismiss = { showCustomerPicker = false }
-        )
-    }
+    if (showCustomerPicker) CustomerPickerDialog(customers, selectedCustomer?.id, { selectedCustomer = it; showCustomerPicker = false }, { selectedCustomer = null; showCustomerPicker = false }, { showCustomerPicker = false })
 }
 
 @Composable
-private fun CustomerPickerDialog(customers: List<CustomerEntity>, selectedId: String?, onSelect: (CustomerEntity) -> Unit, onDismiss: () -> Unit) {
+private fun CustomerPickerDialog(customers: List<CustomerEntity>, selectedId: String?, onSelect: (CustomerEntity) -> Unit, onWalkIn: () -> Unit, onDismiss: () -> Unit) {
     var query by remember { mutableStateOf("") }
     val filtered = customers.filter { it.name.contains(query, true) || it.phone.contains(query, true) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Select customer") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                androidx.compose.material3.OutlinedTextField(value = query, onValueChange = { query = it }, singleLine = true, modifier = Modifier.fillMaxWidth(), label = { Text("Search") })
-                TextButton(onClick = { onDismiss(); onSelect(CustomerEntity("", "", "", "", "", 0L, 0L)) }) { Text("WALK-IN CUSTOMER") }
-                if (filtered.isEmpty()) Text("No matching customers", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                else filtered.take(8).forEach { customer ->
-                    TextButton(onClick = { onSelect(customer) }, modifier = Modifier.fillMaxWidth()) {
-                        Text(if (customer.id == selectedId) "✓ ${customer.name}" else customer.name)
-                    }
-                }
-            }
-        },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("CANCEL") } }
-    )
+    AlertDialog(onDismissRequest = onDismiss, title = { Text("Select customer") }, text = {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedTextField(value = query, onValueChange = { query = it }, singleLine = true, modifier = Modifier.fillMaxWidth(), label = { Text("Search") })
+            TextButton(onClick = onWalkIn, modifier = Modifier.fillMaxWidth()) { Text("WALK-IN CUSTOMER") }
+            if (filtered.isEmpty()) Text("No matching customers", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            else filtered.take(8).forEach { customer -> TextButton(onClick = { onSelect(customer) }, modifier = Modifier.fillMaxWidth()) { Text(if (customer.id == selectedId) "✓ ${customer.name}" else customer.name) } }
+        }
+    }, confirmButton = { TextButton(onClick = onDismiss) { Text("CANCEL") } })
 }
 
 private fun money(value: Double): String = String.format(Locale.US, "₹%.2f", value)
