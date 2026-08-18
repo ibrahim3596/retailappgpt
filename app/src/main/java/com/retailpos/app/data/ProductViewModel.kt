@@ -57,11 +57,20 @@ class ProductViewModel(
         purchasePrice: Double,
         stock: Double,
         unit: String,
+        lowStockThreshold: Double,
         onResult: (SaveProductResult) -> Unit
     ) {
         val normalizedSku = sku.trim().ifBlank { null }
         val normalizedBarcode = barcode.trim()
-        if (name.isBlank() || mrp < 0 || sellingPrice < 0 || purchasePrice < 0 || stock < 0) {
+        if (
+            name.isBlank() ||
+            mrp < 0 ||
+            sellingPrice < 0 ||
+            purchasePrice < 0 ||
+            stock < 0 ||
+            lowStockThreshold < 0 ||
+            sellingPrice > mrp
+        ) {
             onResult(SaveProductResult.InvalidInput)
             return
         }
@@ -97,7 +106,7 @@ class ProductViewModel(
                     purchasePrice = purchasePrice,
                     stock = if (current != null) current.stock else stock,
                     unit = unit.trim().ifBlank { "pcs" },
-                    lowStockThreshold = current?.lowStockThreshold ?: 5.0,
+                    lowStockThreshold = lowStockThreshold,
                     updatedAt = System.currentTimeMillis()
                 )
                 repository.save(product)
