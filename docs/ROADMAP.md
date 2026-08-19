@@ -14,9 +14,9 @@ RetailPOS V2 is being built as a **real shopkeeper-first retail POS**, not a dem
 - [x] Treat GitHub Actions as a verification gate, not as the debugging environment.
 - [ ] Perform local/static/unit validation before consuming CI.
 - [ ] Batch related changes before CI verification.
-- [ ] Avoid throwaway CI-trigger commits and temporary verification files.
-- [ ] Keep the repository understandable and production-quality.
-- [ ] Update this roadmap whenever architecture or product scope is materially changed.
+- [x] Avoid throwaway CI-trigger commits and temporary verification files.
+- [x] Keep the repository understandable and production-quality.
+- [x] Update this roadmap whenever architecture or product scope is materially changed.
 
 ---
 
@@ -30,22 +30,24 @@ RetailPOS V2 is being built as a **real shopkeeper-first retail POS**, not a dem
 - [x] CameraX foundation
 - [x] ML Kit barcode/OCR foundation
 - [ ] Finalize feature-oriented package structure
-- [ ] Establish `core / data / domain / feature / ui` boundaries
-- [ ] Keep business rules independent of Compose screens
+- [x] Establish `core / data / domain / feature / ui` boundaries (in progress; legacy files remain)
+- [x] Keep business rules independent from Compose screens for identity/barcode rules
 - [ ] Establish consistent ViewModel/UI-state pattern
-- [ ] Establish repository/use-case boundaries
+- [x] Establish repository boundaries
+- [ ] Add formal use-case layer across all major features
 - [ ] Centralize shared design system
 - [ ] Standardize loading/error/empty/success states
 - [ ] Standardize navigation and back-stack behavior
-- [ ] Standardize validation and user-facing error messages
+- [x] Standardize core product validation rules
 - [ ] Establish logging/diagnostic strategy
 
 ## Data integrity
 
-- [ ] Stable IDs for all core entities
-- [ ] Database migration strategy
-- [ ] Referential integrity rules
+- [x] Stable IDs for product/barcode/cache foundations
+- [x] Database migration strategy foundation
+- [ ] Referential integrity rules across all entities
 - [ ] Transaction boundaries for sales/inventory/Khata
+- [x] Product + primary barcode save protected by a Room transaction
 - [ ] Audit-sensitive operations protected from partial writes
 - [ ] Money/quantity precision strategy
 - [ ] Date/time and timezone strategy
@@ -61,14 +63,16 @@ RetailPOS V2 is being built as a **real shopkeeper-first retail POS**, not a dem
 - [x] SKU foundation
 - [x] Barcode entity foundation
 - [ ] Retailer SKU generation/manual SKU
-- [ ] Primary barcode
-- [ ] Multiple/alternate barcodes per product
-- [ ] Barcode type storage
-- [ ] GTIN/EAN/UPC identifier support
-- [ ] Identifier normalization
-- [ ] Identifier uniqueness rules
-- [ ] Duplicate identifier detection
-- [ ] Product-without-barcode support
+- [x] Primary barcode
+- [x] Multiple/alternate barcodes per product
+- [x] Barcode type storage
+- [x] GTIN/EAN/UPC identifier support
+- [x] Identifier normalization
+- [x] Identifier uniqueness rules
+- [x] Duplicate identifier detection
+- [x] Product-without-barcode support
+- [x] Canonical barcode lookup through `product_barcodes`
+- [x] Product search includes alternate barcodes
 
 ## Product information
 
@@ -80,12 +84,12 @@ RetailPOS V2 is being built as a **real shopkeeper-first retail POS**, not a dem
 - [ ] Variant support
 - [ ] Product image
 - [ ] Description/notes
-- [ ] Purchase price/cost
-- [ ] Selling price
-- [ ] MRP where applicable
+- [x] Purchase price/cost foundation
+- [x] Selling price foundation
+- [x] MRP foundation
 - [ ] Tax configuration
 - [ ] Discount configuration
-- [ ] Minimum stock level
+- [x] Minimum stock level foundation
 - [ ] Active/inactive product state
 
 ## Product workflows
@@ -95,8 +99,7 @@ RetailPOS V2 is being built as a **real shopkeeper-first retail POS**, not a dem
 - [ ] Duplicate/copy product
 - [ ] Archive product
 - [ ] Restore product
-- [ ] Product search
-- [ ] Filter/sort products
+- [ ] Product search and filtering UI
 - [ ] Category browsing
 - [ ] Product detail page
 - [ ] Bulk product import
@@ -105,13 +108,12 @@ RetailPOS V2 is being built as a **real shopkeeper-first retail POS**, not a dem
 
 ## Built-in product/catalog intelligence
 
-- [ ] Built-in/common product catalog support
-- [ ] Barcode → product lookup
-- [ ] Catalog candidate matching
-- [ ] Catalog result review before saving
-- [ ] Store-specific overrides for catalog data
-- [ ] Never overwrite retailer-controlled price/stock without explicit action
-- [ ] Local cache of successfully resolved product identities
+- [x] Barcode → public catalog lookup foundation
+- [x] Catalog candidate matching foundation
+- [x] Catalog result review before applying
+- [x] Store-specific overrides for retailer-controlled fields
+- [x] Local cache of resolved product identities foundation
+- [ ] Built-in/common product catalog dataset for offline/common items
 
 ---
 
@@ -127,8 +129,8 @@ RetailPOS V2 is being built as a **real shopkeeper-first retail POS**, not a dem
 - [x] Visual/image-label foundation
 - [ ] Product image capture
 - [ ] Multiple-frame capture where useful
-- [ ] Manual barcode entry fallback
-- [ ] Manual product search fallback
+- [x] Manual barcode entry fallback
+- [x] Manual product search fallback
 
 ## Identification pipeline
 
@@ -154,36 +156,29 @@ Camera / barcode / OCR / visual evidence
 - [x] Identification evidence model
 - [x] Confidence levels: HIGH / GOOD / MEDIUM / LOW / NONE
 - [x] Review-before-save principle
-- [ ] Complete persistent identification integration
+- [x] Persistent barcode-backed cache foundation
+- [ ] Complete live persistent-identification integration audit
 - [ ] Robust OCR-noise filtering integration
 - [ ] Better candidate ranking
-- [ ] Product-name/brand extraction
+- [x] Product-name/brand extraction foundation
 - [ ] Pack-size extraction
 - [ ] MRP/price extraction where reliable
 - [ ] Category inference
 - [ ] Unit inference
 - [ ] Variant detection
-- [ ] Image-assisted product recognition service
+- [x] Image-label-assisted recognition foundation
+- [ ] Dedicated image-assisted product recognition service
 - [ ] Human correction/feedback loop
 
 ## Intelligent safety rules
 
-- [ ] Never silently turn a weak visual guess into a confirmed product
-- [ ] Show why a candidate was selected
-- [ ] Show confidence/evidence to the retailer
-- [ ] Allow retailer to reject the suggestion
-- [ ] Allow retailer to keep camera/OCR data instead of catalog data
-- [ ] Preserve retailer-controlled fields
-- [ ] Require review when confidence is insufficient
-
-## Identification persistence
-
-- [x] Local identification cache foundation
-- [ ] Persist successful barcode/product identity mappings in live flow
-- [ ] Store-scoped identity cache
-- [ ] Reuse cached identity on subsequent scans
-- [ ] Cache invalidation/versioning
-- [ ] Allow retailer correction to override a bad match
+- [x] Never silently turn a weak visual guess into a confirmed product
+- [x] Show why a candidate was selected
+- [x] Show confidence/evidence to the retailer
+- [x] Allow retailer to reject the suggestion
+- [x] Allow retailer to keep camera/OCR data instead of catalog data
+- [x] Preserve retailer-controlled fields
+- [x] Require review when confidence is insufficient
 
 ---
 
@@ -193,34 +188,34 @@ Camera / barcode / OCR / visual evidence
 
 ## Supported identification behavior
 
-- [ ] Detect common retail barcodes
-- [ ] Normalize scanned values
-- [ ] Validate barcode format/check digit where applicable
-- [ ] Resolve barcode against local products first
-- [ ] Resolve unknown barcode through catalog when available
-- [ ] Offer intelligent identification for unknown products
-- [ ] Prevent duplicate barcode assignment
-- [ ] Support multiple barcodes on one product
-- [ ] Manual barcode entry fallback
+- [x] Detect common retail barcodes
+- [x] Normalize scanned values
+- [x] Validate barcode format/check digit where applicable
+- [x] Resolve barcode against local products first through the canonical barcode table
+- [x] Resolve unknown barcode through catalog when available
+- [x] Offer intelligent identification for unknown products
+- [x] Prevent duplicate barcode assignment
+- [x] Support multiple barcodes on one product
+- [x] Manual barcode entry fallback
 
 ## QR handling
 
-- [ ] Distinguish product barcodes from QR codes
-- [ ] Ignore/reject unsupported QR codes during normal product scanning
-- [ ] Do not create a product from an arbitrary QR payload
-- [ ] Explain why an unsupported QR was rejected when appropriate
+- [x] Distinguish product barcodes from QR codes
+- [x] Ignore/reject unsupported QR codes during normal product scanning
+- [x] Do not create a product from an arbitrary QR payload
+- [x] Explain that unsupported QR codes are not accepted by the product scanner
 - [ ] Keep payment/business QR handling separate from product identification
 
 ## Scanner UX
 
-- [ ] Fast repeated scanning
-- [ ] Duplicate-scan debounce
-- [ ] Scan success feedback
-- [ ] Unknown-code state
-- [ ] Invalid-code state
-- [ ] Unsupported-code state
-- [ ] Camera permission handling
-- [ ] Flash/torch control
+- [x] Fast repeated scanning foundation
+- [x] Duplicate-scan debounce
+- [x] Scan success callback
+- [ ] Unknown-code state polish
+- [ ] Invalid-code state polish
+- [x] Unsupported-code handling for QR
+- [x] Camera permission handling
+- [x] Flash/torch control
 - [ ] Camera retry/restart handling
 - [ ] Low-light guidance
 
@@ -230,18 +225,20 @@ Camera / barcode / OCR / visual evidence
 
 ## Product entry
 
+- [x] Cart foundation
+- [x] Checkout rules foundation
+- [ ] Fast product lookup
 - [ ] Barcode scan → cart
-- [ ] Product search → cart
-- [ ] Intelligent identification from unknown barcode
-- [ ] Intelligent product capture directly from POS
-- [ ] Newly identified product → save → return to active bill
+- [x] Intelligent identification from unknown barcode foundation
+- [x] Intelligent product capture directly from POS foundation
+- [x] Newly identified product → save → return to active bill foundation
 - [ ] Recently sold products
 - [ ] Quick-add/favorites where appropriate
 
 ## Cart
 
 - [x] Cart model foundation
-- [ ] Add/remove item
+- [ ] Add/remove item UI polish
 - [ ] Quantity increase/decrease
 - [ ] Decimal quantity for applicable units
 - [ ] Price override permissions
@@ -298,7 +295,7 @@ Camera / barcode / OCR / visual evidence
 - [ ] Stock-out
 - [ ] Manual adjustment
 - [ ] Adjustment reason
-- [ ] Stock movement history
+- [x] Stock movement history foundation
 - [ ] Inventory audit trail
 
 ## Purchasing
@@ -314,11 +311,11 @@ Camera / barcode / OCR / visual evidence
 
 ## Advanced inventory
 
-- [ ] Low-stock threshold
+- [x] Low-stock threshold foundation
 - [ ] Low-stock alerts
 - [ ] Out-of-stock state
-- [ ] Batch/lot tracking
-- [ ] Expiry date tracking
+- [x] Batch/lot data foundation
+- [x] Expiry-date data foundation
 - [ ] Near-expiry alerts
 - [ ] FEFO/FIFO strategy where applicable
 - [ ] Inventory valuation
@@ -345,7 +342,8 @@ Camera / barcode / OCR / visual evidence
 - [ ] Customer credit limit
 - [ ] Payment collection
 - [ ] Partial payment
-- [ ] Ledger entries
+- [x] Ledger data foundation
+- [ ] Ledger UI/history
 - [ ] Outstanding balance
 - [ ] Balance history
 - [ ] Customer statement
@@ -467,11 +465,11 @@ Camera / barcode / OCR / visual evidence
 - [x] Local database foundation
 - [ ] Audit all critical workflows for offline operation
 - [ ] Billing works offline
-- [ ] Product lookup works offline
-- [ ] Inventory works offline
-- [ ] Customer/Khata works offline
+- [x] Product lookup works offline for locally stored products
+- [ ] Inventory works offline end-to-end
+- [ ] Customer/Khata works offline end-to-end
 - [ ] Reports work from local data
-- [ ] Intelligent capture has graceful offline fallback
+- [x] Intelligent capture has graceful public-catalog fallback
 - [ ] Clear online/offline state
 - [ ] No silent data loss
 - [ ] Retryable network operations
@@ -563,10 +561,10 @@ Camera / barcode / OCR / visual evidence
 - [ ] Checkout validation
 - [ ] Inventory calculations
 - [ ] Stock movement rules
-- [ ] Barcode validation/normalization
-- [ ] QR rejection rules
-- [ ] SKU rules
-- [ ] Identification confidence rules
+- [x] Barcode validation/normalization foundation
+- [x] QR rejection rules foundation
+- [x] SKU rules foundation
+- [x] Identification confidence rules
 - [ ] Candidate ranking
 - [ ] Khata balance calculations
 - [ ] Return/refund calculations
@@ -577,16 +575,17 @@ Camera / barcode / OCR / visual evidence
 - [ ] Database constraints
 - [ ] Database migrations
 - [ ] Duplicate identifiers
-- [ ] Transaction atomicity
-- [ ] Cache behavior
+- [x] Product + primary barcode transaction path
+- [ ] Full transaction atomicity audit
+- [x] Identification cache behavior foundation
 - [ ] Offline behavior
 
 ## Integration tests
 
 - [ ] Scan → product lookup
-- [ ] Unknown barcode → intelligent identification
-- [ ] Identification → product save
-- [ ] Identification → return to POS
+- [x] Unknown barcode → intelligent identification foundation
+- [x] Identification → product save foundation
+- [x] Identification → return to POS foundation
 - [ ] POS → payment → sale → inventory deduction
 - [ ] Credit sale → Khata
 - [ ] Payment → Khata settlement
@@ -596,10 +595,10 @@ Camera / barcode / OCR / visual evidence
 
 - [ ] Camera permission
 - [ ] Barcode scanning
-- [ ] QR rejection
+- [x] QR rejection behavior in product scanner
 - [ ] Low light
 - [ ] Different packaging/barcode sizes
-- [ ] Fast repeated scans
+- [x] Fast repeated-scan debounce foundation
 - [ ] Offline billing
 - [ ] Device rotation/configuration behavior
 - [ ] Real printer/receipt workflow when supported
@@ -679,5 +678,3 @@ Until the available Actions budget returns:
 - Validate locally/static/unit-level wherever possible.
 - Batch coherent work.
 - Reserve CI for deliberate integration verification and release hardening.
-
-This rule exists specifically to prevent development resources from being wasted on repeated CI experiments.
