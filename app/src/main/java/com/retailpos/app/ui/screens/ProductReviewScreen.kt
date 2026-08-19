@@ -31,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.retailpos.app.data.BarcodeMutationResult
+import com.retailpos.app.data.CatalogProduct
 import com.retailpos.app.data.ProductCatalogLookup
 import com.retailpos.app.data.ProductViewModel
 import com.retailpos.app.data.ProductViewModelFactory
@@ -63,6 +64,7 @@ fun ProductReviewScreen(storeId: String, productId: String?, initialBarcode: Str
     var captureHint by remember { mutableStateOf<String?>(null) }
     var catalogStatus by remember { mutableStateOf<String?>(null) }
     var identificationStatus by remember { mutableStateOf<String?>(null) }
+    var catalogCandidate by remember { mutableStateOf<CatalogProduct?>(null) }
     var showBarcodeScanner by remember { mutableStateOf(false) }
     var showIntelligentCapture by remember { mutableStateOf(false) }
 
@@ -75,6 +77,9 @@ fun ProductReviewScreen(storeId: String, productId: String?, initialBarcode: Str
             name = product.name; brand = product.brand; barcode = product.barcode.orEmpty(); sku = product.sku.orEmpty()
             mrp = product.mrp.toString(); sellingPrice = product.sellingPrice.toString(); purchasePrice = product.purchasePrice.toString()
             stock = product.stock.toString(); unit = product.unit; lowStockThreshold = product.lowStockThreshold.toString(); errorMessage = null
+            catalogCandidate = null
+            catalogStatus = null
+            identificationStatus = null
         }
     }
     val isEdit = productId != null
@@ -92,11 +97,10 @@ fun ProductReviewScreen(storeId: String, productId: String?, initialBarcode: Str
         IntelligentProductCaptureScreen(
             onBack = { showIntelligentCapture = false },
             onResult = { result ->
-                // Apply camera/OCR signals first; a verified catalog match can then
-                // replace overlapping identity fields using the scanned barcode.
                 result.barcode?.let { detectedBarcode ->
                     barcode = detectedBarcode
                     catalogStatus = "Checking public product catalog…"
+                    catalogCandidate = null
                 }
                 result.detectedName?.let { name = it }
                 result.detectedBrand?.let { brand = it }
@@ -122,25 +126,22 @@ fun ProductReviewScreen(storeId: String, productId: String?, initialBarcode: Str
                             ProductCatalogLookup.lookupByBarcode(detectedBarcode)
                         }
                         if (catalog != null) {
-                            // Barcode-matched catalog data is treated as the stronger
-                            // identity source. Only non-empty catalog fields overwrite
-                            // the corresponding camera/OCR suggestions.
-                            catalog.name?.let { name = it }
-                            catalog.brand?.let { brand = it }
+                            catalogCandidate = catalog
                             catalog.quantity?.let { quantity ->
                                 captureHint = "Catalog quantity: $quantity"
                             }
                             catalog.category?.let { category ->
                                 captureHint = "Catalog category: $category"
                             }
-                            identificationStatus = "IDENTIFICATION: CATALOG MATCH"
-                            catalogStatus = "Catalog match found. Barcode-matched identity takes priority; verify before saving."
+                            catalogStatus = "Catalog match found. Review it before applying catalog identity."
+                            identificationStatus = "IDENTIFICATION: CATALOG MATCH AVAILABLE"
                         } else {
                             catalogStatus = "No public catalog match. Using camera/OCR detection only."
                         }
                     }
                 } else {
                     catalogStatus = null
+                    catalogCandidate = null
                 }
                 errorMessage = null
                 showIntelligentCapture = false
@@ -196,6 +197,34 @@ fun ProductReviewScreen(storeId: String, productId: String?, initialBarcode: Str
                 OutlinedTextField(lowStockThreshold, { lowStockThreshold = it }, Modifier.weight(1f), label = { Text("Low-stock alert") }, singleLine = true)
             }
             catalogStatus?.let { Text(it, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall) }
+            catalogCandidate?.let { catalog ->
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(4.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text("CATALOG MATCH", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                    catalog.name?.let { Text("Name: $it", style = MaterialTheme.typography.bodyMedium) }
+                    catalog.brand?.let { Text("Brand: $it", style = MaterialTheme.typography.bodyMedium) }
+                    catalog.quantity?.let { Text("Quantity: $it", style = MaterialTheme.typography.bodyMedium) }
+                    catalog.category?.let { Text("Category: $it", style = MaterialTheme.typography.bodyMedium) }
+                    Text("Barcode matched this catalog result. Apply it only after reviewing.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                        Button(onClick = {
+                            catalog.name?.let { name = it }
+                            catalog.brand?.let { brand = it }
+                            catalog.quantity?.let { quantity -> captureHint = "Catalog quantity: $quantity" }
+                            catalog.category?.let { category -> captureHint = "Catalog category: $category" }
+                            identificationStatus = "IDENTIFICATION: CATALOG APPLIED"
+                            catalogStatus = "Catalog identity applied. Verify all store-specific fields before saving."
+                            catalogCandidate = null
+                        }, modifier = Modifier.weight(1f)) { Text("USE CATALOG") }
+                        OutlinedButton(onClick = {
+                            catalogCandidate = null
+                            catalogStatus = "Catalog suggestion dismissed. Keeping camera/OCR details."
+                        }, modifier = Modifier.weight(1f)) { Text("KEEP CAMERA") }
+                    }
+                }
+            }
             captureHint?.let { Text(it, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall) }
             Text("ADDITIONAL BAR CODES", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
             if (productId == null) {
