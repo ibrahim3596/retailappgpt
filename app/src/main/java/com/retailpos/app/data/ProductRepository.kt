@@ -1,7 +1,7 @@
 package com.retailpos.app.data
 
 import androidx.room.withTransaction
-import com.retailpos.app.core.identifiers.ProductIdentifierRules
+import com.retailpos.app.core.identifiers.ProductIdentityRules
 import com.retailpos.app.core.identifiers.ProductIdentifierValidator
 import kotlinx.coroutines.flow.Flow
 import java.util.UUID
@@ -17,11 +17,13 @@ class ProductRepository(
     suspend fun getById(productId: String, storeId: String): ProductEntity? = dao.getById(productId, storeId)
     suspend fun getBySku(storeId: String, sku: String): ProductEntity? = dao.getBySku(storeId, ProductIdentityRules.normalizeSku(sku))
     suspend fun getByBarcode(storeId: String, value: String): ProductBarcodeEntity? = barcodeDao.getByValue(storeId, ProductIdentifierValidator.normalize(value))
+    suspend fun getProductByBarcode(storeId: String, value: String): ProductEntity? =
+        barcodeDao.getProductByBarcode(storeId, ProductIdentifierValidator.normalize(value))
     suspend fun save(product: ProductEntity) = dao.upsert(product)
 
     suspend fun saveProductWithPrimaryBarcode(product: ProductEntity, barcodeType: String = "UNKNOWN"): Boolean {
         suspend fun operation(): Boolean {
-            val normalized = ProductIdentifierRules.normalizeBarcode(product.barcode.orEmpty())
+            val normalized = ProductIdentityRules.normalizeBarcode(product.barcode.orEmpty())
             if (normalized.isNotBlank()) {
                 if (!ProductIdentifierValidator.isValidRetailBarcode(normalized)) return false
                 val existing = barcodeDao.getByValue(product.storeId, normalized)
@@ -34,7 +36,7 @@ class ProductRepository(
     }
 
     suspend fun savePrimaryBarcode(productId: String, storeId: String, value: String, type: String = "UNKNOWN"): Boolean {
-        val normalized = ProductIdentifierRules.normalizeBarcode(value)
+        val normalized = ProductIdentityRules.normalizeBarcode(value)
         if (normalized.isBlank()) {
             barcodeDao.deletePrimary(productId, storeId)
             return true
@@ -48,7 +50,7 @@ class ProductRepository(
     }
 
     suspend fun addSecondaryBarcode(productId: String, storeId: String, value: String, type: String = "UNKNOWN"): BarcodeMutationResult {
-        val normalized = ProductIdentifierRules.normalizeBarcode(value)
+        val normalized = ProductIdentityRules.normalizeBarcode(value)
         if (normalized.isBlank() || !ProductIdentifierValidator.isValidRetailBarcode(normalized)) return BarcodeMutationResult.Invalid
         val existing = barcodeDao.getByValue(storeId, normalized)
         if (existing != null) return BarcodeMutationResult.Duplicate
