@@ -4,25 +4,17 @@
 
 RetailPOS V2 is being built as a **real shopkeeper-first retail POS**, not a demo. The target is a fast, reliable, offline-first system with intelligent product identification, strong product/barcode handling, billing, inventory, customers/Khata, reporting, staff controls, and eventual cloud sync.
 
----
+## Current build state
 
-# 0. Non-negotiable development rules
+**Active focus: Product Master → canonical SKU/barcode system → product list/search/filtering → product create/edit → intelligent identification.**
 
-- [x] Build in coherent feature slices, not random isolated screens.
-- [x] Keep core business logic separate from UI.
-- [x] Prefer local/offline operation for core retail workflows.
-- [x] Treat GitHub Actions as a verification gate, not as the debugging environment.
-- [ ] Perform local/static/unit validation before consuming CI.
-- [ ] Batch related changes before CI verification.
-- [x] Avoid throwaway CI-trigger commits and temporary verification files.
-- [x] Keep the repository understandable and production-quality.
-- [x] Update this roadmap whenever architecture or product scope is materially changed.
+### Development rule
+
+Build coherent vertical slices, validate logic locally, and reserve GitHub Actions for deliberate verification when the Actions budget is available. Do not use CI as the debugging loop.
 
 ---
 
 # 1. Product architecture & engineering foundation
-
-## Application architecture
 
 - [x] Android/Kotlin foundation
 - [x] Jetpack Compose foundation
@@ -32,54 +24,55 @@ RetailPOS V2 is being built as a **real shopkeeper-first retail POS**, not a dem
 - [ ] Finalize feature-oriented package structure
 - [x] Establish `core / data / domain / feature / ui` boundaries (in progress; legacy files remain)
 - [x] Keep business rules independent from Compose screens for identity/barcode rules
-- [ ] Establish consistent ViewModel/UI-state pattern
-- [x] Establish repository boundaries
-- [ ] Add formal use-case layer across all major features
-- [ ] Centralize shared design system
-- [ ] Standardize loading/error/empty/success states
-- [ ] Standardize navigation and back-stack behavior
-- [x] Standardize core product validation rules
-- [ ] Establish logging/diagnostic strategy
+- [ ] Consistent ViewModel/UI-state pattern across all features
+- [x] Repository boundaries
+- [ ] Formal use-case layer across all major features
+- [ ] Centralized design system
+- [ ] Standard loading/error/empty/success states
+- [ ] Standard navigation/back-stack behavior
+- [x] Centralized product identity validation
+- [ ] Logging/diagnostics strategy
 
 ## Data integrity
 
 - [x] Stable IDs for product/barcode/cache foundations
 - [x] Database migration strategy foundation
-- [ ] Referential integrity rules across all entities
+- [ ] Referential integrity across all entities
 - [ ] Transaction boundaries for sales/inventory/Khata
-- [x] Product + primary barcode save protected by a Room transaction
-- [ ] Audit-sensitive operations protected from partial writes
+- [x] Product + primary barcode save protected by Room transaction
 - [ ] Money/quantity precision strategy
-- [ ] Date/time and timezone strategy
+- [ ] Date/time/timezone strategy
 
 ---
 
-# 2. Product master — complete product system
+# 2. Product master — current priority
 
 ## Product identity
 
 - [x] Product entity foundation
 - [x] Product DAO foundation
 - [x] SKU foundation
+- [x] Central SKU normalization/validation
 - [x] Barcode entity foundation
-- [ ] Retailer SKU generation/manual SKU
 - [x] Primary barcode
 - [x] Multiple/alternate barcodes per product
 - [x] Barcode type storage
 - [x] GTIN/EAN/UPC identifier support
-- [x] Identifier normalization
+- [x] Barcode normalization/check validation foundation
 - [x] Identifier uniqueness rules
 - [x] Duplicate identifier detection
 - [x] Product-without-barcode support
 - [x] Canonical barcode lookup through `product_barcodes`
 - [x] Product search includes alternate barcodes
+- [x] Legacy single-barcode field treated as compatibility mirror rather than authoritative lookup source
+- [ ] Retailer SKU auto-generation/manual SKU UX
 
 ## Product information
 
-- [ ] Product name
-- [ ] Brand
+- [x] Product name
+- [x] Brand
 - [ ] Category/subcategory
-- [ ] Unit of measure
+- [ ] Unit of measure selector
 - [ ] Pack size / quantity per pack
 - [ ] Variant support
 - [ ] Product image
@@ -89,19 +82,33 @@ RetailPOS V2 is being built as a **real shopkeeper-first retail POS**, not a dem
 - [x] MRP foundation
 - [ ] Tax configuration
 - [ ] Discount configuration
-- [x] Minimum stock level foundation
-- [ ] Active/inactive product state
+- [x] Minimum stock threshold foundation
+- [ ] Active/inactive state
+
+## Product list / discovery
+
+- [x] Product list screen foundation
+- [x] Product search by name/brand/SKU/barcode
+- [x] Canonical alternate-barcode search
+- [x] Stock filter logic: All / Low stock / Out of stock
+- [x] Stock filter unit tests
+- [x] Product rows show selling price and stock state
+- [ ] Product list filter UI polish
+- [ ] Category filters
+- [ ] Sort options
+- [ ] Recently updated/recently sold views
 
 ## Product workflows
 
-- [ ] Create product
-- [ ] Edit product
+- [x] Add-product navigation foundation
+- [x] Edit-product navigation foundation
+- [ ] Complete create product workflow polish
+- [ ] Complete edit product workflow polish
+- [ ] Dedicated product detail view
+- [ ] Dedicated barcode management section
 - [ ] Duplicate/copy product
 - [ ] Archive product
 - [ ] Restore product
-- [ ] Product search and filtering UI
-- [ ] Category browsing
-- [ ] Product detail page
 - [ ] Bulk product import
 - [ ] Bulk product export
 - [ ] Product backup/restore
@@ -110,16 +117,16 @@ RetailPOS V2 is being built as a **real shopkeeper-first retail POS**, not a dem
 
 - [x] Barcode → public catalog lookup foundation
 - [x] Catalog candidate matching foundation
-- [x] Catalog result review before applying
-- [x] Store-specific overrides for retailer-controlled fields
-- [x] Local cache of resolved product identities foundation
-- [ ] Built-in/common product catalog dataset for offline/common items
+- [x] Review-before-applying catalog result
+- [x] Store-specific override principle for retailer-controlled fields
+- [x] Persistent barcode-backed cache foundation
+- [ ] Offline/common built-in product dataset
+- [ ] Catalog source priority system
+- [ ] Catalog data freshness/versioning
 
 ---
 
-# 3. Intelligent Product Capture — flagship feature
-
-> **Goal:** The retailer should be able to point the phone at a product and have the app intelligently determine what it is, not merely read a barcode.
+# 3. Intelligent Product Capture
 
 ## Capture inputs
 
@@ -127,288 +134,200 @@ RetailPOS V2 is being built as a **real shopkeeper-first retail POS**, not a dem
 - [x] Camera foundation
 - [x] OCR foundation
 - [x] Visual/image-label foundation
-- [ ] Product image capture
-- [ ] Multiple-frame capture where useful
 - [x] Manual barcode entry fallback
 - [x] Manual product search fallback
+- [ ] Product image capture
+- [ ] Multiple-frame capture
 
 ## Identification pipeline
 
-```text
-Camera / barcode / OCR / visual evidence
-                    ↓
-             Normalize signals
-                    ↓
-             Candidate generation
-                    ↓
-       Barcode/catalog/name/image matching
-                    ↓
-           Evidence aggregation
-                    ↓
-          Confidence classification
-                    ↓
-             Human review
-                    ↓
-          Product creation/update
-```
-
-- [x] Catalog lookup foundation
-- [x] Identification evidence model
-- [x] Confidence levels: HIGH / GOOD / MEDIUM / LOW / NONE
-- [x] Review-before-save principle
-- [x] Persistent barcode-backed cache foundation
-- [ ] Complete live persistent-identification integration audit
-- [ ] Robust OCR-noise filtering integration
-- [ ] Better candidate ranking
-- [x] Product-name/brand extraction foundation
+- [x] Barcode/catalog/name/image evidence model foundation
+- [x] Confidence classification
+- [x] HIGH / GOOD / MEDIUM / LOW / NONE semantics
+- [x] Review-before-save
+- [x] Catalog candidate review actions
+- [x] Confidence explanation
+- [x] POS unknown-product identification flow foundation
+- [x] Return-to-POS flow foundation
+- [x] Persistent identification cache foundation
+- [ ] Complete live-cache integration audit
+- [ ] OCR-noise filtering integration
+- [ ] Candidate ranking
 - [ ] Pack-size extraction
-- [ ] MRP/price extraction where reliable
+- [ ] Reliable MRP/price extraction
 - [ ] Category inference
 - [ ] Unit inference
 - [ ] Variant detection
-- [x] Image-label-assisted recognition foundation
-- [ ] Dedicated image-assisted product recognition service
+- [ ] Dedicated image-assisted recognition service
 - [ ] Human correction/feedback loop
 
-## Intelligent safety rules
+## Safety
 
-- [x] Never silently turn a weak visual guess into a confirmed product
-- [x] Show why a candidate was selected
-- [x] Show confidence/evidence to the retailer
-- [x] Allow retailer to reject the suggestion
-- [x] Allow retailer to keep camera/OCR data instead of catalog data
-- [x] Preserve retailer-controlled fields
-- [x] Require review when confidence is insufficient
+- [x] Weak guesses treated as suggestions
+- [x] Evidence/confidence shown to retailer
+- [x] Candidate can be rejected
+- [x] Camera/OCR result can be kept instead of catalog result
+- [x] Retailer price/stock fields preserved
+- [x] Low-confidence result requires review
 
 ---
 
-# 4. Barcode / QR scanning system
+# 4. Barcode / QR system
 
-> Barcode scanning must be retail-aware. Not every code visible on packaging is a product identifier.
-
-## Supported identification behavior
-
-- [x] Detect common retail barcodes
-- [x] Normalize scanned values
-- [x] Validate barcode format/check digit where applicable
-- [x] Resolve barcode against local products first through the canonical barcode table
-- [x] Resolve unknown barcode through catalog when available
-- [x] Offer intelligent identification for unknown products
-- [x] Prevent duplicate barcode assignment
-- [x] Support multiple barcodes on one product
-- [x] Manual barcode entry fallback
-
-## QR handling
-
-- [x] Distinguish product barcodes from QR codes
-- [x] Ignore/reject unsupported QR codes during normal product scanning
-- [x] Do not create a product from an arbitrary QR payload
-- [x] Explain that unsupported QR codes are not accepted by the product scanner
-- [ ] Keep payment/business QR handling separate from product identification
-
-## Scanner UX
-
-- [x] Fast repeated scanning foundation
-- [x] Duplicate-scan debounce
-- [x] Scan success callback
-- [ ] Unknown-code state polish
-- [ ] Invalid-code state polish
-- [x] Unsupported-code handling for QR
-- [x] Camera permission handling
-- [x] Flash/torch control
-- [ ] Camera retry/restart handling
+- [x] Common retail barcode detection
+- [x] Barcode normalization
+- [x] GTIN check-digit validation foundation
+- [x] Local canonical barcode lookup
+- [x] Public catalog fallback
+- [x] Duplicate barcode prevention
+- [x] Multiple barcodes per product
+- [x] Manual barcode entry
+- [x] QR codes excluded from standard product scanner
+- [x] Unsupported QR payload is not converted into a product
+- [ ] Payment/business QR flow kept separate from product identification
+- [x] Duplicate-scan debounce foundation
+- [x] Scan callback
+- [x] Camera permission flow
+- [x] Flash/torch
+- [ ] Camera retry/restart polish
 - [ ] Low-light guidance
 
 ---
 
-# 5. POS / billing — core daily workflow
+# 5. POS / billing
 
 ## Product entry
 
 - [x] Cart foundation
 - [x] Checkout rules foundation
-- [ ] Fast product lookup
+- [x] Intelligent identification foundation
+- [ ] Fast canonical product lookup in POS
 - [ ] Barcode scan → cart
-- [x] Intelligent identification from unknown barcode foundation
-- [x] Intelligent product capture directly from POS foundation
-- [x] Newly identified product → save → return to active bill foundation
+- [ ] Search → cart
+- [ ] Unknown barcode → intelligent capture → create → return to bill complete integration
 - [ ] Recently sold products
-- [ ] Quick-add/favorites where appropriate
+- [ ] Favorites/quick add
 
 ## Cart
 
-- [x] Cart model foundation
-- [ ] Add/remove item UI polish
-- [ ] Quantity increase/decrease
-- [ ] Decimal quantity for applicable units
+- [ ] Add/remove item UI
+- [ ] Quantity editing
+- [ ] Decimal quantities
 - [ ] Price override permissions
-- [ ] Item-level discount
-- [ ] Bill-level discount
-- [ ] Tax calculation
-- [ ] Cart subtotal
-- [ ] Tax total
-- [ ] Discount total
-- [ ] Grand total
-- [ ] Hold/suspend bill
-- [ ] Resume held bill
-- [ ] Clear bill with confirmation
+- [ ] Item discounts
+- [ ] Bill discounts
+- [ ] Tax calculations
+- [ ] Totals
+- [ ] Hold/resume bill
+- [ ] Clear bill confirmation
 
 ## Checkout
 
-- [x] Checkout rules foundation
-- [ ] Cash payment
-- [ ] Card payment
-- [ ] UPI/payment method support
-- [ ] Other/custom payment methods
-- [ ] Split payment where required
-- [ ] Amount tendered
-- [ ] Change calculation
+- [ ] Cash
+- [ ] Card
+- [ ] UPI
+- [ ] Other payment methods
+- [ ] Split payment
+- [ ] Amount tendered/change
 - [ ] Payment validation
-- [ ] Sale transaction persistence
-- [ ] Stock deduction atomically with completed sale
+- [ ] Sale persistence
+- [ ] Atomic inventory deduction
 - [ ] Receipt generation
-- [ ] Receipt preview
-- [ ] Print/share receipt
-- [ ] Reprint previous receipt
+- [ ] Receipt preview/share/print
+- [ ] Reprint
 
-## Returns/refunds
+## Returns
 
 - [ ] Find previous sale
-- [ ] Full return
-- [ ] Partial return
+- [ ] Full/partial return
 - [ ] Return quantity validation
 - [ ] Inventory restoration
 - [ ] Refund recording
 - [ ] Return reason
-- [ ] Return audit trail
+- [ ] Audit trail
 
 ---
 
-# 6. Inventory management
+# 6. Inventory
 
-## Stock
-
-- [x] Inventory data foundation
-- [ ] Current stock quantity
-- [ ] Stock by product
+- [x] Inventory foundation
+- [ ] Current stock views
 - [ ] Stock-in
 - [ ] Stock-out
-- [ ] Manual adjustment
-- [ ] Adjustment reason
-- [x] Stock movement history foundation
+- [ ] Adjustments
+- [ ] Adjustment reasons
+- [x] Stock movement foundation
 - [ ] Inventory audit trail
-
-## Purchasing
-
-- [ ] Supplier entity
-- [ ] Supplier management
+- [ ] Suppliers
 - [ ] Purchase entry
-- [ ] Purchase invoice/reference
-- [ ] Purchase cost
-- [ ] Purchase quantity
-- [ ] Purchase stock-in
 - [ ] Purchase history
-
-## Advanced inventory
-
-- [x] Low-stock threshold foundation
+- [x] Batch/lot foundation
+- [x] Expiry foundation
 - [ ] Low-stock alerts
-- [ ] Out-of-stock state
-- [x] Batch/lot data foundation
-- [x] Expiry-date data foundation
+- [ ] Out-of-stock state polish
 - [ ] Near-expiry alerts
-- [ ] FEFO/FIFO strategy where applicable
+- [ ] FEFO/FIFO rules where applicable
 - [ ] Inventory valuation
 - [ ] Stock transfer
-- [ ] Multi-location foundation if required later
+- [ ] Multi-location support
 
 ---
 
 # 7. Customers & Khata
 
-## Customers
-
 - [x] Customer data foundation
-- [ ] Customer creation/editing
-- [ ] Phone/contact information
-- [ ] Customer search
-- [ ] Customer purchase history
-- [ ] Customer notes
-
-## Khata / credit
-
 - [x] Khata data foundation
+- [ ] Customer CRUD UI
+- [ ] Customer search
+- [ ] Purchase history
 - [ ] Credit sale
-- [ ] Customer credit limit
+- [ ] Credit limits
 - [ ] Payment collection
-- [ ] Partial payment
+- [ ] Partial payments
 - [x] Ledger data foundation
-- [ ] Ledger UI/history
-- [ ] Outstanding balance
-- [ ] Balance history
-- [ ] Customer statement
-- [ ] Payment receipt
-- [ ] Credit/Khata transaction audit
+- [ ] Ledger UI
+- [ ] Outstanding balances
+- [ ] Statements
+- [ ] Payment receipts
+- [ ] Credit audit trail
 
 ---
 
-# 8. Suppliers
+# 8. Suppliers & purchasing
 
 - [ ] Supplier profiles
-- [ ] Supplier contact details
-- [ ] Supplier product associations
+- [ ] Contacts
+- [ ] Supplier/product associations
+- [ ] Purchase workflows
 - [ ] Purchase history
-- [ ] Supplier outstanding/payables foundation
+- [ ] Payables foundation
 - [ ] Supplier search
 
 ---
 
 # 9. Reports & business intelligence
 
-## Sales
-
 - [ ] Today's sales
-- [ ] Sales by date range
-- [ ] Number of bills
+- [ ] Sales by range
+- [ ] Bill count
 - [ ] Average bill value
 - [ ] Payment-method breakdown
-- [ ] Discount summary
-- [ ] Tax summary
-- [ ] Returns summary
-
-## Products
-
-- [ ] Best-selling products
-- [ ] Slow-moving products
-- [ ] Product sales history
+- [ ] Discount/tax/returns summaries
+- [ ] Best sellers
+- [ ] Slow movers
 - [ ] Category performance
-- [ ] Profit by product
-
-## Inventory
-
-- [ ] Current stock report
-- [ ] Low-stock report
-- [ ] Out-of-stock report
-- [ ] Stock movement report
-- [ ] Expiry report
+- [ ] Product profit
+- [ ] Current inventory
+- [ ] Low/out-of-stock
+- [ ] Stock movements
+- [ ] Expiry
 - [ ] Inventory valuation
-
-## Customers / Khata
-
-- [ ] Outstanding credit
-- [ ] Customer balances
-- [ ] Collections report
-- [ ] Customer purchase history
-
-## Business
-
-- [ ] Gross sales
-- [ ] Cost of goods
-- [ ] Gross profit
+- [ ] Khata outstanding
+- [ ] Collections
 - [ ] Expenses
-- [ ] Net business view
-- [ ] Dashboard summaries
-- [ ] Export reports
+- [ ] Gross sales / COGS / gross profit
+- [ ] Dashboard
+- [ ] Export
 
 ---
 
@@ -419,14 +338,14 @@ Camera / barcode / OCR / visual evidence
 - [ ] Edit/delete with audit rules
 - [ ] Expense history
 - [ ] Expense reporting
-- [ ] Profit calculation integration
+- [ ] Profit integration
 
 ---
 
-# 11. Staff, roles & permissions
+# 11. Staff, permissions & audit
 
 - [ ] Staff profiles
-- [ ] Staff login/access
+- [ ] Authentication/access
 - [ ] Roles
 - [ ] Permission matrix
 - [ ] Cashier restrictions
@@ -436,244 +355,228 @@ Camera / barcode / OCR / visual evidence
 - [ ] Refund permission
 - [ ] Inventory adjustment permission
 - [ ] Reports permission
-- [ ] Settings/admin permission
-- [ ] Staff activity/audit trail
+- [ ] Settings permission
+- [ ] Staff activity audit
 
 ---
 
 # 12. Store & business settings
 
-- [ ] Store/business profile
-- [ ] Store name/address/contact
+- [ ] Store profile
+- [ ] Address/contact
 - [ ] Currency
-- [ ] Tax/GST configuration
+- [ ] GST/tax configuration
 - [ ] Invoice/receipt numbering
-- [ ] Receipt header/footer
-- [ ] Receipt logo
+- [ ] Receipt branding
 - [ ] Payment configuration
 - [ ] Product/unit defaults
 - [ ] Inventory defaults
-- [ ] Notification settings
+- [ ] Notifications
 - [ ] Staff settings
 
 ---
 
 # 13. Offline-first reliability
 
-> Core selling operations must remain useful without a live network.
-
-- [x] Local database foundation
-- [ ] Audit all critical workflows for offline operation
-- [ ] Billing works offline
-- [x] Product lookup works offline for locally stored products
-- [ ] Inventory works offline end-to-end
-- [ ] Customer/Khata works offline end-to-end
-- [ ] Reports work from local data
-- [x] Intelligent capture has graceful public-catalog fallback
-- [ ] Clear online/offline state
+- [x] Local DB foundation
+- [x] Product lookup works locally for stored products
+- [ ] Billing fully offline
+- [ ] Inventory fully offline
+- [ ] Customers/Khata fully offline
+- [ ] Reports from local data
+- [x] Intelligent capture has offline-safe fallback behavior
+- [ ] Explicit online/offline state
 - [ ] No silent data loss
 - [ ] Retryable network operations
-- [ ] Sync queue foundation
+- [ ] Sync queue
 
 ---
 
-# 14. Cloud, backup & synchronization
-
-> Cloud services come after the local foundation is stable.
+# 14. Cloud, backup & sync
 
 - [ ] Authentication
-- [ ] Business/store identity
+- [ ] Store identity
 - [ ] Cloud backup
-- [ ] Data restore
+- [ ] Restore
 - [ ] Sync engine
-- [ ] Sync queue
 - [ ] Conflict detection
-- [ ] Conflict resolution strategy
-- [ ] Sync status UI
+- [ ] Conflict resolution
+- [ ] Sync status
 - [ ] Failed-sync recovery
 - [ ] Multi-device support
-- [ ] Secure data handling
+- [ ] Secure cloud data handling
 
 ---
 
-# 15. Security, privacy & auditability
+# 15. Security & privacy
 
-- [ ] Secure local data handling
+- [ ] Local data security
 - [ ] Sensitive settings protection
-- [ ] Staff authorization enforcement
-- [ ] Permission checks at business-logic level
-- [ ] Audit trail for important changes
-- [ ] Safe backup/export
+- [ ] Permission enforcement in business logic
+- [ ] Audit trail
+- [ ] Secure export/backup
 - [ ] Account/session handling
-- [ ] Privacy review for camera/OCR/product images
-- [ ] Network/security review
+- [ ] Camera/OCR/image privacy review
+- [ ] Network security review
 
 ---
 
-# 16. UX / design-system quality
+# 16. UX / design system
 
-- [ ] Consistent typography
-- [ ] Consistent spacing
-- [ ] Consistent colors/tokens
-- [ ] Consistent buttons/fields/cards
-- [ ] Consistent dialogs/sheets
-- [ ] Consistent scanner UI
-- [ ] Consistent product forms
-- [ ] Consistent empty states
-- [ ] Consistent loading states
-- [ ] Consistent error states
-- [ ] Accessibility pass
-- [ ] Large-touch-target pass
-- [ ] Shopkeeper-speed UX pass
-- [ ] Reduce unnecessary taps in billing
+- [ ] Typography tokens
+- [ ] Spacing tokens
+- [ ] Color tokens
+- [ ] Shared buttons/fields/cards
+- [ ] Shared dialogs/sheets
+- [ ] Scanner UI consistency
+- [ ] Product form consistency
+- [ ] Empty/loading/error states
+- [ ] Accessibility
+- [ ] Touch-target audit
+- [ ] Shopkeeper-speed audit
+- [ ] Reduce billing taps
 
 ---
 
-# 17. Repository quality
+# 17. Repository / documentation quality
 
 - [x] Professional README
 - [x] Master roadmap
 - [ ] Architecture documentation
-- [ ] Product specification document
-- [ ] Data model documentation
+- [ ] Product specification
+- [ ] Data model
 - [ ] Barcode/identifier specification
 - [ ] Intelligent Capture specification
 - [ ] Offline/sync specification
-- [ ] Testing documentation
-- [ ] Contribution/development guide
+- [x] Initial unit-test structure
+- [ ] Testing guide
+- [ ] Contributing guide
 - [ ] Changelog
-- [ ] Clean temporary artifacts
-- [ ] Consistent naming conventions
-- [ ] Consistent commit conventions
-- [ ] No obsolete/dead code
-- [ ] No duplicate implementations
+- [ ] Remove stale temporary artifacts
+- [ ] Naming conventions
+- [ ] Commit conventions
+- [ ] Remove dead/duplicate code
 
 ---
 
-# 18. Testing strategy — do before CI where possible
+# 18. Testing
 
-## Unit tests
+## Unit
 
+- [x] Product identity rules
+- [x] SKU normalization/validation
+- [x] Barcode normalization/validation foundation
+- [x] QR rejection rules
+- [x] Identification confidence
+- [x] Product list stock-filter rules
 - [ ] Money calculations
 - [ ] Quantity calculations
-- [ ] Tax calculations
-- [ ] Discount calculations
-- [ ] Checkout validation
-- [ ] Inventory calculations
-- [ ] Stock movement rules
-- [x] Barcode validation/normalization foundation
-- [x] QR rejection rules foundation
-- [x] SKU rules foundation
-- [x] Identification confidence rules
+- [ ] Tax/discount calculations
+- [ ] Checkout rules
+- [ ] Inventory rules
+- [ ] Khata balance
+- [ ] Returns/refunds
 - [ ] Candidate ranking
-- [ ] Khata balance calculations
-- [ ] Return/refund calculations
 
-## Data/repository tests
+## Repository/data
 
 - [ ] DAO CRUD
-- [ ] Database constraints
-- [ ] Database migrations
+- [ ] Constraints
+- [ ] Migrations
 - [ ] Duplicate identifiers
 - [x] Product + primary barcode transaction path
-- [ ] Full transaction atomicity audit
-- [x] Identification cache behavior foundation
-- [ ] Offline behavior
+- [ ] Full transactional audit
+- [x] Identification cache foundation
+- [ ] Full offline behavior
 
-## Integration tests
+## Integration
 
-- [ ] Scan → product lookup
+- [ ] Scan → local product
 - [x] Unknown barcode → intelligent identification foundation
 - [x] Identification → product save foundation
 - [x] Identification → return to POS foundation
-- [ ] POS → payment → sale → inventory deduction
+- [ ] POS → payment → sale → stock deduction
 - [ ] Credit sale → Khata
 - [ ] Payment → Khata settlement
-- [ ] Return → inventory restoration
+- [ ] Return → stock restoration
 
-## Physical-device/manual testing
+## Device/manual
 
 - [ ] Camera permission
 - [ ] Barcode scanning
-- [x] QR rejection behavior in product scanner
+- [x] QR rejection behavior
 - [ ] Low light
 - [ ] Different packaging/barcode sizes
-- [x] Fast repeated-scan debounce foundation
+- [ ] Rapid scans
 - [ ] Offline billing
-- [ ] Device rotation/configuration behavior
-- [ ] Real printer/receipt workflow when supported
+- [ ] Printer/receipt workflow
 
 ---
 
 # 19. Release hardening
 
-- [ ] Full unit-test pass
-- [ ] Full repository/integration test pass
+- [ ] Full unit test pass
+- [ ] Repository/integration tests
 - [ ] Critical UI flow pass
-- [ ] Physical-device pass
+- [ ] Physical device pass
 - [ ] Performance pass
 - [ ] Memory/battery pass
 - [ ] Security/privacy review
-- [ ] Database migration review
+- [ ] Migration review
 - [ ] Backup/restore test
 - [ ] Offline/recovery test
 - [ ] Release build
-- [ ] One deliberate CI verification cycle
+- [ ] One deliberate CI verification cycle when Actions budget is available
 - [ ] Production checklist
 - [ ] Versioning/changelog
 
 ---
 
-# 20. Definition of “done”
+# 20. Definition of done
 
-A feature is **not** done merely because its screen exists.
+A feature is not done because a screen exists.
 
 A feature is done when:
 
 1. UI exists.
 2. Business rules exist.
-3. Data persistence exists where required.
-4. Navigation/back behavior is correct.
+3. Persistence exists where required.
+4. Navigation/back behavior works.
 5. Loading/error/empty states are handled.
 6. It integrates with related workflows.
-7. Important edge cases are covered.
-8. Unit/repository tests exist where appropriate.
+7. Important edge cases are handled.
+8. Appropriate tests exist.
 9. Offline behavior is considered.
-10. Documentation/roadmap status is updated.
-11. CI verification is performed later when the verification budget is available.
+10. Documentation/roadmap is updated.
+11. CI is deliberately verified later when the verification budget is available.
 
 ---
 
-# 21. Current priority order
+# 21. Priority order
 
-When choosing the next development task, follow this order unless a dependency requires otherwise:
+1. **Product Master + canonical SKU/barcode system**
+2. **Intelligent Product Capture**
+3. **POS/billing**
+4. **Inventory**
+5. **Customers + Khata**
+6. **Suppliers/purchasing**
+7. **Reports + expenses**
+8. **Staff/permissions + settings**
+9. **Offline reliability**
+10. **Cloud backup/sync**
+11. **Testing, hardening and release**
 
-1. **Clean architecture foundation**
-2. **Complete product master + SKU/barcode system**
-3. **Complete Intelligent Product Capture**
-4. **Complete POS/billing**
-5. **Inventory**
-6. **Customers + Khata**
-7. **Suppliers + purchasing**
-8. **Reports + expenses**
-9. **Staff/permissions + settings**
-10. **Offline reliability**
-11. **Cloud backup/sync**
-12. **Hardening, testing and release**
-
-Do not jump ahead just to create isolated UI screens. Prefer completing the end-to-end workflow of the current priority area.
+Prefer completing an end-to-end workflow before jumping to unrelated UI.
 
 ---
 
 # 22. CI budget rule
 
-**GitHub Actions is scarce during the current development period.**
-
-Until the available Actions budget returns:
+During periods when Actions minutes are scarce:
 
 - Do not use CI to discover obvious compile errors.
-- Do not trigger verification runs for tiny changes.
-- Do not create dummy commits to trigger workflows.
+- Do not trigger CI for tiny changes.
+- Do not create dummy trigger commits.
 - Do not repeatedly rerun unexplained failures.
 - Validate locally/static/unit-level wherever possible.
 - Batch coherent work.
