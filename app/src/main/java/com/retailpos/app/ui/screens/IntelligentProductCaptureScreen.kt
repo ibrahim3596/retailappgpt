@@ -10,11 +10,8 @@ import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -47,16 +44,12 @@ import androidx.core.content.ContextCompat
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.label.ImageLabeling
+import com.google.mlkit.vision.label.defaults.ImageLabelerOptions
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
-import com.google.mlkit.vision.label.ImageLabelerOptions
-import com.google.mlkit.vision.label.ImageLabeling
 import java.util.concurrent.Executors
 
-/**
- * Product identity signals captured from a single camera session.
- * None of these values are treated as authoritative store fields.
- */
 data class ProductCaptureResult(
     val barcode: String?,
     val detectedName: String?,
@@ -83,9 +76,7 @@ fun IntelligentProductCaptureScreen(
     var lastFingerprint by remember { mutableStateOf<String?>(null) }
     var lastEmitAt by remember { mutableLongStateOf(0L) }
 
-    val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted -> ready = granted }
+    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> ready = granted }
 
     LaunchedEffect(Unit) {
         if (!ready) permissionLauncher.launch(Manifest.permission.CAMERA)
@@ -116,9 +107,7 @@ fun IntelligentProductCaptureScreen(
             return@Scaffold
         }
 
-        Box(
-            modifier = Modifier.fillMaxSize().padding(padding)
-        ) {
+        Column(Modifier.fillMaxSize().padding(padding)) {
             AndroidView(
                 factory = {
                     PreviewView(it).apply {
@@ -129,7 +118,7 @@ fun IntelligentProductCaptureScreen(
                         )
                     }
                 },
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.weight(1f).fillMaxWidth(),
                 update = { previewView ->
                     val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
                     cameraProviderFuture.addListener({
@@ -172,7 +161,9 @@ fun IntelligentProductCaptureScreen(
                                     }
 
                                     scanner.process(image).addOnSuccessListener { codes ->
-                                        barcode = codes.firstOrNull { it.format != Barcode.FORMAT_QR_CODE && !it.rawValue.isNullOrBlank() }?.rawValue
+                                        barcode = codes.firstOrNull {
+                                            it.format != Barcode.FORMAT_QR_CODE && !it.rawValue.isNullOrBlank()
+                                        }?.rawValue
                                     }.addOnCompleteListener {
                                         barcodesDone = true
                                         maybeEmit()
@@ -191,7 +182,6 @@ fun IntelligentProductCaptureScreen(
                                         labelsDone = true
                                         maybeEmit()
                                     }
-
                                     imageProxy.close()
                                 }
                             }
@@ -205,17 +195,12 @@ fun IntelligentProductCaptureScreen(
                                 analysis
                             )
                         } catch (_: Exception) {
-                            // Camera lifecycle errors are surfaced by the normal permission/back flow.
                         }
                     }, ContextCompat.getMainExecutor(context))
                 }
             )
 
-            Surface(
-                modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(16.dp),
-                tonalElevation = 6.dp,
-                shadowElevation = 8.dp
-            ) {
+            Surface(Modifier.fillMaxWidth().padding(16.dp), tonalElevation = 6.dp, shadowElevation = 8.dp) {
                 Column(Modifier.padding(16.dp)) {
                     Text("Point the camera at the front of the product", style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(6.dp))
@@ -239,21 +224,17 @@ fun IntelligentProductCaptureScreen(
     }
 }
 
-private fun parseCapture(
-    rawText: String,
-    categoryHint: String?,
-    labelConfidence: Float?,
-    barcode: String?
-): ProductCaptureResult {
+private fun parseCapture(rawText: String, categoryHint: String?, labelConfidence: Float?, barcode: String?): ProductCaptureResult {
     val lines = rawText.lines().map { it.trim() }.filter { it.length >= 2 }
     val name = lines
         .filterNot { it.matches(Regex("[0-9 .₹$€£,/:-]+")) }
         .sortedWith(compareByDescending<String> { it.length }.thenBy { it.any { c -> c.isDigit() } })
         .firstOrNull()
+    val metadataPattern = Regex("mrp|mfd|exp|net wt|qty|price|rs\\.?", RegexOption.IGNORE_CASE)
     val brand = lines.firstOrNull { line ->
-        name != null && line != name && line.length in 2..40 && !line.contains(Regex("mrp|mfd|exp|net wt|qty|price|rs\\.?"), ignoreCase = true)
+        name != null && line != name && line.length in 2..40 && !metadataPattern.containsMatchIn(line)
     }
-    val mrp = Regex("(?:MRP|M\.R\.P)[^0-9]{0,8}(?:₹|Rs\\.?|INR)?\\s*([0-9]+(?:\\.[0-9]{1,2})?)", RegexOption.IGNORE_CASE)
+    val mrp = Regex("(?:MRP|M\\.R\\.P)[^0-9]{0,8}(?:₹|Rs\\.?|INR)?\\s*([0-9]+(?:\\.[0-9]{1,2})?)", RegexOption.IGNORE_CASE)
         .find(rawText.replace("\n", " "))
         ?.groupValues?.getOrNull(1)?.toDoubleOrNull()
     return ProductCaptureResult(
