@@ -11,9 +11,7 @@ object DatabaseMigrations {
             db.execSQL("CREATE INDEX IF NOT EXISTS index_product_barcodes_storeId_value ON product_barcodes(storeId, value)")
             db.execSQL("CREATE INDEX IF NOT EXISTS index_product_barcodes_productId ON product_barcodes(productId)")
             db.query("SELECT id, storeId, barcode, updatedAt FROM products WHERE barcode IS NOT NULL AND TRIM(barcode) <> ''").use { cursor ->
-                while (cursor.moveToNext()) {
-                    db.execSQL("INSERT INTO product_barcodes (id, productId, storeId, value, type, isPrimary, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)", arrayOf(UUID.randomUUID().toString(), cursor.getString(cursor.getColumnIndexOrThrow("id")), cursor.getString(cursor.getColumnIndexOrThrow("storeId")), cursor.getString(cursor.getColumnIndexOrThrow("barcode")).trim(), "UNKNOWN", 1, cursor.getLong(cursor.getColumnIndexOrThrow("updatedAt"))))
-                }
+                while (cursor.moveToNext()) db.execSQL("INSERT INTO product_barcodes (id, productId, storeId, value, type, isPrimary, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)", arrayOf(UUID.randomUUID().toString(), cursor.getString(cursor.getColumnIndexOrThrow("id")), cursor.getString(cursor.getColumnIndexOrThrow("storeId")), cursor.getString(cursor.getColumnIndexOrThrow("barcode")).trim(), "UNKNOWN", 1, cursor.getLong(cursor.getColumnIndexOrThrow("updatedAt"))))
             }
         }
     }
@@ -83,6 +81,12 @@ object DatabaseMigrations {
         override fun migrate(db: SupportSQLiteDatabase) {
             db.execSQL("CREATE TABLE IF NOT EXISTS product_identification_cache (storeId TEXT NOT NULL, barcode TEXT NOT NULL, name TEXT, brand TEXT, category TEXT, quantity TEXT, imageUrl TEXT, source TEXT NOT NULL, confidence INTEGER NOT NULL, updatedAt INTEGER NOT NULL, PRIMARY KEY(storeId, barcode))")
             db.execSQL("CREATE INDEX IF NOT EXISTS index_product_identification_cache_storeId_updatedAt ON product_identification_cache(storeId, updatedAt)")
+        }
+    }
+    val MIGRATION_10_11 = object : Migration(10, 11) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS product_metadata (productId TEXT NOT NULL, storeId TEXT NOT NULL, category TEXT NOT NULL, subcategory TEXT NOT NULL, packSize REAL, packUnit TEXT NOT NULL, description TEXT NOT NULL, imageUri TEXT, updatedAt INTEGER NOT NULL, PRIMARY KEY(productId))")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_product_metadata_storeId_category ON product_metadata(storeId, category)")
         }
     }
 }
