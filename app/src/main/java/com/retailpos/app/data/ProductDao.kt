@@ -10,7 +10,12 @@ interface ProductDao {
     @Query("SELECT * FROM products WHERE storeId = :storeId ORDER BY name COLLATE NOCASE")
     fun observeProducts(storeId: String): Flow<List<ProductEntity>>
 
-    @Query("SELECT DISTINCT p.* FROM products p WHERE p.storeId = :storeId AND (p.name LIKE '%' || :query || '%' OR p.brand LIKE '%' || :query || '%' OR p.barcode LIKE '%' || :query || '%' OR p.sku LIKE '%' || :query || '%' OR EXISTS (SELECT 1 FROM product_barcodes b WHERE b.productId = p.id AND b.storeId = p.storeId AND b.value LIKE '%' || :query || '%')) ORDER BY p.name COLLATE NOCASE")
+    /**
+     * Product identifiers are resolved through product_barcodes. The legacy
+     * ProductEntity.barcode field remains as a migration/back-compat mirror,
+     * but is not treated as the authoritative searchable barcode source.
+     */
+    @Query("SELECT DISTINCT p.* FROM products p WHERE p.storeId = :storeId AND (p.name LIKE '%' || :query || '%' OR p.brand LIKE '%' || :query || '%' OR p.sku LIKE '%' || :query || '%' OR EXISTS (SELECT 1 FROM product_barcodes b WHERE b.productId = p.id AND b.storeId = p.storeId AND b.value LIKE '%' || :query || '%')) ORDER BY p.name COLLATE NOCASE")
     fun searchProducts(storeId: String, query: String): Flow<List<ProductEntity>>
 
     @Query("SELECT * FROM products WHERE id = :productId AND storeId = :storeId LIMIT 1")
