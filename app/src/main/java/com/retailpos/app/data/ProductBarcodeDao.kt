@@ -13,11 +13,14 @@ interface ProductBarcodeDao {
     @Query("SELECT * FROM product_barcodes WHERE storeId = :storeId AND value = :value LIMIT 1")
     suspend fun getByValue(storeId: String, value: String): ProductBarcodeEntity?
 
-    @Query("SELECT * FROM product_barcodes WHERE productId = :productId AND storeId = :storeId LIMIT 1")
+    @Query("SELECT * FROM product_barcodes WHERE productId = :productId AND storeId = :storeId AND isPrimary = 1 LIMIT 1")
     suspend fun getPrimary(productId: String, storeId: String): ProductBarcodeEntity?
 
     @Upsert
     suspend fun upsert(barcode: ProductBarcodeEntity)
+
+    @Query("DELETE FROM product_barcodes WHERE productId = :productId AND storeId = :storeId AND isPrimary = 0")
+    suspend fun deleteSecondaryForProduct(productId: String, storeId: String)
 
     @Query("DELETE FROM product_barcodes WHERE productId = :productId AND storeId = :storeId")
     suspend fun deleteForProduct(productId: String, storeId: String)
