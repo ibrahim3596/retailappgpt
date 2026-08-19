@@ -224,26 +224,52 @@ fun IntelligentProductCaptureScreen(
     }
 }
 
+private val OCR_METADATA_PATTERN = Regex(
+    "mrp|mfd|mfg|exp|expiry|best before|net wt|net weight|gross wt|qty|quantity|price|rs\\.?|inr|batch|lot|customer care|manufactured|marketed by|made in|use within|barcode|ingredients|nutrition|calories|protein|fat|carbohydrate|address|www\\.|@|fssai",
+    RegexOption.IGNORE_CASE
+)
+
+private val OCR_NUMBER_ONLY_PATTERN = Regex("[0-9 .₹$€£,/:%#*+()\\-]+")
+
+private fun cleanOcrLines(rawText: String): List<String> = rawText
+    .lines()
+    .map { it.replace(Regex("\\s+"), " ").trim() }
+    .filter { it.length in 2..80 }
+    .filterNot { OCR_NUMBER_ONLY_PATTERN.matches(it) }
+    .filterNot { OCR_METADATA_PATTERN.containsMatchIn(it) }
+    .distinctBy { it.lowercase() }
+
 private fun parseCapture(rawText: String, categoryHint: String?, labelConfidence: Float?, barcode: String?): ProductCaptureResult {
-    val lines = rawText.lines().map { it.trim() }.filter { it.length >= 2 }
-    val name = lines
-        .filterNot { it.matches(Regex("[0-9 .₹$€£,/:-]+")) }
-        .sortedWith(compareByDescending<String> { it.length }.thenBy { it.any { c -> c.isDigit() } })
+    val allLines = rawText.lines().map { it.trim() }.filter { it.length >= 2 }
+    val usefulLines = cleanOcrLines(rawText)
+    val name = usefulLines
+        .sortedWith(
+            compareByDescending<String> { line ->
+                val words = line.split(' ').filter { it.length >= 2 }.size
+                val letters = line.count { it.isLetter() }
+                letters + words * 4
+            }.thenBy { it.length > 60 }
+        )
         .firstOrNull()
-    val metadataPattern = Regex("mrp|mfd|exp|net wt|qty|price|rs\\.?", RegexOption.IGNORE_CASE)
-    val brand = lines.firstOrNull { line ->
-        name != null && line != name && line.length in 2..40 && !metadataPattern.containsMatchIn(line)
-    }
+    val brand = usefulLines
+        .asSequence()
+        .filter { it != name }
+        .filter { it.length in 2..40 }
+        .filterNot { it.count { c -> c.isDigit() } > it.count { c -> c.isLetter() } }
+        .sortedByDescending { it.count { c -> c.isLetter() } }
+        .firstOrNull()
     val mrp = Regex("(?:MRP|M\\.R\\.P)[^0-9]{0,8}(?:₹|Rs\\.?|INR)?\\s*([0-9]+(?:\\.[0-9]{1,2})?)", RegexOption.IGNORE_CASE)
         .find(rawText.replace("\n", " "))
         ?.groupValues?.getOrNull(1)?.toDoubleOrNull()
+    val normalizedName = name?.takeIf { it.isNotBlank() }
+    val normalizedBrand = brand?.takeIf { it.isNotBlank() && it != normalizedName }
     return ProductCaptureResult(
         barcode = barcode,
-        detectedName = name,
-        detectedBrand = brand,
+        detectedName = normalizedName,
+        detectedBrand = normalizedBrand,
         categoryHint = categoryHint,
         detectedMrp = mrp,
-        rawText = rawText,
+        rawText = allLines.joinToString("\n"),
         labelConfidence = labelConfidence
     )
 }
