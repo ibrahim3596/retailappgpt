@@ -27,6 +27,19 @@ object ProductIdentifierValidator {
         return (10 - (sum % 10)) % 10 == check
     }
 
+    /**
+     * Numeric retail identifiers with a GTIN-sized length must pass the GTIN
+     * check digit. Other formats (for example custom Code 128 strings) are
+     * allowed because their value is not necessarily a GTIN.
+     */
+    fun isValidRetailBarcode(value: String): Boolean {
+        val normalized = normalize(value)
+        if (normalized.isBlank()) return true
+        val numeric = normalized.all { it.isDigit() }
+        val looksLikeGtIn = numeric && normalized.length in setOf(8, 12, 13, 14)
+        return !looksLikeGtIn || isValidGtIn(normalized)
+    }
+
     fun isRetailPosGtInType(type: BarcodeType): Boolean = when (type) {
         BarcodeType.EAN_8,
         BarcodeType.EAN_13,
