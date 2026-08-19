@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -42,6 +43,7 @@ fun ProductListScreen(
     storeId: String,
     onBack: () -> Unit,
     onAddProduct: () -> Unit,
+    onIntelligentCapture: () -> Unit,
     onEditProduct: (String) -> Unit
 ) {
     val factory = remember(storeId) { ProductViewModelFactory(storeId) }
@@ -66,12 +68,16 @@ fun ProductListScreen(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            Button(
+                onClick = onIntelligentCapture,
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
+            ) {
+                Text("INTELLIGENT PRODUCT CAPTURE")
+            }
             OutlinedTextField(
                 value = query,
                 onValueChange = viewModel::setQuery,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 12.dp),
+                modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                 placeholder = { Text("Search name, SKU, barcode or brand") }
@@ -105,9 +111,7 @@ fun ProductListScreen(
 @Composable
 private fun ProductRow(product: ProductEntity, onClick: () -> Unit) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(Modifier.padding(16.dp)) {
