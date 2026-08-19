@@ -1,6 +1,6 @@
 package com.retailpos.app.data
 
-import com.example.retailpos.domain.model.ProductIdentifierValidator
+import com.retailpos.app.core.identifiers.ProductIdentifierValidator
 import kotlinx.coroutines.flow.Flow
 import java.util.UUID
 
@@ -38,6 +38,7 @@ class ProductRepository(
             barcodeDao.deletePrimary(productId, storeId)
             return true
         }
+        if (!ProductIdentifierValidator.isValidRetailBarcode(normalized)) return false
 
         val existing = barcodeDao.getByValue(storeId, normalized)
         if (existing != null && existing.productId != productId) return false
@@ -64,7 +65,9 @@ class ProductRepository(
         type: String = "UNKNOWN"
     ): BarcodeMutationResult {
         val normalized = ProductIdentifierValidator.normalize(value)
-        if (normalized.isBlank()) return BarcodeMutationResult.Invalid
+        if (normalized.isBlank() || !ProductIdentifierValidator.isValidRetailBarcode(normalized)) {
+            return BarcodeMutationResult.Invalid
+        }
         val existing = barcodeDao.getByValue(storeId, normalized)
         if (existing != null) return BarcodeMutationResult.Duplicate
 
