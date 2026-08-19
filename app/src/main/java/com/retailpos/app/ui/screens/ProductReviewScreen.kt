@@ -36,7 +36,12 @@ import com.retailpos.app.data.SaveProductResult
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProductReviewScreen(storeId: String, productId: String?, onBack: () -> Unit) {
+fun ProductReviewScreen(
+    storeId: String,
+    productId: String?,
+    initialBarcode: String = "",
+    onBack: () -> Unit
+) {
     val factory = remember(storeId) { ProductViewModelFactory(storeId) }
     val viewModel: ProductViewModel = viewModel(factory = factory)
     val editingProduct by viewModel.editingProduct.collectAsState()
@@ -44,7 +49,7 @@ fun ProductReviewScreen(storeId: String, productId: String?, onBack: () -> Unit)
 
     var name by remember { mutableStateOf("") }
     var brand by remember { mutableStateOf("") }
-    var barcode by remember { mutableStateOf("") }
+    var barcode by remember { mutableStateOf(initialBarcode) }
     var sku by remember { mutableStateOf("") }
     var mrp by remember { mutableStateOf("") }
     var sellingPrice by remember { mutableStateOf("") }
@@ -57,7 +62,12 @@ fun ProductReviewScreen(storeId: String, productId: String?, onBack: () -> Unit)
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showBarcodeScanner by remember { mutableStateOf(false) }
 
-    LaunchedEffect(productId) { viewModel.loadProduct(productId) }
+    LaunchedEffect(productId, initialBarcode) {
+        viewModel.loadProduct(productId)
+        if (productId == null && initialBarcode.isNotBlank()) {
+            barcode = initialBarcode.trim()
+        }
+    }
     LaunchedEffect(editingProduct?.id) {
         editingProduct?.let { product ->
             name = product.name; brand = product.brand; barcode = product.barcode.orEmpty(); sku = product.sku.orEmpty()
