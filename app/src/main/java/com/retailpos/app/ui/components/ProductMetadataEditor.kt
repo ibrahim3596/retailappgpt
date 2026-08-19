@@ -22,14 +22,14 @@ fun ProductMetadataEditor(
         Text("PRODUCT DETAILS")
         OutlinedTextField(
             value = form.category,
-            onValueChange = { onChange { it.copy(category = it) } },
+            onValueChange = { value -> onChange { state -> state.copy(category = value) } },
             modifier = Modifier.fillMaxWidth(),
             label = { Text("Category") },
             singleLine = true
         )
         OutlinedTextField(
             value = form.subcategory,
-            onValueChange = { value -> onChange { it.copy(subcategory = value) } },
+            onValueChange = { value -> onChange { state -> state.copy(subcategory = value) } },
             modifier = Modifier.fillMaxWidth(),
             label = { Text("Subcategory") },
             singleLine = true
@@ -37,14 +37,14 @@ fun ProductMetadataEditor(
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             OutlinedTextField(
                 value = form.packSize,
-                onValueChange = { value -> onChange { it.copy(packSize = value) } },
+                onValueChange = { value -> onChange { state -> state.copy(packSize = value) } },
                 modifier = Modifier.weight(1f),
                 label = { Text("Pack size") },
                 singleLine = true
             )
             OutlinedTextField(
                 value = form.packUnit,
-                onValueChange = { value -> onChange { it.copy(packUnit = value) } },
+                onValueChange = { value -> onChange { state -> state.copy(packUnit = value) } },
                 modifier = Modifier.weight(1f),
                 label = { Text("Pack unit") },
                 singleLine = true
@@ -52,7 +52,7 @@ fun ProductMetadataEditor(
         }
         OutlinedTextField(
             value = form.description,
-            onValueChange = { value -> onChange { it.copy(description = value) } },
+            onValueChange = { value -> onChange { state -> state.copy(description = value) } },
             modifier = Modifier.fillMaxWidth(),
             label = { Text("Description / notes") },
             minLines = 3,
