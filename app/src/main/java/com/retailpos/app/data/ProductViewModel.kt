@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
+import com.retailpos.app.core.identifiers.ProductIdentityRules
 import com.retailpos.app.core.identifiers.ProductIdentifierRules
 import com.retailpos.app.core.identifiers.ProductIdentifierValidator
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -51,9 +52,9 @@ class ProductViewModel(application: Application, private val storeId: String) : 
         mrp: Double, sellingPrice: Double, purchasePrice: Double, stock: Double,
         unit: String, lowStockThreshold: Double, onResult: (SaveProductResult) -> Unit
     ) {
-        val normalizedSku = ProductIdentifierRules.normalizeSku(sku).ifBlank { null }
-        val normalizedBarcode = ProductIdentifierRules.normalizeBarcode(barcode)
-        if (!ProductIdentifierRules.isValidProductName(name) ||
+        val normalizedSku = ProductIdentityRules.normalizeSku(sku).ifBlank { null }
+        val normalizedBarcode = ProductIdentityRules.normalizeBarcode(barcode)
+        if (!ProductIdentityRules.isValidProductName(name) ||
             (normalizedSku != null && !ProductIdentityRules.isValidSku(normalizedSku)) ||
             (normalizedBarcode.isNotBlank() && !ProductIdentifierValidator.isValidRetailBarcode(normalizedBarcode)) ||
             mrp < 0 || sellingPrice < 0 || purchasePrice < 0 || stock < 0 || lowStockThreshold < 0 || sellingPrice > mrp
