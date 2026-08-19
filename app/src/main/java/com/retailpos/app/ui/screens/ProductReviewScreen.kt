@@ -12,6 +12,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -53,6 +54,7 @@ fun ProductReviewScreen(
     var unit by remember { mutableStateOf("pcs") }
     var lowStockThreshold by remember { mutableStateOf("5") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var showBarcodeScanner by remember { mutableStateOf(false) }
 
     LaunchedEffect(productId) {
         viewModel.loadProduct(productId)
@@ -76,6 +78,19 @@ fun ProductReviewScreen(
 
     val isEdit = productId != null
 
+    if (showBarcodeScanner) {
+        BarcodeScannerScreen(
+            title = "SCAN PRODUCT BARCODE",
+            onBack = { showBarcodeScanner = false },
+            onBarcodeDetected = { raw, _ ->
+                barcode = raw.trim()
+                errorMessage = null
+                showBarcodeScanner = false
+            }
+        )
+        return
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(title = { Text(if (isEdit) "EDIT PRODUCT" else "ADD PRODUCT", fontWeight = FontWeight.Black) })
@@ -97,7 +112,14 @@ fun ProductReviewScreen(
 
             OutlinedTextField(name, { name = it; errorMessage = null }, Modifier.fillMaxWidth(), label = { Text("Product name") }, singleLine = true)
             OutlinedTextField(brand, { brand = it }, Modifier.fillMaxWidth(), label = { Text("Brand") }, singleLine = true)
-            OutlinedTextField(barcode, { barcode = it; errorMessage = null }, Modifier.fillMaxWidth(), label = { Text("Barcode / GTIN") }, singleLine = true)
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(barcode, { barcode = it; errorMessage = null }, Modifier.weight(1f), label = { Text("Barcode / GTIN") }, singleLine = true)
+                OutlinedButton(onClick = { showBarcodeScanner = true }, modifier = Modifier.padding(top = 8.dp)) {
+                    Text("SCAN")
+                }
+            }
+
             OutlinedTextField(sku, { sku = it; errorMessage = null }, Modifier.fillMaxWidth(), label = { Text("SKU / Item code") }, singleLine = true)
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
@@ -121,7 +143,7 @@ fun ProductReviewScreen(
             }
 
             Text(
-                "Sale price cannot exceed MRP. Stock is managed separately after product creation.",
+                "Sale price cannot exceed MRP. Stock is managed separately after product creation. QR codes are not accepted as product identifiers.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
