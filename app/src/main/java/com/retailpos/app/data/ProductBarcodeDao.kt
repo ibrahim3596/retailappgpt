@@ -13,6 +13,9 @@ interface ProductBarcodeDao {
     @Query("SELECT * FROM product_barcodes WHERE storeId = :storeId AND value = :value LIMIT 1")
     suspend fun getByValue(storeId: String, value: String): ProductBarcodeEntity?
 
+    @Query("SELECT p.* FROM products p INNER JOIN product_barcodes b ON b.productId = p.id AND b.storeId = p.storeId WHERE b.storeId = :storeId AND b.value = :value LIMIT 1")
+    suspend fun getProductByBarcode(storeId: String, value: String): ProductEntity?
+
     @Query("SELECT * FROM product_barcodes WHERE productId = :productId AND storeId = :storeId AND isPrimary = 1 LIMIT 1")
     suspend fun getPrimary(productId: String, storeId: String): ProductBarcodeEntity?
 
