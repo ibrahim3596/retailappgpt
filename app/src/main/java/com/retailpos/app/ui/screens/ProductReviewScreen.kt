@@ -24,15 +24,20 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.retailpos.app.data.BarcodeMutationResult
+import com.retailpos.app.data.ProductCatalogLookup
 import com.retailpos.app.data.ProductViewModel
 import com.retailpos.app.data.ProductViewModelFactory
 import com.retailpos.app.data.SaveProductResult
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,6 +46,7 @@ fun ProductReviewScreen(storeId: String, productId: String?, initialBarcode: Str
     val viewModel: ProductViewModel = viewModel(factory = factory)
     val editingProduct by viewModel.editingProduct.collectAsState()
     val barcodes by viewModel.barcodes.collectAsState()
+    val scope = rememberCoroutineScope()
     var name by remember { mutableStateOf("") }
     var brand by remember { mutableStateOf("") }
     var barcode by remember { mutableStateOf(initialBarcode) }
@@ -55,6 +61,7 @@ fun ProductReviewScreen(storeId: String, productId: String?, initialBarcode: Str
     var secondaryBarcodeError by remember { mutableStateOf<String?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var captureHint by remember { mutableStateOf<String?>(null) }
+    var catalogStatus by remember { mutableStateOf<String?>(null) }
     var showBarcodeScanner by remember { mutableStateOf(false) }
     var showIntelligentCapture by remember { mutableStateOf(false) }
 
@@ -78,7 +85,22 @@ fun ProductReviewScreen(storeId: String, productId: String?, initialBarcode: Str
         IntelligentProductCaptureScreen(
             onBack = { showIntelligentCapture = false },
             onResult = { result ->
-                result.barcode?.let { barcode = it }
+                result.barcode?.let { detectedBarcode ->
+                    barcode = detectedBarcode
+                    catalogStatus = "Checking public product catalog…"
+                    scope.launch {
+                        val catalog = withContext(Dispatchers.IO) { ProductCatalogLookup.lookupByBarcode(detectedBarcode) }
+                        if (catalog != null) {
+                            catalog.name?.let { name = it }
+                            catalog.brand?.let { brand = it }
+                            catalog.quantity?.let { unit = it }
+                            catalog.category?.let { category -> captureHint = "Catalog category: $category" }
+                            catalogStatus = "Catalog match found. Verify the details before saving."
+                        } else {
+                            catalogStatus = "No public catalog match. Using camera/OCR detection only."
+                        }
+                    }
+                }
                 result.detectedName?.let { name = it }
                 result.detectedBrand?.let { brand = it }
                 result.detectedMrp?.let { mrp = it.toString() }
@@ -97,7 +119,7 @@ fun ProductReviewScreen(storeId: String, productId: String?, initialBarcode: Str
             Text(if (isEdit) "Update product details" else "Product details", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             if (!isEdit) {
                 Button(onClick = { showIntelligentCapture = true }, modifier = Modifier.fillMaxWidth()) { Text("INTELLIGENTLY IDENTIFY PRODUCT", fontWeight = FontWeight.Bold) }
-                Text("Point the camera at the product. The app combines barcode, printed text and visual category signals, then pre-fills what it can identify.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Point the camera at the product. The app combines barcode, printed text, visual category signals and a public catalog match when available.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             OutlinedTextField(name, { name = it; errorMessage = null }, Modifier.fillMaxWidth(), label = { Text("Product name") }, singleLine = true)
             OutlinedTextField(brand, { brand = it }, Modifier.fillMaxWidth(), label = { Text("Brand") }, singleLine = true)
@@ -118,6 +140,7 @@ fun ProductReviewScreen(storeId: String, productId: String?, initialBarcode: Str
                 OutlinedTextField(unit, { unit = it }, Modifier.weight(1f), label = { Text("Unit") }, singleLine = true)
                 OutlinedTextField(lowStockThreshold, { lowStockThreshold = it }, Modifier.weight(1f), label = { Text("Low-stock alert") }, singleLine = true)
             }
+            catalogStatus?.let { Text(it, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall) }
             captureHint?.let { Text(it, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall) }
             Text("ADDITIONAL BAR CODES", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
             if (productId == null) {
