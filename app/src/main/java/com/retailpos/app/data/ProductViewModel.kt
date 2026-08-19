@@ -6,12 +6,14 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import com.retailpos.app.core.identifiers.ProductIdentityRules
-import com.retailpos.app.core.identifiers.ProductIdentifierRules
 import com.retailpos.app.core.identifiers.ProductIdentifierValidator
+import com.retailpos.app.core.products.ProductListFilter
+import com.retailpos.app.core.products.matches
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.UUID
@@ -20,17 +22,26 @@ class ProductViewModel(application: Application, private val storeId: String) : 
     private val database = RetailDatabase.get(application)
     private val repository = ProductRepository(database.productDao(), database.productBarcodeDao(), database)
     private val _query = MutableStateFlow("")
+    private val _filter = MutableStateFlow(ProductListFilter.ALL)
     private val _editingProduct = MutableStateFlow<ProductEntity?>(null)
     private val _barcodes = MutableStateFlow<List<ProductBarcodeEntity>>(emptyList())
+
     val query: StateFlow<String> = _query
+    val filter: StateFlow<ProductListFilter> = _filter
     val editingProduct: StateFlow<ProductEntity?> = _editingProduct
     val barcodes: StateFlow<List<ProductBarcodeEntity>> = _barcodes
 
-    val products: StateFlow<List<ProductEntity>> = _query.flatMapLatest { search ->
-        if (search.isBlank()) repository.observeProducts(storeId) else repository.searchProducts(storeId, search)
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val products: StateFlow<List<ProductEntity>> = _query
+        .flatMapLatest { search ->
+            if (search.isBlank()) repository.observeProducts(storeId)
+            else repository.searchProducts(storeId, search)
+        }
+        .map { list -> list.filter { product -> _filter.value.matches(product.stock, product.lowStockThreshold) } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun setQuery(value: String) { _query.value = value }
+
+    fun setFilter(value: ProductListFilter) { _filter.value = value }
 
     fun loadProduct(productId: String?) {
         if (productId == null) { _editingProduct.value = null; _barcodes.value = emptyList(); return }
