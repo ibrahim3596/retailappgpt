@@ -23,6 +23,8 @@ class ProductViewModel(
     private val _editingProduct = MutableStateFlow<ProductEntity?>(null)
     val query: StateFlow<String> = _query
     val editingProduct: StateFlow<ProductEntity?> = _editingProduct
+    private val _barcodes = MutableStateFlow<List<ProductBarcodeEntity>>(emptyList())
+    val barcodes: StateFlow<List<ProductBarcodeEntity>> = _barcodes
 
     val products: StateFlow<List<ProductEntity>> =
         _query
@@ -32,113 +34,69 @@ class ProductViewModel(
             }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    fun setQuery(value: String) {
-        _query.value = value
-    }
+    fun setQuery(value: String) { _query.value = value }
 
     fun loadProduct(productId: String?) {
         if (productId == null) {
             _editingProduct.value = null
+            _barcodes.value = emptyList()
             return
         }
         viewModelScope.launch {
             _editingProduct.value = repository.getById(productId, storeId)
+            repository.observeBarcodes(productId, storeId).collect { _barcodes.value = it }
         }
     }
 
+    fun addSecondaryBarcode(productId: String?, value: String, type: String, onResult: (BarcodeMutationResult) -> Unit) {
+        if (productId == null) { onResult(BarcodeMutationResult.Invalid); return }
+        viewModelScope.launch { onResult(repository.addSecondaryBarcode(productId, storeId, value, type)) }
+    }
+
+    fun removeSecondaryBarcode(barcodeId: String) {
+        viewModelScope.launch { repository.removeSecondaryBarcode(barcodeId, storeId) }
+    }
+
     fun saveProduct(
-        productId: String?,
-        name: String,
-        brand: String,
-        barcode: String,
-        sku: String,
-        mrp: Double,
-        sellingPrice: Double,
-        purchasePrice: Double,
-        stock: Double,
-        unit: String,
-        lowStockThreshold: Double,
-        onResult: (SaveProductResult) -> Unit
+        productId: String?, name: String, brand: String, barcode: String, sku: String,
+        mrp: Double, sellingPrice: Double, purchasePrice: Double, stock: Double,
+        unit: String, lowStockThreshold: Double, onResult: (SaveProductResult) -> Unit
     ) {
         val normalizedSku = sku.trim().ifBlank { null }
         val normalizedBarcode = barcode.trim()
-        if (
-            name.isBlank() ||
-            mrp < 0 ||
-            sellingPrice < 0 ||
-            purchasePrice < 0 ||
-            stock < 0 ||
-            lowStockThreshold < 0 ||
-            sellingPrice > mrp
-        ) {
-            onResult(SaveProductResult.InvalidInput)
-            return
+        if (name.isBlank() || mrp < 0 || sellingPrice < 0 || purchasePrice < 0 || stock < 0 || lowStockThreshold < 0 || sellingPrice > mrp) {
+            onResult(SaveProductResult.InvalidInput); return
         }
-
         viewModelScope.launch {
             try {
                 if (normalizedSku != null) {
                     val existing = repository.getBySku(storeId, normalizedSku)
-                    if (existing != null && existing.id != productId) {
-                        onResult(SaveProductResult.DuplicateSku)
-                        return@launch
-                    }
+                    if (existing != null && existing.id != productId) { onResult(SaveProductResult.DuplicateSku); return@launch }
                 }
-
                 if (normalizedBarcode.isNotBlank()) {
                     val existing = repository.getByBarcode(storeId, normalizedBarcode)
-                    if (existing != null && existing.productId != productId) {
-                        onResult(SaveProductResult.DuplicateBarcode)
-                        return@launch
-                    }
+                    if (existing != null && existing.productId != productId) { onResult(SaveProductResult.DuplicateBarcode); return@launch }
                 }
-
                 val current = productId?.let { repository.getById(it, storeId) }
                 val product = ProductEntity(
-                    id = productId ?: UUID.randomUUID().toString(),
-                    storeId = storeId,
-                    name = name.trim(),
-                    brand = brand.trim(),
-                    barcode = normalizedBarcode.ifBlank { null },
-                    sku = normalizedSku,
-                    mrp = mrp,
-                    sellingPrice = sellingPrice,
-                    purchasePrice = purchasePrice,
-                    stock = if (current != null) current.stock else stock,
-                    unit = unit.trim().ifBlank { "pcs" },
-                    lowStockThreshold = lowStockThreshold,
-                    updatedAt = System.currentTimeMillis()
+                    id = productId ?: UUID.randomUUID().toString(), storeId = storeId, name = name.trim(), brand = brand.trim(),
+                    barcode = normalizedBarcode.ifBlank { null }, sku = normalizedSku, mrp = mrp, sellingPrice = sellingPrice,
+                    purchasePrice = purchasePrice, stock = if (current != null) current.stock else stock,
+                    unit = unit.trim().ifBlank { "pcs" }, lowStockThreshold = lowStockThreshold, updatedAt = System.currentTimeMillis()
                 )
                 repository.save(product)
-                if (!repository.savePrimaryBarcode(product.id, storeId, normalizedBarcode)) {
-                    onResult(SaveProductResult.DuplicateBarcode)
-                    return@launch
-                }
+                if (!repository.savePrimaryBarcode(product.id, storeId, normalizedBarcode)) { onResult(SaveProductResult.DuplicateBarcode); return@launch }
                 onResult(SaveProductResult.Success)
-            } catch (_: Exception) {
-                onResult(SaveProductResult.Error)
-            }
+            } catch (_: Exception) { onResult(SaveProductResult.Error) }
         }
     }
 }
 
-enum class SaveProductResult {
-    Success,
-    DuplicateSku,
-    DuplicateBarcode,
-    InvalidInput,
-    Error
-}
+enum class SaveProductResult { Success, DuplicateSku, DuplicateBarcode, InvalidInput, Error }
 
-class ProductViewModelFactory(
-    private val storeId: String
-) : ViewModelProvider.Factory {
-    override fun <T : androidx.lifecycle.ViewModel> create(
-        modelClass: Class<T>,
-        extras: CreationExtras
-    ): T {
-        val application = extras[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY]
-            ?: error("Application is required")
+class ProductViewModelFactory(private val storeId: String) : ViewModelProvider.Factory {
+    override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {
+        val application = extras[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] ?: error("Application is required")
         @Suppress("UNCHECKED_CAST")
         return ProductViewModel(application, storeId) as T
     }
