@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.util.Locale
 import java.util.UUID
 
 class ProductViewModel(
@@ -62,7 +63,7 @@ class ProductViewModel(
         mrp: Double, sellingPrice: Double, purchasePrice: Double, stock: Double,
         unit: String, lowStockThreshold: Double, onResult: (SaveProductResult) -> Unit
     ) {
-        val normalizedSku = sku.trim().ifBlank { null }
+        val normalizedSku = sku.trim().ifBlank { null }?.uppercase(Locale.ROOT)
         val normalizedBarcode = barcode.trim()
         if (name.isBlank() || mrp < 0 || sellingPrice < 0 || purchasePrice < 0 || stock < 0 || lowStockThreshold < 0 || sellingPrice > mrp) {
             onResult(SaveProductResult.InvalidInput); return
