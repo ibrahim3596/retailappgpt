@@ -42,7 +42,7 @@ import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProductReviewScreen(storeId: String, productId: String?, initialBarcode: String = "", onBack: () -> Unit) {
+fun ProductReviewScreen(storeId: String, productId: String?, initialBarcode: String = "", autoIdentify: Boolean = false, onBack: () -> Unit) {
     val factory = remember(storeId) { ProductViewModelFactory(storeId) }
     val viewModel: ProductViewModel = viewModel(factory = factory)
     val editingProduct by viewModel.editingProduct.collectAsState()
@@ -68,9 +68,10 @@ fun ProductReviewScreen(storeId: String, productId: String?, initialBarcode: Str
     var showBarcodeScanner by remember { mutableStateOf(false) }
     var showIntelligentCapture by remember { mutableStateOf(false) }
 
-    LaunchedEffect(productId, initialBarcode) {
+    LaunchedEffect(productId, initialBarcode, autoIdentify) {
         viewModel.loadProduct(productId)
         if (productId == null && initialBarcode.isNotBlank()) barcode = initialBarcode.trim()
+        if (productId == null && autoIdentify) showIntelligentCapture = true
     }
     LaunchedEffect(editingProduct?.id) {
         editingProduct?.let { product ->
