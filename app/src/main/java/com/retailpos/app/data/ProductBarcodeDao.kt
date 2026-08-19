@@ -19,6 +19,9 @@ interface ProductBarcodeDao {
     @Upsert
     suspend fun upsert(barcode: ProductBarcodeEntity)
 
+    @Query("DELETE FROM product_barcodes WHERE productId = :productId AND storeId = :storeId AND isPrimary = 1")
+    suspend fun deletePrimary(productId: String, storeId: String)
+
     @Query("DELETE FROM product_barcodes WHERE productId = :productId AND storeId = :storeId AND isPrimary = 0")
     suspend fun deleteSecondaryForProduct(productId: String, storeId: String)
 
