@@ -42,7 +42,14 @@ import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProductReviewScreen(storeId: String, productId: String?, initialBarcode: String = "", autoIdentify: Boolean = false, onBack: () -> Unit) {
+fun ProductReviewScreen(
+    storeId: String,
+    productId: String?,
+    initialBarcode: String = "",
+    autoIdentify: Boolean = false,
+    onBack: () -> Unit,
+    onSaved: (() -> Unit)? = null
+) {
     val factory = remember(storeId) { ProductViewModelFactory(storeId) }
     val viewModel: ProductViewModel = viewModel(factory = factory)
     val editingProduct by viewModel.editingProduct.collectAsState()
@@ -78,18 +85,14 @@ fun ProductReviewScreen(storeId: String, productId: String?, initialBarcode: Str
             name = product.name; brand = product.brand; barcode = product.barcode.orEmpty(); sku = product.sku.orEmpty()
             mrp = product.mrp.toString(); sellingPrice = product.sellingPrice.toString(); purchasePrice = product.purchasePrice.toString()
             stock = product.stock.toString(); unit = product.unit; lowStockThreshold = product.lowStockThreshold.toString(); errorMessage = null
-            catalogCandidate = null
-            catalogStatus = null
-            identificationStatus = null
+            catalogCandidate = null; catalogStatus = null; identificationStatus = null
         }
     }
     val isEdit = productId != null
 
     if (showBarcodeScanner) {
         BarcodeScannerScreen("SCAN PRODUCT BARCODE", { showBarcodeScanner = false }) { raw, _ ->
-            barcode = raw.trim()
-            errorMessage = null
-            showBarcodeScanner = false
+            barcode = raw.trim(); errorMessage = null; showBarcodeScanner = false
         }
         return
     }
@@ -98,11 +101,7 @@ fun ProductReviewScreen(storeId: String, productId: String?, initialBarcode: Str
         IntelligentProductCaptureScreen(
             onBack = { showIntelligentCapture = false },
             onResult = { result ->
-                result.barcode?.let { detectedBarcode ->
-                    barcode = detectedBarcode
-                    catalogStatus = "Checking public product catalog…"
-                    catalogCandidate = null
-                }
+                result.barcode?.let { detectedBarcode -> barcode = detectedBarcode; catalogStatus = "Checking public product catalog…"; catalogCandidate = null }
                 result.detectedName?.let { name = it }
                 result.detectedBrand?.let { brand = it }
                 result.detectedMrp?.let { mrp = it.toString() }
@@ -111,73 +110,39 @@ fun ProductReviewScreen(storeId: String, productId: String?, initialBarcode: Str
                     "Visual hint: $hint ${if (confidence.isNotBlank()) "($confidence)" else ""}. Verify before saving."
                 }
                 identificationStatus = when {
-                    result.barcode != null && (!result.detectedName.isNullOrBlank() || !result.detectedBrand.isNullOrBlank()) ->
-                        "IDENTIFICATION: BARCODE + CAMERA/OCR"
+                    result.barcode != null && (!result.detectedName.isNullOrBlank() || !result.detectedBrand.isNullOrBlank()) -> "IDENTIFICATION: BARCODE + CAMERA/OCR"
                     result.barcode != null -> "IDENTIFICATION: BARCODE"
-                    !result.detectedName.isNullOrBlank() || !result.detectedBrand.isNullOrBlank() ->
-                        "IDENTIFICATION: CAMERA/OCR"
+                    !result.detectedName.isNullOrBlank() || !result.detectedBrand.isNullOrBlank() -> "IDENTIFICATION: CAMERA/OCR"
                     result.categoryHint != null -> "IDENTIFICATION: VISUAL HINT ONLY"
                     else -> "IDENTIFICATION: LIMITED EVIDENCE"
                 }
-
                 val detectedBarcode = result.barcode
                 if (!detectedBarcode.isNullOrBlank()) {
                     scope.launch {
-                        val catalog = withContext(Dispatchers.IO) {
-                            ProductCatalogLookup.lookupByBarcode(detectedBarcode)
-                        }
+                        val catalog = withContext(Dispatchers.IO) { ProductCatalogLookup.lookupByBarcode(detectedBarcode) }
                         if (catalog != null) {
                             catalogCandidate = catalog
-                            catalog.quantity?.let { quantity ->
-                                captureHint = "Catalog quantity: $quantity"
-                            }
-                            catalog.category?.let { category ->
-                                captureHint = "Catalog category: $category"
-                            }
+                            catalog.quantity?.let { captureHint = "Catalog quantity: $it" }
+                            catalog.category?.let { captureHint = "Catalog category: $it" }
                             catalogStatus = "Catalog match found. Review it before applying catalog identity."
                             identificationStatus = "IDENTIFICATION: CATALOG MATCH AVAILABLE"
-                        } else {
-                            catalogStatus = "No public catalog match. Using camera/OCR detection only."
-                        }
+                        } else catalogStatus = "No public catalog match. Using camera/OCR detection only."
                     }
-                } else {
-                    catalogStatus = null
-                    catalogCandidate = null
-                }
-                errorMessage = null
-                showIntelligentCapture = false
+                } else { catalogStatus = null; catalogCandidate = null }
+                errorMessage = null; showIntelligentCapture = false
             }
         )
         return
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(title = { Text(if (isEdit) "EDIT PRODUCT" else "ADD PRODUCT", fontWeight = FontWeight.Black) })
-        }
-    ) { padding ->
-        Column(
-            Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text(
-                if (isEdit) "Update product details" else "Product details",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
+    Scaffold(topBar = { TopAppBar(title = { Text(if (isEdit) "EDIT PRODUCT" else "ADD PRODUCT", fontWeight = FontWeight.Black) }) }) { padding ->
+        Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(if (isEdit) "Update product details" else "Product details", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             if (!isEdit) {
-                Button(onClick = { showIntelligentCapture = true }, modifier = Modifier.fillMaxWidth()) {
-                    Text("INTELLIGENTLY IDENTIFY PRODUCT", fontWeight = FontWeight.Bold)
-                }
-                Text(
-                    "Point the camera at the product. The app combines barcode, printed text, visual category signals and a public catalog match when available.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Button(onClick = { showIntelligentCapture = true }, modifier = Modifier.fillMaxWidth()) { Text("INTELLIGENTLY IDENTIFY PRODUCT", fontWeight = FontWeight.Bold) }
+                Text("Point the camera at the product. The app combines barcode, printed text, visual category signals and a public catalog match when available.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            identificationStatus?.let {
-                Text(it, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-            }
+            identificationStatus?.let { Text(it, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold) }
             OutlinedTextField(name, { name = it; errorMessage = null }, Modifier.fillMaxWidth(), label = { Text("Product name") }, singleLine = true)
             OutlinedTextField(brand, { brand = it }, Modifier.fillMaxWidth(), label = { Text("Brand") }, singleLine = true)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
@@ -199,10 +164,7 @@ fun ProductReviewScreen(storeId: String, productId: String?, initialBarcode: Str
             }
             catalogStatus?.let { Text(it, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall) }
             catalogCandidate?.let { catalog ->
-                Column(
-                    modifier = Modifier.fillMaxWidth().padding(4.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
+                Column(Modifier.fillMaxWidth().padding(4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("CATALOG MATCH", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
                     catalog.name?.let { Text("Name: $it", style = MaterialTheme.typography.bodyMedium) }
                     catalog.brand?.let { Text("Brand: $it", style = MaterialTheme.typography.bodyMedium) }
@@ -211,66 +173,39 @@ fun ProductReviewScreen(storeId: String, productId: String?, initialBarcode: Str
                     Text("Barcode matched this catalog result. Apply it only after reviewing.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                         Button(onClick = {
-                            catalog.name?.let { name = it }
-                            catalog.brand?.let { brand = it }
-                            catalog.quantity?.let { quantity -> captureHint = "Catalog quantity: $quantity" }
-                            catalog.category?.let { category -> captureHint = "Catalog category: $category" }
-                            identificationStatus = "IDENTIFICATION: CATALOG APPLIED"
-                            catalogStatus = "Catalog identity applied. Verify all store-specific fields before saving."
-                            catalogCandidate = null
+                            catalog.name?.let { name = it }; catalog.brand?.let { brand = it }
+                            catalog.quantity?.let { captureHint = "Catalog quantity: $it" }; catalog.category?.let { captureHint = "Catalog category: $it" }
+                            identificationStatus = "IDENTIFICATION: CATALOG APPLIED"; catalogStatus = "Catalog identity applied. Verify all store-specific fields before saving."; catalogCandidate = null
                         }, modifier = Modifier.weight(1f)) { Text("USE CATALOG") }
-                        OutlinedButton(onClick = {
-                            catalogCandidate = null
-                            catalogStatus = "Catalog suggestion dismissed. Keeping camera/OCR details."
-                        }, modifier = Modifier.weight(1f)) { Text("KEEP CAMERA") }
+                        OutlinedButton(onClick = { catalogCandidate = null; catalogStatus = "Catalog suggestion dismissed. Keeping camera/OCR details." }, modifier = Modifier.weight(1f)) { Text("KEEP CAMERA") }
                     }
                 }
             }
             captureHint?.let { Text(it, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall) }
             Text("ADDITIONAL BAR CODES", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-            if (productId == null) {
-                Text("Save the product first, then add additional barcodes.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            } else {
-                barcodes.filter { !it.isPrimary }.forEach { code ->
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Column(Modifier.weight(1f)) { Text(code.value, fontWeight = FontWeight.Bold); Text(code.type, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                        TextButton(onClick = { viewModel.removeSecondaryBarcode(code.id) }) { Text("REMOVE") }
-                    }
-                }
+            if (productId == null) Text("Save the product first, then add additional barcodes.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            else {
+                barcodes.filter { !it.isPrimary }.forEach { code -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Column(Modifier.weight(1f)) { Text(code.value, fontWeight = FontWeight.Bold); Text(code.type, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }; TextButton(onClick = { viewModel.removeSecondaryBarcode(code.id) }) { Text("REMOVE") } } }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                     OutlinedTextField(secondaryBarcode, { secondaryBarcode = it; secondaryBarcodeError = null }, Modifier.weight(1f), label = { Text("Secondary barcode") }, singleLine = true)
-                    OutlinedButton(onClick = {
-                        viewModel.addSecondaryBarcode(productId, secondaryBarcode, "UNKNOWN") { result ->
-                            when (result) {
-                                BarcodeMutationResult.Success -> { secondaryBarcode = ""; secondaryBarcodeError = null }
-                                BarcodeMutationResult.Duplicate -> secondaryBarcodeError = "That barcode is already assigned to a product in this store."
-                                BarcodeMutationResult.Invalid -> secondaryBarcodeError = "Enter a barcode before adding it."
-                            }
-                        }
-                    }, modifier = Modifier.padding(top = 8.dp)) { Text("ADD") }
+                    OutlinedButton(onClick = { viewModel.addSecondaryBarcode(productId, secondaryBarcode, "UNKNOWN") { result -> when (result) { BarcodeMutationResult.Success -> { secondaryBarcode = ""; secondaryBarcodeError = null }; BarcodeMutationResult.Duplicate -> secondaryBarcodeError = "That barcode is already assigned to a product in this store."; BarcodeMutationResult.Invalid -> secondaryBarcodeError = "Enter a barcode before adding it." } } }, modifier = Modifier.padding(top = 8.dp)) { Text("ADD") }
                 }
                 secondaryBarcodeError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             }
             Text("Sale price cannot exceed MRP. Stock is managed separately after product creation. QR codes are not accepted as product identifiers.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             errorMessage?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             Button(onClick = {
-                val mrpValue = mrp.toDoubleOrNull() ?: -1.0
-                val saleValue = sellingPrice.toDoubleOrNull() ?: -1.0
-                val purchaseValue = purchasePrice.toDoubleOrNull() ?: -1.0
-                val stockValue = stock.toDoubleOrNull() ?: -1.0
-                val thresholdValue = lowStockThreshold.toDoubleOrNull() ?: -1.0
+                val mrpValue = mrp.toDoubleOrNull() ?: -1.0; val saleValue = sellingPrice.toDoubleOrNull() ?: -1.0; val purchaseValue = purchasePrice.toDoubleOrNull() ?: -1.0; val stockValue = stock.toDoubleOrNull() ?: -1.0; val thresholdValue = lowStockThreshold.toDoubleOrNull() ?: -1.0
                 viewModel.saveProduct(productId, name, brand, barcode, sku, mrpValue, saleValue, purchaseValue, stockValue, unit, thresholdValue) { result ->
                     when (result) {
-                        SaveProductResult.Success -> onBack()
+                        SaveProductResult.Success -> onSaved?.invoke() ?: onBack()
                         SaveProductResult.DuplicateSku -> errorMessage = "That SKU is already used by another product in this store."
                         SaveProductResult.DuplicateBarcode -> errorMessage = "That barcode is already assigned to another product in this store."
                         SaveProductResult.InvalidInput -> errorMessage = "Check the product name and numbers. Sale price must not exceed MRP, and stock/threshold cannot be negative."
                         SaveProductResult.Error -> errorMessage = "Unable to save the product. Please try again."
                     }
                 }
-            }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp), contentPadding = PaddingValues(vertical = 16.dp)) {
-                Text(if (isEdit) "SAVE CHANGES" else "SAVE PRODUCT", fontWeight = FontWeight.Bold)
-            }
+            }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp), contentPadding = PaddingValues(vertical = 16.dp)) { Text(if (isEdit) "SAVE CHANGES" else "SAVE PRODUCT", fontWeight = FontWeight.Bold) }
         }
     }
 }
