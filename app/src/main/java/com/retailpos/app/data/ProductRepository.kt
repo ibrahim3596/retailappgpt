@@ -35,14 +35,14 @@ class ProductRepository(
     ): Boolean {
         val normalized = ProductIdentifierValidator.normalize(value)
         if (normalized.isBlank()) {
-            barcodeDao.deleteForProduct(productId, storeId)
+            barcodeDao.deletePrimary(productId, storeId)
             return true
         }
 
         val existing = barcodeDao.getByValue(storeId, normalized)
         if (existing != null && existing.productId != productId) return false
 
-        barcodeDao.deleteForProduct(productId, storeId)
+        barcodeDao.deletePrimary(productId, storeId)
         barcodeDao.upsert(
             ProductBarcodeEntity(
                 id = UUID.randomUUID().toString(),
@@ -57,8 +57,43 @@ class ProductRepository(
         return true
     }
 
+    suspend fun addSecondaryBarcode(
+        productId: String,
+        storeId: String,
+        value: String,
+        type: String = "UNKNOWN"
+    ): BarcodeMutationResult {
+        val normalized = ProductIdentifierValidator.normalize(value)
+        if (normalized.isBlank()) return BarcodeMutationResult.Invalid
+        val existing = barcodeDao.getByValue(storeId, normalized)
+        if (existing != null) return BarcodeMutationResult.Duplicate
+
+        barcodeDao.upsert(
+            ProductBarcodeEntity(
+                id = UUID.randomUUID().toString(),
+                productId = productId,
+                storeId = storeId,
+                value = normalized,
+                type = type,
+                isPrimary = false,
+                createdAt = System.currentTimeMillis()
+            )
+        )
+        return BarcodeMutationResult.Success
+    }
+
+    suspend fun removeSecondaryBarcode(barcodeId: String, storeId: String) {
+        barcodeDao.delete(barcodeId, storeId)
+    }
+
     suspend fun delete(productId: String, storeId: String) {
         barcodeDao.deleteForProduct(productId, storeId)
         dao.delete(productId, storeId)
     }
+}
+
+enum class BarcodeMutationResult {
+    Success,
+    Duplicate,
+    Invalid
 }
