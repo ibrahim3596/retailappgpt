@@ -62,6 +62,7 @@ fun ProductReviewScreen(storeId: String, productId: String?, initialBarcode: Str
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var captureHint by remember { mutableStateOf<String?>(null) }
     var catalogStatus by remember { mutableStateOf<String?>(null) }
+    var identificationStatus by remember { mutableStateOf<String?>(null) }
     var showBarcodeScanner by remember { mutableStateOf(false) }
     var showIntelligentCapture by remember { mutableStateOf(false) }
 
@@ -77,29 +78,25 @@ fun ProductReviewScreen(storeId: String, productId: String?, initialBarcode: Str
         }
     }
     val isEdit = productId != null
+
     if (showBarcodeScanner) {
-        BarcodeScannerScreen("SCAN PRODUCT BARCODE", { showBarcodeScanner = false }) { raw, _ -> barcode = raw.trim(); errorMessage = null; showBarcodeScanner = false }
+        BarcodeScannerScreen("SCAN PRODUCT BARCODE", { showBarcodeScanner = false }) { raw, _ ->
+            barcode = raw.trim()
+            errorMessage = null
+            showBarcodeScanner = false
+        }
         return
     }
+
     if (showIntelligentCapture) {
         IntelligentProductCaptureScreen(
             onBack = { showIntelligentCapture = false },
             onResult = { result ->
+                // Apply camera/OCR signals first; a verified catalog match can then
+                // replace overlapping identity fields using the scanned barcode.
                 result.barcode?.let { detectedBarcode ->
                     barcode = detectedBarcode
                     catalogStatus = "Checking public product catalog…"
-                    scope.launch {
-                        val catalog = withContext(Dispatchers.IO) { ProductCatalogLookup.lookupByBarcode(detectedBarcode) }
-                        if (catalog != null) {
-                            catalog.name?.let { name = it }
-                            catalog.brand?.let { brand = it }
-                            catalog.quantity?.let { unit = it }
-                            catalog.category?.let { category -> captureHint = "Catalog category: $category" }
-                            catalogStatus = "Catalog match found. Verify the details before saving."
-                        } else {
-                            catalogStatus = "No public catalog match. Using camera/OCR detection only."
-                        }
-                    }
                 }
                 result.detectedName?.let { name = it }
                 result.detectedBrand?.let { brand = it }
@@ -108,18 +105,76 @@ fun ProductReviewScreen(storeId: String, productId: String?, initialBarcode: Str
                     val confidence = result.labelConfidence?.let { String.format(java.util.Locale.US, "%.0f%%", it * 100f) } ?: ""
                     "Visual hint: $hint ${if (confidence.isNotBlank()) "($confidence)" else ""}. Verify before saving."
                 }
+                identificationStatus = when {
+                    result.barcode != null && (!result.detectedName.isNullOrBlank() || !result.detectedBrand.isNullOrBlank()) ->
+                        "IDENTIFICATION: BARCODE + CAMERA/OCR"
+                    result.barcode != null -> "IDENTIFICATION: BARCODE"
+                    !result.detectedName.isNullOrBlank() || !result.detectedBrand.isNullOrBlank() ->
+                        "IDENTIFICATION: CAMERA/OCR"
+                    result.categoryHint != null -> "IDENTIFICATION: VISUAL HINT ONLY"
+                    else -> "IDENTIFICATION: LIMITED EVIDENCE"
+                }
+
+                val detectedBarcode = result.barcode
+                if (!detectedBarcode.isNullOrBlank()) {
+                    scope.launch {
+                        val catalog = withContext(Dispatchers.IO) {
+                            ProductCatalogLookup.lookupByBarcode(detectedBarcode)
+                        }
+                        if (catalog != null) {
+                            // Barcode-matched catalog data is treated as the stronger
+                            // identity source. Only non-empty catalog fields overwrite
+                            // the corresponding camera/OCR suggestions.
+                            catalog.name?.let { name = it }
+                            catalog.brand?.let { brand = it }
+                            catalog.quantity?.let { quantity ->
+                                captureHint = "Catalog quantity: $quantity"
+                            }
+                            catalog.category?.let { category ->
+                                captureHint = "Catalog category: $category"
+                            }
+                            identificationStatus = "IDENTIFICATION: CATALOG MATCH"
+                            catalogStatus = "Catalog match found. Barcode-matched identity takes priority; verify before saving."
+                        } else {
+                            catalogStatus = "No public catalog match. Using camera/OCR detection only."
+                        }
+                    }
+                } else {
+                    catalogStatus = null
+                }
                 errorMessage = null
                 showIntelligentCapture = false
             }
         )
         return
     }
-    Scaffold(topBar = { TopAppBar(title = { Text(if (isEdit) "EDIT PRODUCT" else "ADD PRODUCT", fontWeight = FontWeight.Black) }) }) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(if (isEdit) "Update product details" else "Product details", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+
+    Scaffold(
+        topBar = {
+            TopAppBar(title = { Text(if (isEdit) "EDIT PRODUCT" else "ADD PRODUCT", fontWeight = FontWeight.Black) })
+        }
+    ) { padding ->
+        Column(
+            Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                if (isEdit) "Update product details" else "Product details",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
             if (!isEdit) {
-                Button(onClick = { showIntelligentCapture = true }, modifier = Modifier.fillMaxWidth()) { Text("INTELLIGENTLY IDENTIFY PRODUCT", fontWeight = FontWeight.Bold) }
-                Text("Point the camera at the product. The app combines barcode, printed text, visual category signals and a public catalog match when available.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Button(onClick = { showIntelligentCapture = true }, modifier = Modifier.fillMaxWidth()) {
+                    Text("INTELLIGENTLY IDENTIFY PRODUCT", fontWeight = FontWeight.Bold)
+                }
+                Text(
+                    "Point the camera at the product. The app combines barcode, printed text, visual category signals and a public catalog match when available.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            identificationStatus?.let {
+                Text(it, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
             }
             OutlinedTextField(name, { name = it; errorMessage = null }, Modifier.fillMaxWidth(), label = { Text("Product name") }, singleLine = true)
             OutlinedTextField(brand, { brand = it }, Modifier.fillMaxWidth(), label = { Text("Brand") }, singleLine = true)
@@ -183,7 +238,9 @@ fun ProductReviewScreen(storeId: String, productId: String?, initialBarcode: Str
                         SaveProductResult.Error -> errorMessage = "Unable to save the product. Please try again."
                     }
                 }
-            }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp), contentPadding = PaddingValues(vertical = 16.dp)) { Text(if (isEdit) "SAVE CHANGES" else "SAVE PRODUCT", fontWeight = FontWeight.Bold) }
+            }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp), contentPadding = PaddingValues(vertical = 16.dp)) {
+                Text(if (isEdit) "SAVE CHANGES" else "SAVE PRODUCT", fontWeight = FontWeight.Bold)
+            }
         }
     }
 }
