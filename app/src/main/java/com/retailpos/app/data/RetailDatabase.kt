@@ -20,11 +20,15 @@ abstract class RetailDatabase : RoomDatabase() {
     abstract fun productIdentificationCacheDao(): ProductIdentificationCacheDao
 
     companion object {
+        private const val LOCAL_STORE_ID = "local-store"
         @Volatile private var INSTANCE: RetailDatabase? = null
         fun get(context: Context): RetailDatabase = INSTANCE ?: synchronized(this) {
             INSTANCE ?: Room.databaseBuilder(context.applicationContext, RetailDatabase::class.java, "retailpos.db")
                 .addMigrations(DatabaseMigrations.MIGRATION_1_2, DatabaseMigrations.MIGRATION_2_3, DatabaseMigrations.MIGRATION_3_4, DatabaseMigrations.MIGRATION_4_5, DatabaseMigrations.MIGRATION_5_6, DatabaseMigrations.MIGRATION_6_7, DatabaseMigrations.MIGRATION_7_8, DatabaseMigrations.MIGRATION_8_9, DatabaseMigrations.MIGRATION_9_10)
-                .build().also { INSTANCE = it }
+                .build().also {
+                    INSTANCE = it
+                    ProductCatalogLookup.configurePersistentCache(LOCAL_STORE_ID, it.productIdentificationCacheDao())
+                }
         }
     }
 }
