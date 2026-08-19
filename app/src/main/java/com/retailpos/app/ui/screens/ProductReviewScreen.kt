@@ -195,6 +195,16 @@ fun ProductReviewScreen(
                     else -> "LOW"
                 }
                 Text("IDENTIFICATION CONFIDENCE: $level ($it%)", color = if (it >= 80) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                Text(
+                    when {
+                        it >= 95 -> "Strong evidence: barcode-backed catalog data is available. Still verify store-specific pricing and stock."
+                        it >= 80 -> "Good evidence: the barcode is reliable, with additional camera/OCR support where available. Verify the filled fields."
+                        it >= 60 -> "Medium evidence: the app detected useful text or brand information, but the exact product may still be ambiguous."
+                        else -> "Low evidence: treat the detected details as suggestions only and verify the product manually before saving."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
             OutlinedTextField(name, { name = it; errorMessage = null }, Modifier.fillMaxWidth(), label = { Text("Product name") }, singleLine = true)
             OutlinedTextField(brand, { brand = it }, Modifier.fillMaxWidth(), label = { Text("Brand") }, singleLine = true)
