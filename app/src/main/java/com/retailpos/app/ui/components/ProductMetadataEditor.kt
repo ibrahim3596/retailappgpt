@@ -20,6 +20,10 @@ fun ProductMetadataEditor(
 ) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("PRODUCT DETAILS")
+        ProductImagePicker(
+            imageUri = form.imageUri,
+            onImageSelected = { uri -> onChange { state -> state.copy(imageUri = uri) } }
+        )
         OutlinedTextField(
             value = form.category,
             onValueChange = { value -> onChange { state -> state.copy(category = value) } },
