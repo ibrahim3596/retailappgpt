@@ -30,8 +30,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.retailpos.app.core.products.ProductCaptureObservation
 import com.retailpos.app.core.products.ProductIdentificationRanking
 import com.retailpos.app.core.products.ProductIdentificationSignals
+import com.retailpos.app.core.products.ProductPackCompatibility
 import com.retailpos.app.data.BarcodeMutationResult
 import com.retailpos.app.data.CatalogProduct
 import com.retailpos.app.data.ProductCatalogLookup
@@ -76,6 +78,7 @@ fun ProductReviewScreen(
     var identificationExplanation by remember { mutableStateOf<String?>(null) }
     var catalogCandidate by remember { mutableStateOf<CatalogProduct?>(null) }
     var identificationConfidence by remember { mutableStateOf<Int?>(null) }
+    var captureObservation by remember { mutableStateOf<ProductCaptureObservation?>(null) }
     var showBarcodeScanner by remember { mutableStateOf(false) }
     var showIntelligentCapture by remember { mutableStateOf(false) }
 
@@ -96,6 +99,7 @@ fun ProductReviewScreen(
             stock = product.stock.toString()
             unit = product.unit
             lowStockThreshold = product.lowStockThreshold.toString()
+            captureObservation = null
             errorMessage = null
             catalogCandidate = null
             catalogStatus = null
@@ -105,6 +109,44 @@ fun ProductReviewScreen(
         }
     }
     val isEdit = productId != null
+
+    fun persistProduct() {
+        val capturedPack = captureObservation?.pack
+        if (capturedPack != null) {
+            val compatibility = ProductPackCompatibility.classify(capturedPack, unit)
+            if (compatibility.compatibility == com.retailpos.app.core.products.PackCompatibility.MISMATCH_REQUIRES_REVIEW) {
+                errorMessage = "Observed ${capturedPack.sourceText} does not match the selling unit ‘$unit’. Review the unit before saving."
+                return
+            }
+        }
+        val mrpValue = mrp.toDoubleOrNull() ?: -1.0
+        val saleValue = sellingPrice.toDoubleOrNull() ?: -1.0
+        val purchaseValue = purchasePrice.toDoubleOrNull() ?: -1.0
+        val stockValue = stock.toDoubleOrNull() ?: -1.0
+        val thresholdValue = lowStockThreshold.toDoubleOrNull() ?: -1.0
+        viewModel.saveProduct(
+            productId = productId,
+            name = name,
+            brand = brand,
+            barcode = barcode,
+            sku = sku,
+            mrp = mrpValue,
+            sellingPrice = saleValue,
+            purchasePrice = purchaseValue,
+            stock = stockValue,
+            unit = unit,
+            lowStockThreshold = thresholdValue,
+            captureObservation = captureObservation
+        ) { result ->
+            when (result) {
+                SaveProductResult.Success -> onSaved?.invoke() ?: onBack()
+                SaveProductResult.DuplicateSku -> errorMessage = "That SKU is already used by another product in this store."
+                SaveProductResult.DuplicateBarcode -> errorMessage = "That barcode is already assigned to another product in this store."
+                SaveProductResult.InvalidInput -> errorMessage = "Check the product name and numbers. Sale price must not exceed MRP, and stock/threshold cannot be negative."
+                SaveProductResult.Error -> errorMessage = "Unable to save the product. Please try again."
+            }
+        }
+    }
 
     if (showBarcodeScanner) {
         BarcodeScannerScreen("SCAN PRODUCT BARCODE", { showBarcodeScanner = false }) { raw, _ ->
@@ -127,14 +169,36 @@ fun ProductReviewScreen(
                 result.detectedName?.let { name = it }
                 result.detectedBrand?.let { brand = it }
                 result.detectedMrp?.let { mrp = it.toString() }
-                captureHint = result.categoryHint?.let { hint ->
-                    val confidence = result.labelConfidence?.let { String.format(java.util.Locale.US, "%.0f%%", it * 100f) } ?: ""
-                    "Visual hint: $hint ${if (confidence.isNotBlank()) "($confidence)" else ""}. Verify before saving."
-                }
+                captureObservation = ProductCaptureObservation(
+                    barcode = result.barcode,
+                    printedName = result.detectedName,
+                    printedBrand = result.detectedBrand,
+                    mrp = result.detectedMrp,
+                    categoryHint = result.categoryHint,
+                    categoryConfidence = result.labelConfidence,
+                    pack = if (result.detectedPackSize != null && !result.detectedPackUnit.isNullOrBlank()) {
+                        com.retailpos.app.core.products.ParsedPack(
+                            result.detectedPackSize,
+                            result.detectedPackUnit,
+                            "${result.detectedPackSize} ${result.detectedPackUnit}"
+                        )
+                    } else null,
+                    frameCount = 1
+                )
                 val hasBarcode = !result.barcode.isNullOrBlank()
                 val hasText = !result.detectedName.isNullOrBlank() || !result.detectedBrand.isNullOrBlank()
                 val hasVisual = result.categoryHint != null
-                val baseScore = ProductIdentificationRanking.score(ProductIdentificationSignals(barcodeDetected = hasBarcode, printedTextDetected = hasText, visualHintDetected = hasVisual))
+                val packCompatible = captureObservation?.pack?.let {
+                    ProductPackCompatibility.classify(it, unit).compatibility != com.retailpos.app.core.products.PackCompatibility.MISMATCH_REQUIRES_REVIEW
+                } ?: false
+                val baseScore = ProductIdentificationRanking.score(
+                    ProductIdentificationSignals(
+                        barcodeDetected = hasBarcode,
+                        printedTextDetected = hasText,
+                        visualHintDetected = hasVisual,
+                        packCompatibleWithSellingUnit = packCompatible
+                    )
+                )
                 identificationConfidence = baseScore.score
                 identificationStatus = when {
                     hasBarcode && hasText -> "IDENTIFICATION: BARCODE + CAMERA/OCR"
@@ -144,6 +208,16 @@ fun ProductReviewScreen(
                     else -> "IDENTIFICATION: LIMITED EVIDENCE"
                 }
                 identificationExplanation = baseScore.explanation
+                captureHint = buildString {
+                    result.categoryHint?.let { hint ->
+                        append("Visual hint: $hint")
+                        result.labelConfidence?.let { append(" (${String.format(java.util.Locale.US, "%.0f%%", it * 100f)})") }
+                        append(". ")
+                    }
+                    if (result.detectedPackSize != null && !result.detectedPackUnit.isNullOrBlank()) {
+                        append("Observed pack: ${result.detectedPackSize} ${result.detectedPackUnit}. Verify against selling unit.")
+                    }
+                }.ifBlank { null }
                 val detectedBarcode = result.barcode
                 if (!detectedBarcode.isNullOrBlank()) {
                     catalogStatus = "Checking public product catalog…"
@@ -153,7 +227,14 @@ fun ProductReviewScreen(
                         if (catalog != null) {
                             catalogCandidate = catalog
                             catalogStatus = "Catalog match found. Review it before applying catalog identity."
-                            val catalogScore = ProductIdentificationRanking.score(ProductIdentificationSignals(barcodeDetected = true, catalogMatched = true, printedTextDetected = hasText))
+                            val catalogScore = ProductIdentificationRanking.score(
+                                ProductIdentificationSignals(
+                                    barcodeDetected = true,
+                                    catalogMatched = true,
+                                    printedTextDetected = hasText,
+                                    packCompatibleWithSellingUnit = packCompatible
+                                )
+                            )
                             identificationConfidence = catalogScore.score
                             identificationExplanation = catalogScore.explanation
                         } else {
@@ -202,6 +283,15 @@ fun ProductReviewScreen(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 OutlinedTextField(unit, { unit = it }, Modifier.weight(1f), label = { Text("Unit") }, singleLine = true)
                 OutlinedTextField(lowStockThreshold, { lowStockThreshold = it }, Modifier.weight(1f), label = { Text("Low-stock alert") }, singleLine = true)
+            }
+            captureObservation?.pack?.let { pack ->
+                val compatibility = ProductPackCompatibility.classify(pack, unit)
+                Text(
+                    "OBSERVED PACK: ${pack.sourceText} • ${compatibility.explanation}",
+                    color = if (compatibility.compatibility == com.retailpos.app.core.products.PackCompatibility.MISMATCH_REQUIRES_REVIEW) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Bold
+                )
             }
             catalogStatus?.let { Text(it, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall) }
             catalogCandidate?.let { catalog ->
@@ -257,22 +347,7 @@ fun ProductReviewScreen(
             }
             Text("Sale price cannot exceed MRP. Stock is managed separately after product creation. QR codes are not accepted as product identifiers.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             errorMessage?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-            Button(onClick = {
-                val mrpValue = mrp.toDoubleOrNull() ?: -1.0
-                val saleValue = sellingPrice.toDoubleOrNull() ?: -1.0
-                val purchaseValue = purchasePrice.toDoubleOrNull() ?: -1.0
-                val stockValue = stock.toDoubleOrNull() ?: -1.0
-                val thresholdValue = lowStockThreshold.toDoubleOrNull() ?: -1.0
-                viewModel.saveProduct(productId, name, brand, barcode, sku, mrpValue, saleValue, purchaseValue, stockValue, unit, thresholdValue) { result ->
-                    when (result) {
-                        SaveProductResult.Success -> onSaved?.invoke() ?: onBack()
-                        SaveProductResult.DuplicateSku -> errorMessage = "That SKU is already used by another product in this store."
-                        SaveProductResult.DuplicateBarcode -> errorMessage = "That barcode is already assigned to another product in this store."
-                        SaveProductResult.InvalidInput -> errorMessage = "Check the product name and numbers. Sale price must not exceed MRP, and stock/threshold cannot be negative."
-                        SaveProductResult.Error -> errorMessage = "Unable to save the product. Please try again."
-                    }
-                }
-            }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp), contentPadding = PaddingValues(vertical = 16.dp)) { Text(if (isEdit) "SAVE CHANGES" else "SAVE PRODUCT", fontWeight = FontWeight.Bold) }
+            Button(onClick = ::persistProduct, modifier = Modifier.fillMaxWidth().padding(top = 8.dp), contentPadding = PaddingValues(vertical = 16.dp)) { Text(if (isEdit) "SAVE CHANGES" else "SAVE PRODUCT", fontWeight = FontWeight.Bold) }
         }
     }
 }
