@@ -30,6 +30,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.retailpos.app.core.products.PackCompatibility
+import com.retailpos.app.core.products.ParsedPack
 import com.retailpos.app.core.products.ProductCaptureObservation
 import com.retailpos.app.core.products.ProductIdentificationRanking
 import com.retailpos.app.core.products.ProductIdentificationSignals
@@ -111,10 +113,11 @@ fun ProductReviewScreen(
     val isEdit = productId != null
 
     fun persistProduct() {
-        val capturedPack = captureObservation?.pack
+        val captured = captureObservation
+        val capturedPack = captured?.pack
         if (capturedPack != null) {
             val compatibility = ProductPackCompatibility.classify(capturedPack, unit)
-            if (compatibility.compatibility == com.retailpos.app.core.products.PackCompatibility.MISMATCH_REQUIRES_REVIEW) {
+            if (compatibility.compatibility == PackCompatibility.MISMATCH_REQUIRES_REVIEW) {
                 errorMessage = "Observed ${capturedPack.sourceText} does not match the selling unit ‘$unit’. Review the unit before saving."
                 return
             }
@@ -124,6 +127,7 @@ fun ProductReviewScreen(
         val purchaseValue = purchasePrice.toDoubleOrNull() ?: -1.0
         val stockValue = stock.toDoubleOrNull() ?: -1.0
         val thresholdValue = lowStockThreshold.toDoubleOrNull() ?: -1.0
+        val persistenceObservation = captured?.copy(categoryHint = null, categoryConfidence = null)
         viewModel.saveProduct(
             productId = productId,
             name = name,
@@ -136,7 +140,7 @@ fun ProductReviewScreen(
             stock = stockValue,
             unit = unit,
             lowStockThreshold = thresholdValue,
-            captureObservation = captureObservation
+            captureObservation = persistenceObservation
         ) { result ->
             when (result) {
                 SaveProductResult.Success -> onSaved?.invoke() ?: onBack()
@@ -169,7 +173,7 @@ fun ProductReviewScreen(
                 result.detectedName?.let { name = it }
                 result.detectedBrand?.let { brand = it }
                 result.detectedMrp?.let { mrp = it.toString() }
-                captureObservation = ProductCaptureObservation(
+                val observation = ProductCaptureObservation(
                     barcode = result.barcode,
                     printedName = result.detectedName,
                     printedBrand = result.detectedBrand,
@@ -177,7 +181,7 @@ fun ProductReviewScreen(
                     categoryHint = result.categoryHint,
                     categoryConfidence = result.labelConfidence,
                     pack = if (result.detectedPackSize != null && !result.detectedPackUnit.isNullOrBlank()) {
-                        com.retailpos.app.core.products.ParsedPack(
+                        ParsedPack(
                             result.detectedPackSize,
                             result.detectedPackUnit,
                             "${result.detectedPackSize} ${result.detectedPackUnit}"
@@ -185,11 +189,12 @@ fun ProductReviewScreen(
                     } else null,
                     frameCount = 1
                 )
-                val hasBarcode = !result.barcode.isNullOrBlank()
-                val hasText = !result.detectedName.isNullOrBlank() || !result.detectedBrand.isNullOrBlank()
-                val hasVisual = result.categoryHint != null
-                val packCompatible = captureObservation?.pack?.let {
-                    ProductPackCompatibility.classify(it, unit).compatibility != com.retailpos.app.core.products.PackCompatibility.MISMATCH_REQUIRES_REVIEW
+                captureObservation = observation
+                val hasBarcode = !observation.barcode.isNullOrBlank()
+                val hasText = !observation.printedName.isNullOrBlank() || !observation.printedBrand.isNullOrBlank()
+                val hasVisual = observation.categoryHint != null
+                val packCompatible = observation.pack?.let {
+                    ProductPackCompatibility.classify(it, unit).compatibility != PackCompatibility.MISMATCH_REQUIRES_REVIEW
                 } ?: false
                 val baseScore = ProductIdentificationRanking.score(
                     ProductIdentificationSignals(
@@ -209,15 +214,16 @@ fun ProductReviewScreen(
                 }
                 identificationExplanation = baseScore.explanation
                 captureHint = buildString {
-                    result.categoryHint?.let { hint ->
+                    observation.categoryHint?.let { hint ->
                         append("Visual hint: $hint")
-                        result.labelConfidence?.let { append(" (${String.format(java.util.Locale.US, "%.0f%%", it * 100f)})") }
+                        observation.categoryConfidence?.let { append(" (${String.format(java.util.Locale.US, "%.0f%%", it * 100f)})") }
                         append(". ")
                     }
-                    if (result.detectedPackSize != null && !result.detectedPackUnit.isNullOrBlank()) {
-                        append("Observed pack: ${result.detectedPackSize} ${result.detectedPackUnit}. Verify against selling unit.")
+                    observation.pack?.let { pack ->
+                        append("Observed pack: ${pack.sourceText}. Verify against selling unit.")
                     }
                 }.ifBlank { null }
+
                 val detectedBarcode = result.barcode
                 if (!detectedBarcode.isNullOrBlank()) {
                     catalogStatus = "Checking public product catalog…"
@@ -288,7 +294,7 @@ fun ProductReviewScreen(
                 val compatibility = ProductPackCompatibility.classify(pack, unit)
                 Text(
                     "OBSERVED PACK: ${pack.sourceText} • ${compatibility.explanation}",
-                    color = if (compatibility.compatibility == com.retailpos.app.core.products.PackCompatibility.MISMATCH_REQUIRES_REVIEW) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                    color = if (compatibility.compatibility == PackCompatibility.MISMATCH_REQUIRES_REVIEW) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.Bold
                 )
@@ -304,8 +310,10 @@ fun ProductReviewScreen(
                     Text("Barcode-backed candidate. Applying it never changes retailer price, purchase price, stock or SKU.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                         Button(onClick = {
-                            catalog.name?.let { name = it }; catalog.brand?.let { brand = it }
-                            catalog.quantity?.let { captureHint = "Catalog quantity: $it" }; catalog.category?.let { captureHint = "Catalog category: $it" }
+                            catalog.name?.let { name = it }
+                            catalog.brand?.let { brand = it }
+                            catalog.quantity?.let { captureHint = "Catalog quantity: $it" }
+                            catalog.category?.let { captureHint = "Catalog category: $it" }
                             identificationStatus = "IDENTIFICATION: CATALOG APPLIED"
                             identificationConfidence = ProductIdentificationRanking.score(ProductIdentificationSignals(barcodeDetected = true, catalogMatched = true, barcodeMatchesCatalog = true)).score
                             identificationExplanation = "Catalog candidate accepted by the retailer. Verify all fields before saving."
