@@ -144,14 +144,18 @@ fun HomeScreen(
                     }
                 }
             }
-            item {
-                Button(onClick = { context.startActivity(Intent(context, ReturnActivity::class.java)) }, modifier = Modifier.fillMaxWidth().height(52.dp)) {
-                    Text("RETURNS / REFUNDS", fontWeight = FontWeight.Bold)
+            if (NavigationPermissionRules.canProcessReturns(staffRole)) {
+                item {
+                    Button(onClick = { context.startActivity(Intent(context, ReturnActivity::class.java)) }, modifier = Modifier.fillMaxWidth().height(52.dp)) {
+                        Text("RETURNS / REFUNDS", fontWeight = FontWeight.Bold)
+                    }
                 }
             }
-            item {
-                Button(onClick = { context.startActivity(Intent(context, ExpenseActivity::class.java)) }, modifier = Modifier.fillMaxWidth().height(52.dp)) {
-                    Text("EXPENSES", fontWeight = FontWeight.Bold)
+            if (NavigationPermissionRules.canManageExpenses(staffRole)) {
+                item {
+                    Button(onClick = { context.startActivity(Intent(context, ExpenseActivity::class.java)) }, modifier = Modifier.fillMaxWidth().height(52.dp)) {
+                        Text("EXPENSES", fontWeight = FontWeight.Bold)
+                    }
                 }
             }
             item {
