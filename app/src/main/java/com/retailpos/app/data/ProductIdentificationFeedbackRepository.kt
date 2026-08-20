@@ -22,6 +22,8 @@ class ProductIdentificationFeedbackRepository(
                 barcode = barcode,
                 candidateKey = candidateKey,
                 outcome = when {
+                    feedback.acceptedLocalCandidate -> "ACCEPTED_LOCAL"
+                    feedback.rejectedLocalCandidate -> "REJECTED_LOCAL"
                     feedback.acceptedCatalog -> "ACCEPTED_CATALOG"
                     feedback.rejectedCatalog -> "REJECTED_CATALOG"
                     feedback.retainedCameraData -> "RETAINED_CAMERA"
