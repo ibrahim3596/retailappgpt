@@ -35,6 +35,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -43,9 +44,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.retailpos.app.PurchaseActivity
+import com.retailpos.app.ReturnActivity
 import com.retailpos.app.StaffGateActivity
 import com.retailpos.app.core.reconciliation.DayEndReconciliationRules
 import com.retailpos.app.core.staff.StaffSessionStore
+import com.retailpos.app.data.RetailDatabase
 import com.retailpos.app.data.SaleDao
 import java.time.LocalDate
 import java.time.ZoneId
@@ -59,6 +62,8 @@ fun HomeScreen(
     saleDao: SaleDao? = null
 ) {
     val context = LocalContext.current
+    val database = remember(context) { RetailDatabase.get(context) }
+    val actualSaleDao = saleDao ?: database.saleDao()
     val quickActions = listOf(
         "products" to (Icons.Default.Storefront to "Products"),
         "inventory" to (Icons.Default.Inventory2 to "Inventory"),
@@ -70,25 +75,21 @@ fun HomeScreen(
     val today = LocalDate.now()
     val start = today.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
     val end = today.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
-    val metrics by produceState<TodayMetrics?>(initialValue = null, saleDao, start, end) {
-        if (saleDao == null) {
-            value = TodayMetrics(0.0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
-        } else {
-            val payments = saleDao.getPaymentSummary(storeId, start, end).associateBy { it.paymentMethod.uppercase() }
-            val total = saleDao.getSalesTotal(storeId, start, end)
-            value = TodayMetrics(
-                totalSales = total,
-                billCount = saleDao.getSalesCount(storeId, start, end),
-                itemsSold = saleDao.getItemsSold(storeId, start, end),
-                cash = payments["CASH"]?.total ?: 0.0,
-                upi = payments["UPI"]?.total ?: 0.0,
-                card = payments["CARD"]?.total ?: 0.0,
-                credit = payments["CREDIT"]?.total ?: 0.0,
-                cogs = saleDao.getCogsTotal(storeId, start, end)
-            )
-        }
+    val metrics by produceState<TodayMetrics?>(initialValue = null, actualSaleDao, start, end) {
+        val payments = actualSaleDao.getPaymentSummary(storeId, start, end).associateBy { it.paymentMethod.uppercase() }
+        val total = actualSaleDao.getSalesTotal(storeId, start, end)
+        value = TodayMetrics(
+            totalSales = total,
+            billCount = actualSaleDao.getSalesCount(storeId, start, end),
+            itemsSold = actualSaleDao.getItemsSold(storeId, start, end),
+            cash = payments["CASH"]?.total ?: 0.0,
+            upi = payments["UPI"]?.total ?: 0.0,
+            card = payments["CARD"]?.total ?: 0.0,
+            credit = payments["CREDIT"]?.total ?: 0.0,
+            cogs = actualSaleDao.getCogsTotal(storeId, start, end)
+        )
     }
-    var countedCash by mutableStateOf("")
+    var countedCash by remember { mutableStateOf("") }
 
     fun switchCashier() {
         StaffSessionStore.clear()
@@ -98,8 +99,11 @@ fun HomeScreen(
     }
 
     fun openQuickAction(route: String) {
-        if (route == "purchases") context.startActivity(Intent(context, PurchaseActivity::class.java))
-        else onNavigate(route)
+        when (route) {
+            "purchases" -> context.startActivity(Intent(context, PurchaseActivity::class.java))
+            "returns" -> context.startActivity(Intent(context, ReturnActivity::class.java))
+            else -> onNavigate(route)
+        }
     }
 
     Scaffold(
@@ -134,10 +138,15 @@ fun HomeScreen(
                 }
             }
             item {
+                Button(onClick = { context.startActivity(Intent(context, ReturnActivity::class.java)) }, modifier = Modifier.fillMaxWidth().height(52.dp)) {
+                    Text("RETURNS / REFUNDS", fontWeight = FontWeight.Bold)
+                }
+            }
+            item {
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("DAY-END CASH RECONCILIATION", fontWeight = FontWeight.Bold)
-                        Text("Expected cash: ₹${money(metrics?.cash ?: 0.0)}")
+                        Text("Expected cash: ₹${money(metrics.cash)}")
                         OutlinedTextField(
                             value = countedCash,
                             onValueChange = { countedCash = it },
@@ -147,7 +156,7 @@ fun HomeScreen(
                         )
                         val counted = countedCash.replace(',', '.').toDoubleOrNull()
                         if (counted != null && counted >= 0.0) {
-                            val difference = DayEndReconciliationRules.cashDifference(metrics?.cash ?: 0.0, counted)
+                            val difference = DayEndReconciliationRules.cashDifference(metrics.cash, counted)
                             Text(
                                 "Difference: ₹${money(difference)}",
                                 fontWeight = FontWeight.Bold,
@@ -184,22 +193,21 @@ private data class TodayMetrics(
 }
 
 @Composable
-private fun TodayPerformanceCard(metrics: TodayMetrics?) {
-    val data = metrics ?: TodayMetrics(0.0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+private fun TodayPerformanceCard(metrics: TodayMetrics) {
     Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Text("TODAY", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-            Text("₹${money(data.totalSales)}", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Black)
-            Text("${data.billCount} bills • ${fmt(data.itemsSold)} items sold")
+            Text("₹${money(metrics.totalSales)}", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Black)
+            Text("${metrics.billCount} bills • ${fmt(metrics.itemsSold)} items sold")
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("Cash ₹${money(data.cash)}")
-                Text("UPI ₹${money(data.upi)}")
+                Text("Cash ₹${money(metrics.cash)}")
+                Text("UPI ₹${money(metrics.upi)}")
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("Card ₹${money(data.card)}")
-                Text("Khata ₹${money(data.credit)}")
+                Text("Card ₹${money(metrics.card)}")
+                Text("Khata ₹${money(metrics.credit)}")
             }
-            Text("COGS ₹${money(data.cogs)} • Gross profit ₹${money(data.grossProfit)}", fontWeight = FontWeight.Bold)
+            Text("COGS ₹${money(metrics.cogs)} • Gross profit ₹${money(metrics.grossProfit)}", fontWeight = FontWeight.Bold)
         }
     }
 }
