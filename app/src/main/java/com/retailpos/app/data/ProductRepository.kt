@@ -100,7 +100,7 @@ class ProductRepository(
         return BarcodeMutationResult.Success
     }
 
-    suspend fun removeSecondaryBarcode(barcodeId: String, storeId: String) { barcodeDao.remove(barcodeId, storeId) }
+    suspend fun removeSecondaryBarcode(barcodeId: String, storeId: String) { barcodeDao.delete(barcodeId, storeId) }
     suspend fun delete(productId: String, storeId: String) { barcodeDao.deleteForProduct(productId, storeId); dao.delete(productId, storeId) }
 }
 
