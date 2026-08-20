@@ -1,5 +1,6 @@
 package com.retailpos.app.ui.screens
 
+import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -32,6 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.retailpos.app.core.payment.PaymentSettlementRules
 import com.retailpos.app.core.payment.PendingPaymentStore
+import com.retailpos.app.core.payment.UpiPaymentIntent
 import com.retailpos.app.core.products.CheckoutPricingPreview
 import com.retailpos.app.core.products.CheckoutPricingPreviewCalculator
 import com.retailpos.app.core.products.StoreTaxMode
@@ -39,6 +41,7 @@ import com.retailpos.app.data.CartLine
 import com.retailpos.app.data.CustomerEntity
 import com.retailpos.app.data.RetailDatabase
 import java.util.Locale
+import java.util.UUID
 
 private val PAYMENT_METHODS = listOf("CASH", "UPI", "CARD", "CREDIT")
 private const val LOCAL_STORE_ID = "local-store"
@@ -64,6 +67,7 @@ fun CheckoutScreen(
     var pricingPreview by remember { mutableStateOf<CheckoutPricingPreview?>(null) }
     var pricingError by remember { mutableStateOf<String?>(null) }
     var paymentError by remember { mutableStateOf<String?>(null) }
+    var upiError by remember { mutableStateOf<String?>(null) }
     val creditWithoutCustomer = paymentMethod == "CREDIT" && selectedCustomer == null
 
     LaunchedEffect(cart, discountMode, discountInput) {
@@ -98,6 +102,33 @@ fun CheckoutScreen(
         paymentError = runCatching {
             PaymentSettlementRules.settle(paymentMethod, total, if (paymentMethod == "CASH") tendered else null)
         }.exceptionOrNull()?.message
+        upiError = null
+    }
+
+    fun openUpiApp() {
+        try {
+            val settings = RetailDatabase.get(context).storeSettingsDao().get(LOCAL_STORE_ID)
+            val vpa = settings?.upiVpa.orEmpty()
+            if (vpa.isBlank()) {
+                upiError = "Set your merchant UPI VPA in Settings first."
+                return
+            }
+            val uri = UpiPaymentIntent.build(
+                vpa = vpa,
+                payeeName = settings?.let { "RetailPOS Store" } ?: "RetailPOS Store",
+                amount = total,
+                transactionRef = UUID.randomUUID().toString()
+            )
+            val intent = Intent(Intent.ACTION_VIEW, uri)
+            if (intent.resolveActivity(context.packageManager) == null) {
+                upiError = "No installed UPI app can handle payment requests on this device."
+            } else {
+                context.startActivity(intent)
+                upiError = null
+            }
+        } catch (e: Exception) {
+            upiError = e.message ?: "UPI app could not be opened."
+        }
     }
 
     Scaffold(topBar = { TopAppBar(title = { Text("CHECKOUT", fontWeight = FontWeight.Black) }) }) { padding ->
@@ -144,7 +175,7 @@ fun CheckoutScreen(
                         Text("PAYMENT", fontWeight = FontWeight.Bold)
                         PAYMENT_METHODS.forEach { method ->
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                RadioButton(selected = paymentMethod == method, onClick = { paymentMethod = method; paymentError = null; if (method != "CASH") cashTenderedInput = "" }, enabled = !isProcessing)
+                                RadioButton(selected = paymentMethod == method, onClick = { paymentMethod = method; paymentError = null }, enabled = !isProcessing)
                                 Text(method, modifier = Modifier.padding(top = 12.dp))
                             }
                         }
@@ -153,7 +184,13 @@ fun CheckoutScreen(
                                 OutlinedTextField(cashTenderedInput, { cashTenderedInput = it.filter { c -> c.isDigit() || c == '.' || c == ',' }; paymentError = null }, enabled = !isProcessing, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Cash received") })
                                 if (change > 0.0) Text("Change: ${money(change)}", fontWeight = FontWeight.Bold)
                             }
-                            "UPI", "CARD" -> Text("Collect exactly ${money(total)} using $paymentMethod.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            "UPI" -> {
+                                Text("Collect exactly ${money(total)} using UPI.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Button(onClick = ::openUpiApp, enabled = !isProcessing, modifier = Modifier.fillMaxWidth()) { Text("OPEN UPI APP") }
+                                Text("After completing payment, return here and press COMPLETE SALE.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                upiError?.let { Text(it, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold) }
+                            }
+                            "CARD" -> Text("Collect exactly ${money(total)} using CARD.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                             "CREDIT" -> Text("Credit sale will be added to this customer's Khata.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
