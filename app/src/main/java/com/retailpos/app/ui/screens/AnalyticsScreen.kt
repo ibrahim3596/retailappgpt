@@ -1,5 +1,7 @@
 package com.retailpos.app.ui.screens
 
+import android.content.Context
+import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -21,16 +23,21 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.retailpos.app.data.PaymentSummary
+import com.retailpos.app.data.ReceiptFormatter
 import com.retailpos.app.data.SaleDao
+import com.retailpos.app.data.SaleEntity
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -39,11 +46,14 @@ fun AnalyticsScreen(
     saleDao: SaleDao,
     onBack: () -> Unit
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var salesTotal by remember { mutableStateOf(0.0) }
     var salesCount by remember { mutableStateOf(0) }
     var itemsSold by remember { mutableStateOf(0.0) }
     var paymentSummary by remember { mutableStateOf<List<PaymentSummary>>(emptyList()) }
-    var recentSales by remember { mutableStateOf<List<com.retailpos.app.data.SaleEntity>>(emptyList()) }
+    var recentSales by remember { mutableStateOf<List<SaleEntity>>(emptyList()) }
+    var reprintError by remember { mutableStateOf<String?>(null) }
     val currency = remember { NumberFormat.getCurrencyInstance(Locale.getDefault()) }
     val timeFormatter = remember { SimpleDateFormat("dd MMM, HH:mm", Locale.getDefault()) }
 
@@ -62,6 +72,21 @@ fun AnalyticsScreen(
         itemsSold = saleDao.getItemsSold(storeId, start, end)
         paymentSummary = saleDao.getPaymentSummary(storeId, start, end)
         recentSales = saleDao.getRecentSales(storeId, 10)
+    }
+
+    fun reprint(sale: SaleEntity) {
+        scope.launch {
+            runCatching {
+                val lines = saleDao.getSaleLines(sale.id)
+                require(lines.isNotEmpty()) { "This sale has no line items." }
+                ReceiptFormatter.format(sale, lines)
+            }.onSuccess { receipt ->
+                reprintError = null
+                shareReceipt(context, receipt)
+            }.onFailure {
+                reprintError = it.message ?: "Receipt could not be generated."
+            }
+        }
     }
 
     Scaffold(topBar = { TopAppBar(title = { Text("ANALYTICS", fontWeight = FontWeight.Black) }) }) { padding ->
@@ -102,19 +127,30 @@ fun AnalyticsScreen(
             } else {
                 items(recentSales, key = { it.id }) { sale ->
                     Card(Modifier.fillMaxWidth()) {
-                        Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                Text(sale.paymentMethod, fontWeight = FontWeight.Bold)
-                                Text(timeFormatter.format(sale.createdAt), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                    Text(sale.paymentMethod, fontWeight = FontWeight.Bold)
+                                    Text(timeFormatter.format(sale.createdAt), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                Text(currency.format(sale.total), fontWeight = FontWeight.Black)
                             }
-                            Text(currency.format(sale.total), fontWeight = FontWeight.Black)
+                            OutlinedButton(onClick = { reprint(sale) }, modifier = Modifier.fillMaxWidth()) { Text("REPRINT / SHARE RECEIPT") }
                         }
                     }
                 }
             }
+            reprintError?.let { message -> item { Text(message, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold) } }
             item { OutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text("BACK") } }
         }
     }
+}
+
+private fun shareReceipt(context: Context, receipt: String) {
+    context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_TEXT, receipt)
+    }, "Share / Reprint receipt"))
 }
 
 @Composable
