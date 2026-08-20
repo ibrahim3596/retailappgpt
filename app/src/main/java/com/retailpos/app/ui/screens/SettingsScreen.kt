@@ -43,6 +43,7 @@ private object Keys {
     const val RECEIPT_HEADER = "receipt_header"
     const val RECEIPT_FOOTER = "receipt_footer"
     const val DENSITY = "density"
+    const val UPI_VPA = "upi_vpa"
 }
 
 data class LocalStoreSettings(
@@ -53,7 +54,8 @@ data class LocalStoreSettings(
     val gstMode: GstMode,
     val receiptHeader: String,
     val receiptFooter: String,
-    val density: String
+    val density: String,
+    val upiVpa: String
 )
 
 private fun Context.loadStoreSettings(): LocalStoreSettings {
@@ -66,7 +68,8 @@ private fun Context.loadStoreSettings(): LocalStoreSettings {
         gstMode = StoreTaxMode.fromStorage(p.getString(Keys.GST_MODE, StoreTaxMode.NO_GST.storageValue) ?: StoreTaxMode.NO_GST.storageValue),
         receiptHeader = p.getString(Keys.RECEIPT_HEADER, "") ?: "",
         receiptFooter = p.getString(Keys.RECEIPT_FOOTER, "Thank you for shopping with us") ?: "Thank you for shopping with us",
-        density = p.getString(Keys.DENSITY, "Standard") ?: "Standard"
+        density = p.getString(Keys.DENSITY, "Standard") ?: "Standard",
+        upiVpa = p.getString(Keys.UPI_VPA, "") ?: ""
     )
 }
 
@@ -80,6 +83,7 @@ private fun Context.saveStoreSettings(settings: LocalStoreSettings) {
         .putString(Keys.RECEIPT_HEADER, settings.receiptHeader.trim())
         .putString(Keys.RECEIPT_FOOTER, settings.receiptFooter.trim())
         .putString(Keys.DENSITY, settings.density)
+        .putString(Keys.UPI_VPA, settings.upiVpa.trim())
         .apply()
 }
 
@@ -96,6 +100,7 @@ fun SettingsScreen(context: Context, onBack: () -> Unit) {
     var receiptHeader by remember { mutableStateOf(initial.receiptHeader) }
     var receiptFooter by remember { mutableStateOf(initial.receiptFooter) }
     var density by remember { mutableStateOf(initial.density) }
+    var upiVpa by remember { mutableStateOf(initial.upiVpa) }
     var saved by remember { mutableStateOf(false) }
     var saving by remember { mutableStateOf(false) }
     var validationError by remember { mutableStateOf<String?>(null) }
@@ -123,6 +128,12 @@ fun SettingsScreen(context: Context, onBack: () -> Unit) {
                 { value -> taxRate = value.filter { it.isDigit() || it == '.' || it == ',' }; saved = false; validationError = null },
                 Modifier.fillMaxWidth(), singleLine = true, label = { Text("Default tax rate (%)") }, enabled = gstMode == GstMode.REGULAR && !saving
             )
+            OutlinedTextField(
+                upiVpa,
+                { upiVpa = it; saved = false; validationError = null },
+                Modifier.fillMaxWidth(), singleLine = true, label = { Text("Merchant UPI VPA") }, enabled = !saving
+            )
+            Text("Example: shopname@upi. This is used to open installed UPI apps for payment collection.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
 
             Text("Receipt", fontWeight = FontWeight.Bold)
             OutlinedTextField(receiptHeader, { receiptHeader = it; saved = false }, Modifier.fillMaxWidth(), label = { Text("Receipt header") }, enabled = !saving)
@@ -140,7 +151,7 @@ fun SettingsScreen(context: Context, onBack: () -> Unit) {
                     } else {
                         saving = true
                         val effectiveRate = if (gstMode == GstMode.REGULAR) parsedRate else 0.0
-                        val normalizedSettings = LocalStoreSettings(storeName, storePhone, currency.ifBlank { "INR" }, effectiveRate.toString(), gstMode, receiptHeader, receiptFooter, density.ifBlank { "Standard" })
+                        val normalizedSettings = LocalStoreSettings(storeName, storePhone, currency.ifBlank { "INR" }, effectiveRate.toString(), gstMode, receiptHeader, receiptFooter, density.ifBlank { "Standard" }, upiVpa)
                         context.saveStoreSettings(normalizedSettings)
                         scope.launch {
                             runCatching {
@@ -150,7 +161,8 @@ fun SettingsScreen(context: Context, onBack: () -> Unit) {
                                         gstMode = gstMode.storageValue,
                                         defaultTaxRatePercent = effectiveRate,
                                         currency = normalizedSettings.currency,
-                                        updatedAt = System.currentTimeMillis()
+                                        updatedAt = System.currentTimeMillis(),
+                                        upiVpa = normalizedSettings.upiVpa
                                     )
                                 )
                             }.onSuccess {
