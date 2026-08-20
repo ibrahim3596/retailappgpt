@@ -89,4 +89,9 @@ object DatabaseMigrations {
             db.execSQL("CREATE INDEX IF NOT EXISTS index_product_metadata_storeId_category ON product_metadata(storeId, category)")
         }
     }
+    val MIGRATION_11_12 = object : Migration(11, 12) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE product_metadata ADD COLUMN taxRatePercent REAL NOT NULL DEFAULT 0.0")
+        }
+    }
 }
