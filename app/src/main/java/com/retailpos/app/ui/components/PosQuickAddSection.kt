@@ -21,7 +21,8 @@ fun PosQuickAddSection(
     title: String,
     products: List<QuickAddProduct>,
     onAdd: (QuickAddProduct) -> Unit,
-    onToggleFavorite: (QuickAddProduct) -> Unit = { FavoriteProductStore.toggle(it.productId) }
+    onToggleFavorite: (QuickAddProduct) -> Unit = { FavoriteProductStore.toggle(it.productId) },
+    isFavorite: (QuickAddProduct) -> Boolean = { FavoriteProductStore.isFavorite(it.productId) }
 ) {
     if (products.isEmpty()) return
     Column(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -36,7 +37,7 @@ fun PosQuickAddSection(
                         enabled = product.canAdd
                     )
                     FilterChip(
-                        selected = FavoriteProductStore.isFavorite(product.productId),
+                        selected = isFavorite(product),
                         onClick = { onToggleFavorite(product) },
                         label = { Text("★") }
                     )
