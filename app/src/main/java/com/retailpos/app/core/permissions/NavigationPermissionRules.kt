@@ -17,4 +17,10 @@ object NavigationPermissionRules {
 
     fun canOpenStaffManagement(role: StaffRole): Boolean =
         StaffPermissionRules.hasPermission(role, StaffPermission.MANAGE_STAFF)
+
+    fun canManageExpenses(role: StaffRole): Boolean =
+        StaffPermissionRules.hasPermission(role, StaffPermission.MANAGE_EXPENSES)
+
+    fun canProcessReturns(role: StaffRole): Boolean =
+        StaffPermissionRules.hasPermission(role, StaffPermission.PROCESS_RETURN)
 }
