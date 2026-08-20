@@ -18,5 +18,6 @@ data class ProductMetadataEntity(
     val packUnit: String = "",
     val description: String = "",
     val imageUri: String? = null,
+    val taxRatePercent: Double = 0.0,
     val updatedAt: Long
 )
