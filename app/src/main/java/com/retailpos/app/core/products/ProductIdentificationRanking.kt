@@ -45,7 +45,10 @@ object ProductIdentificationRanking {
             catalogMatched = signals.catalogMatched,
             printedTextDetected = signals.printedTextDetected,
             visualHintDetected = signals.visualHintDetected,
-            barcodeMatchesCatalog = signals.barcodeMatchesCatalog
+            barcodeMatchesCatalog = signals.barcodeMatchesCatalog,
+            textAgreesWithCandidate = signals.textAgreesWithCandidate,
+            multipleFrameAgreement = signals.multipleFrameAgreement,
+            packCompatibleWithSellingUnit = signals.packCompatibleWithSellingUnit
         )
         val confidence = ProductIdentificationConfidence.evaluate(evidence)
         val explanation = when {
@@ -61,6 +64,8 @@ object ProductIdentificationRanking {
                 "Barcode has a catalog candidate. Review the candidate before applying catalog fields."
             signals.barcodeDetected && signals.printedTextDetected ->
                 "Barcode and printed text were detected, but the exact catalog identity is not confirmed."
+            signals.printedTextDetected && signals.multipleFrameAgreement ->
+                "Printed text repeats across frames, but exact product identity still requires review."
             signals.printedTextDetected ->
                 "Printed text was detected without a reliable barcode match. Treat it as a suggestion."
             signals.visualHintDetected ->
