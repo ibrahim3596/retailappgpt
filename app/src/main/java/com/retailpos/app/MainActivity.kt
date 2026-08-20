@@ -128,6 +128,16 @@ private fun RetailPosApp() {
         }
     }
 
+    fun setCartQuantity(line: com.retailpos.app.data.CartLine, quantity: Double) {
+        val availableStock = database.productDao().getById(line.productId, LOCAL_STORE_ID)?.stock ?: 0.0
+        when (cartManager.setQuantity(line.productId, quantity, availableStock)) {
+            AddToCartResult.Added -> { cart = cartManager.lines; cartError = null }
+            AddToCartResult.OutOfStock -> cartError = "${line.name} is out of stock."
+            AddToCartResult.InsufficientStock -> cartError = "Only ${availableStock.clean()} ${line.unit} of ${line.name} is available."
+            AddToCartResult.InvalidQuantity -> cartError = "Enter a quantity greater than zero."
+        }
+    }
+
     fun handleVoiceInput(spoken: String) {
         scope.launch {
             val commands = VoiceOrderParser.parse(spoken)
@@ -173,7 +183,6 @@ private fun RetailPosApp() {
                 }
             }
 
-            // Validate the complete utterance before mutating the cart, so a later failure cannot leave a partial voice order.
             resolved.forEach { (product, quantity) -> addProductToCart(product, quantity) }
         }
     }
@@ -246,6 +255,7 @@ private fun RetailPosApp() {
                 onAddProduct = { product -> addProductToCart(product) },
                 onVoiceInput = ::handleVoiceInput,
                 onVoiceError = { cartError = it },
+                onSetCartQuantity = ::setCartQuantity,
                 onRemoveFromCart = { productId -> cartManager.remove(productId).also { cart = cartManager.lines } },
                 onBack = { navController.popBackStack() },
                 onOpenScanner = { navController.navigate(Routes.BILLING_SCANNER) },
@@ -333,5 +343,3 @@ private fun FoundationPlaceholder(title: String, subtitle: String) {
         }
     }
 }
-
-private fun Double.clean(): String = if (this % 1.0 == 0.0) toInt().toString() else String.format(java.util.Locale.US, "%.3f", this)
