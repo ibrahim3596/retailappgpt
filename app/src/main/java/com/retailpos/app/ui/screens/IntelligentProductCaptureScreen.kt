@@ -2,7 +2,6 @@ package com.retailpos.app.ui.screens
 
 import android.Manifest
 import android.content.pm.PackageManager
-import android.view.ViewGroup
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
@@ -29,9 +28,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -41,6 +40,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
@@ -48,9 +48,12 @@ import com.google.mlkit.vision.label.ImageLabeling
 import com.google.mlkit.vision.label.defaults.ImageLabelerOptions
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
+import com.retailpos.app.core.products.ProductCaptureConsensus
+import com.retailpos.app.core.products.ProductCaptureObservation
 import com.retailpos.app.core.products.ProductCaptureParser
 import com.retailpos.app.core.products.ProductPackParser
 import java.util.concurrent.Executors
+
 
 data class ProductCaptureResult(
     val barcode: String?,
@@ -61,7 +64,8 @@ data class ProductCaptureResult(
     val detectedPackSize: Double?,
     val detectedPackUnit: String?,
     val rawText: String,
-    val labelConfidence: Float?
+    val labelConfidence: Float?,
+    val frameCount: Int
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -71,14 +75,14 @@ fun IntelligentProductCaptureScreen(
     onResult: (ProductCaptureResult) -> Unit
 ) {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     var ready by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
         )
     }
     var resultPreview by remember { mutableStateOf<ProductCaptureResult?>(null) }
-    var lastFingerprint by remember { mutableStateOf<String?>(null) }
-    var lastEmitAt by remember { mutableLongStateOf(0L) }
+    var observations by remember { mutableStateOf<List<ProductCaptureObservation>>(emptyList()) }
 
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> ready = granted }
 
@@ -109,137 +113,140 @@ fun IntelligentProductCaptureScreen(
             return@Scaffold
         }
 
-        Column(Modifier.fillMaxSize().padding(padding)) {
-            AndroidView(
-                factory = {
-                    PreviewView(it).apply {
-                        scaleType = PreviewView.ScaleType.FILL_CENTER
-                        layoutParams = ViewGroup.LayoutParams(
-                            ViewGroup.LayoutParams.MATCH_PARENT,
-                            ViewGroup.LayoutParams.MATCH_PARENT
-                        )
-                    }
-                },
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-                update = { previewView ->
-                    val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
-                    cameraProviderFuture.addListener({
-                        val provider = cameraProviderFuture.get()
-                        val preview = Preview.Builder().build().also { it.surfaceProvider = previewView.surfaceProvider }
-                        val scanner = BarcodeScanning.getClient()
-                        val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-                        val labeler = ImageLabeling.getClient(ImageLabelerOptions.DEFAULT_OPTIONS)
-                        val executor = Executors.newSingleThreadExecutor()
+        val previewView = remember { PreviewView(context) }
+        val executor = remember { Executors.newSingleThreadExecutor() }
 
-                        val analysis = ImageAnalysis.Builder()
-                            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                            .build()
-                            .also { useCase ->
-                                useCase.setAnalyzer(executor) { imageProxy ->
-                                    val mediaImage = imageProxy.image
-                                    if (mediaImage == null) {
-                                        imageProxy.close()
-                                        return@setAnalyzer
-                                    }
-                                    val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
-                                    var barcode: String? = null
-                                    var text = ""
-                                    var bestLabel: String? = null
-                                    var bestConfidence: Float? = null
-                                    var barcodesDone = false
-                                    var textDone = false
-                                    var labelsDone = false
-                                    var closed = false
+        DisposableEffect(lifecycleOwner, ready) {
+            val providerFuture = ProcessCameraProvider.getInstance(context)
+            val scanner = BarcodeScanning.getClient()
+            val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+            val labeler = ImageLabeling.getClient(ImageLabelerOptions.DEFAULT_OPTIONS)
 
-                                    fun closeOnce() {
-                                        if (!closed) {
-                                            closed = true
-                                            imageProxy.close()
-                                        }
-                                    }
+            val listener = Runnable {
+                val provider = providerFuture.get()
+                val preview = Preview.Builder().build().also { it.surfaceProvider = previewView.surfaceProvider }
+                val analysis = ImageAnalysis.Builder()
+                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                    .build()
+                    .also { useCase ->
+                        useCase.setAnalyzer(executor) { imageProxy ->
+                            val mediaImage = imageProxy.image
+                            if (mediaImage == null) {
+                                imageProxy.close()
+                                return@setAnalyzer
+                            }
 
-                                    fun maybeEmit() {
-                                        if (!barcodesDone || !textDone || !labelsDone) return
-                                        val parsed = ProductCaptureParser.parse(text)
-                                        val pack = ProductPackParser.parse(text)
-                                        val result = ProductCaptureResult(
-                                            barcode = barcode,
-                                            detectedName = parsed.name,
-                                            detectedBrand = parsed.brand,
-                                            categoryHint = bestLabel,
-                                            detectedMrp = parsed.mrp,
-                                            detectedPackSize = pack?.size,
-                                            detectedPackUnit = pack?.unit,
-                                            rawText = text,
-                                            labelConfidence = bestConfidence
-                                        )
-                                        val fingerprint = listOf(
-                                            result.barcode,
-                                            result.detectedName,
-                                            result.detectedBrand,
-                                            result.categoryHint,
-                                            result.detectedMrp,
-                                            result.detectedPackSize,
-                                            result.detectedPackUnit
-                                        ).joinToString("|")
-                                        val now = System.currentTimeMillis()
-                                        if (fingerprint != lastFingerprint || now - lastEmitAt > 1_500L) {
-                                            lastFingerprint = fingerprint
-                                            lastEmitAt = now
-                                            resultPreview = result
-                                        }
-                                        closeOnce()
-                                    }
+                            val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
+                            var barcode: String? = null
+                            var text = ""
+                            var bestLabel: String? = null
+                            var bestConfidence: Float? = null
+                            var completed = 0
+                            var closed = false
 
-                                    scanner.process(image)
-                                        .addOnSuccessListener { codes ->
-                                            barcode = codes.firstOrNull {
-                                                it.format != Barcode.FORMAT_QR_CODE && !it.rawValue.isNullOrBlank()
-                                            }?.rawValue
-                                        }
-                                        .addOnCompleteListener {
-                                            barcodesDone = true
-                                            maybeEmit()
-                                        }
-                                    recognizer.process(image)
-                                        .addOnSuccessListener { recognized -> text = recognized.text.orEmpty() }
-                                        .addOnCompleteListener {
-                                            textDone = true
-                                            maybeEmit()
-                                        }
-                                    labeler.process(image)
-                                        .addOnSuccessListener { labels ->
-                                            val top = labels.maxByOrNull { it.confidence }
-                                            bestLabel = top?.text
-                                            bestConfidence = top?.confidence
-                                        }
-                                        .addOnCompleteListener {
-                                            labelsDone = true
-                                            maybeEmit()
-                                        }
+                            fun closeOnce() {
+                                if (!closed) {
+                                    closed = true
+                                    imageProxy.close()
                                 }
                             }
 
-                        try {
-                            provider.unbindAll()
-                            provider.bindToLifecycle(
-                                context as androidx.lifecycle.LifecycleOwner,
-                                CameraSelector.DEFAULT_BACK_CAMERA,
-                                preview,
-                                analysis
-                            )
-                        } catch (_: Exception) {
-                        }
-                    }, ContextCompat.getMainExecutor(context))
-                }
-            )
+                            fun recordObservation() {
+                                if (completed < 3) return
+                                val parsed = ProductCaptureParser.parse(text)
+                                val pack = ProductPackParser.parse(text)
+                                val observation = ProductCaptureObservation(
+                                    barcode = barcode,
+                                    printedName = parsed.name,
+                                    printedBrand = parsed.brand,
+                                    mrp = parsed.mrp,
+                                    categoryHint = bestLabel,
+                                    categoryConfidence = bestConfidence,
+                                    pack = pack,
+                                    frameCount = 1
+                                )
+                                val next = (observations + observation).takeLast(6)
+                                observations = next
+                                val consensus = ProductCaptureConsensus.merge(next) ?: observation
+                                val frameCount = consensus.frameCount
+                                val current = resultPreview
+                                val fingerprint = listOf(
+                                    consensus.barcode,
+                                    consensus.printedName,
+                                    consensus.printedBrand,
+                                    consensus.categoryHint,
+                                    consensus.mrp,
+                                    consensus.pack?.size,
+                                    consensus.pack?.unit,
+                                    frameCount
+                                ).joinToString("|")
+                                val currentFingerprint = current?.let {
+                                    listOf(it.barcode, it.detectedName, it.detectedBrand, it.categoryHint, it.detectedMrp, it.detectedPackSize, it.detectedPackUnit, it.frameCount).joinToString("|")
+                                }
+                                if (fingerprint != currentFingerprint) {
+                                    resultPreview = ProductCaptureResult(
+                                        barcode = consensus.barcode,
+                                        detectedName = consensus.printedName,
+                                        detectedBrand = consensus.printedBrand,
+                                        categoryHint = consensus.categoryHint,
+                                        detectedMrp = consensus.mrp,
+                                        detectedPackSize = consensus.pack?.size,
+                                        detectedPackUnit = consensus.pack?.unit,
+                                        rawText = text,
+                                        labelConfidence = consensus.categoryConfidence,
+                                        frameCount = frameCount
+                                    )
+                                }
+                                closeOnce()
+                            }
 
+                            scanner.process(image)
+                                .addOnSuccessListener { codes ->
+                                    barcode = codes.firstOrNull {
+                                        it.format != Barcode.FORMAT_QR_CODE && !it.rawValue.isNullOrBlank()
+                                    }?.rawValue
+                                }
+                                .addOnCompleteListener { completed++; recordObservation() }
+
+                            recognizer.process(image)
+                                .addOnSuccessListener { recognized -> text = recognized.text.orEmpty() }
+                                .addOnCompleteListener { completed++; recordObservation() }
+
+                            labeler.process(image)
+                                .addOnSuccessListener { labels ->
+                                    val top = labels.maxByOrNull { it.confidence }
+                                    bestLabel = top?.text
+                                    bestConfidence = top?.confidence
+                                }
+                                .addOnCompleteListener { completed++; recordObservation() }
+                        }
+                    }
+
+                try {
+                    provider.unbindAll()
+                    provider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
+                } catch (_: Exception) {
+                    // Keep the review state intact if camera binding fails.
+                }
+            }
+
+            providerFuture.addListener(listener, ContextCompat.getMainExecutor(context))
+            onDispose {
+                try { providerFuture.get().unbindAll() } catch (_: Exception) { }
+                scanner.close()
+                recognizer.close()
+                labeler.close()
+            }
+        }
+
+        Column(Modifier.fillMaxSize().padding(padding)) {
+            AndroidView(factory = { previewView }, modifier = Modifier.weight(1f).fillMaxWidth())
             Surface(Modifier.fillMaxWidth().padding(16.dp), tonalElevation = 6.dp, shadowElevation = 8.dp) {
                 Column(Modifier.padding(16.dp)) {
                     Text("Point the camera at the front of the product", style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        "We combine barcode + printed text + pack size + visual category hints. The result is a suggestion and must be reviewed before saving.",
+                        "The app samples multiple frames and keeps only consistent evidence. Identity remains a suggestion until review.",
                         style = MaterialTheme.typography.bodySmall
                     )
                     resultPreview?.let { result ->
@@ -252,6 +259,7 @@ fun IntelligentProductCaptureScreen(
                             Text("Pack size: ${formatQuantity(result.detectedPackSize)} ${result.detectedPackUnit}", style = MaterialTheme.typography.bodySmall)
                         }
                         result.categoryHint?.let { Text("Category hint: $it", style = MaterialTheme.typography.bodySmall) }
+                        Text("Evidence frames: ${result.frameCount}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(Modifier.height(8.dp))
                         Button(onClick = { onResult(result) }, modifier = Modifier.fillMaxWidth()) { Text("USE DETECTED DETAILS") }
                     }
