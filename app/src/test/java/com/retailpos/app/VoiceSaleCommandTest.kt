@@ -12,7 +12,16 @@ class VoiceSaleCommandTest {
     fun parsesHindiHalfKiloRequest() {
         val command = VoiceSaleCommandParser.parse("aadha kilo shakkar")
         assertNotNull(command)
-        assertEquals("shakkar", command!!.productQuery)
+        assertEquals("sugar", command!!.productQuery)
+        assertEquals(0.5, command.quantity, 0.0001)
+        assertEquals(WeightUnit.KG, command.unit)
+    }
+
+    @Test
+    fun parsesDevanagariHalfKiloRequest() {
+        val command = VoiceSaleCommandParser.parse("आधा किलो शक्कर")
+        assertNotNull(command)
+        assertEquals("sugar", command!!.productQuery)
         assertEquals(0.5, command.quantity, 0.0001)
         assertEquals(WeightUnit.KG, command.unit)
     }
