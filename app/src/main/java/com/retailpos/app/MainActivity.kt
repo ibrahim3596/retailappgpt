@@ -253,11 +253,12 @@ fun RetailPosApp(staffSession: StaffSession) {
         if (checkoutProcessing || cart.isEmpty() || recoveryIssues.isNotEmpty()) return
         checkoutProcessing = true; checkoutError = null
         val cartSnapshot = cart.toList()
-        val fingerprint = CheckoutRecoveryFingerprint.of(cartSnapshot)
+        val normalizedCustomerId = customerId?.takeIf { it.isNotBlank() }
+        val fingerprint = CheckoutRecoveryFingerprint.transactionOf(cartSnapshot, paymentMethod, normalizedCustomerId, billDiscountAmount)
         val idempotencyKey = PendingPaymentStore.getOrCreateIdempotencyKey(fingerprint) { java.util.UUID.randomUUID().toString() }
         scope.launch {
             try {
-                val result = database.saleDao().checkout(LOCAL_STORE_ID, cartSnapshot, paymentMethod, idempotencyKey, customerId?.takeIf { it.isNotBlank() }, billDiscountAmount = billDiscountAmount, staffRole = staffSession.role)
+                val result = database.saleDao().checkout(LOCAL_STORE_ID, cartSnapshot, paymentMethod, idempotencyKey, normalizedCustomerId, billDiscountAmount = billDiscountAmount, staffRole = staffSession.role)
                 cartManager.clear(); cart = emptyList(); posQuery = ""; PendingPaymentStore.clear(); checkoutProcessing = false
                 navController.navigate(Routes.HOME) { popUpTo(Routes.POS) { inclusive = true } }
                 completedSale = result.saleId
