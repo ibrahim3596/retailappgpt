@@ -116,4 +116,10 @@ object DatabaseMigrations {
             db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_staff_storeId_username ON staff(storeId, username)")
         }
     }
+    val MIGRATION_15_16 = object : Migration(15, 16) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE sales ADD COLUMN amountTendered REAL")
+            db.execSQL("ALTER TABLE sales ADD COLUMN changeAmount REAL NOT NULL DEFAULT 0.0")
+        }
+    }
 }
