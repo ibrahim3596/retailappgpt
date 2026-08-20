@@ -48,7 +48,9 @@ import com.google.mlkit.vision.label.ImageLabeling
 import com.google.mlkit.vision.label.defaults.ImageLabelerOptions
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
+import com.retailpos.app.core.products.ProductCaptureParser
 import java.util.concurrent.Executors
+
 
 data class ProductCaptureResult(
     val barcode: String?,
@@ -87,9 +89,7 @@ fun IntelligentProductCaptureScreen(
             TopAppBar(
                 title = { Text("INTELLIGENT PRODUCT CAPTURE") },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
-                    }
+                    IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = "Back") }
                 }
             )
         }
@@ -140,49 +140,76 @@ fun IntelligentProductCaptureScreen(
                                         return@setAnalyzer
                                     }
                                     val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
-                                    var barcodesDone = false
-                                    var textDone = false
-                                    var labelsDone = false
                                     var barcode: String? = null
                                     var text = ""
                                     var bestLabel: String? = null
                                     var bestConfidence: Float? = null
+                                    var barcodesDone = false
+                                    var textDone = false
+                                    var labelsDone = false
+                                    var closed = false
+
+                                    fun closeOnce() {
+                                        if (!closed) {
+                                            closed = true
+                                            imageProxy.close()
+                                        }
+                                    }
 
                                     fun maybeEmit() {
                                         if (!barcodesDone || !textDone || !labelsDone) return
-                                        val parsed = parseCapture(text, bestLabel, bestConfidence, barcode)
-                                        val fingerprint = listOf(parsed.barcode, parsed.detectedName, parsed.detectedBrand, parsed.categoryHint, parsed.detectedMrp).joinToString("|")
+                                        val parsed = ProductCaptureParser.parse(text)
+                                        val result = ProductCaptureResult(
+                                            barcode = barcode,
+                                            detectedName = parsed.name,
+                                            detectedBrand = parsed.brand,
+                                            categoryHint = bestLabel,
+                                            detectedMrp = parsed.mrp,
+                                            rawText = text,
+                                            labelConfidence = bestConfidence
+                                        )
+                                        val fingerprint = listOf(
+                                            result.barcode,
+                                            result.detectedName,
+                                            result.detectedBrand,
+                                            result.categoryHint,
+                                            result.detectedMrp
+                                        ).joinToString("|")
                                         val now = System.currentTimeMillis()
                                         if (fingerprint != lastFingerprint || now - lastEmitAt > 1_500L) {
                                             lastFingerprint = fingerprint
                                             lastEmitAt = now
-                                            resultPreview = parsed
+                                            resultPreview = result
                                         }
+                                        closeOnce()
                                     }
 
-                                    scanner.process(image).addOnSuccessListener { codes ->
-                                        barcode = codes.firstOrNull {
-                                            it.format != Barcode.FORMAT_QR_CODE && !it.rawValue.isNullOrBlank()
-                                        }?.rawValue
-                                    }.addOnCompleteListener {
-                                        barcodesDone = true
-                                        maybeEmit()
-                                    }
-                                    recognizer.process(image).addOnSuccessListener { recognized ->
-                                        text = recognized.text.orEmpty()
-                                    }.addOnCompleteListener {
-                                        textDone = true
-                                        maybeEmit()
-                                    }
-                                    labeler.process(image).addOnSuccessListener { labels ->
-                                        val top = labels.maxByOrNull { it.confidence }
-                                        bestLabel = top?.text
-                                        bestConfidence = top?.confidence
-                                    }.addOnCompleteListener {
-                                        labelsDone = true
-                                        maybeEmit()
-                                    }
-                                    imageProxy.close()
+                                    scanner.process(image)
+                                        .addOnSuccessListener { codes ->
+                                            barcode = codes.firstOrNull {
+                                                it.format != Barcode.FORMAT_QR_CODE && !it.rawValue.isNullOrBlank()
+                                            }?.rawValue
+                                        }
+                                        .addOnCompleteListener {
+                                            barcodesDone = true
+                                            maybeEmit()
+                                        }
+                                    recognizer.process(image)
+                                        .addOnSuccessListener { recognized -> text = recognized.text.orEmpty() }
+                                        .addOnCompleteListener {
+                                            textDone = true
+                                            maybeEmit()
+                                        }
+                                    labeler.process(image)
+                                        .addOnSuccessListener { labels ->
+                                            val top = labels.maxByOrNull { it.confidence }
+                                            bestLabel = top?.text
+                                            bestConfidence = top?.confidence
+                                        }
+                                        .addOnCompleteListener {
+                                            labelsDone = true
+                                            maybeEmit()
+                                        }
                                 }
                             }
 
@@ -222,56 +249,6 @@ fun IntelligentProductCaptureScreen(
             }
         }
     }
-}
-
-private val OCR_METADATA_PATTERN = Regex(
-    "mrp|mfd|mfg|exp|expiry|best before|net wt|net weight|gross wt|qty|quantity|price|rs\\.?|inr|batch|lot|customer care|manufactured|marketed by|made in|use within|barcode|ingredients|nutrition|calories|protein|fat|carbohydrate|address|www\\.|@|fssai",
-    RegexOption.IGNORE_CASE
-)
-
-private val OCR_NUMBER_ONLY_PATTERN = Regex("[0-9 .₹$€£,/:%#*+()\\-]+")
-
-private fun cleanOcrLines(rawText: String): List<String> = rawText
-    .lines()
-    .map { it.replace(Regex("\\s+"), " ").trim() }
-    .filter { it.length in 2..80 }
-    .filterNot { OCR_NUMBER_ONLY_PATTERN.matches(it) }
-    .filterNot { OCR_METADATA_PATTERN.containsMatchIn(it) }
-    .distinctBy { it.lowercase() }
-
-private fun parseCapture(rawText: String, categoryHint: String?, labelConfidence: Float?, barcode: String?): ProductCaptureResult {
-    val allLines = rawText.lines().map { it.trim() }.filter { it.length >= 2 }
-    val usefulLines = cleanOcrLines(rawText)
-    val name = usefulLines
-        .sortedWith(
-            compareByDescending<String> { line ->
-                val words = line.split(' ').filter { it.length >= 2 }.size
-                val letters = line.count { it.isLetter() }
-                letters + words * 4
-            }.thenBy { it.length > 60 }
-        )
-        .firstOrNull()
-    val brand = usefulLines
-        .asSequence()
-        .filter { it != name }
-        .filter { it.length in 2..40 }
-        .filterNot { it.count { c -> c.isDigit() } > it.count { c -> c.isLetter() } }
-        .sortedByDescending { it.count { c -> c.isLetter() } }
-        .firstOrNull()
-    val mrp = Regex("(?:MRP|M\\.R\\.P)[^0-9]{0,8}(?:₹|Rs\\.?|INR)?\\s*([0-9]+(?:\\.[0-9]{1,2})?)", RegexOption.IGNORE_CASE)
-        .find(rawText.replace("\n", " "))
-        ?.groupValues?.getOrNull(1)?.toDoubleOrNull()
-    val normalizedName = name?.takeIf { it.isNotBlank() }
-    val normalizedBrand = brand?.takeIf { it.isNotBlank() && it != normalizedName }
-    return ProductCaptureResult(
-        barcode = barcode,
-        detectedName = normalizedName,
-        detectedBrand = normalizedBrand,
-        categoryHint = categoryHint,
-        detectedMrp = mrp,
-        rawText = allLines.joinToString("\n"),
-        labelConfidence = labelConfidence
-    )
 }
 
 private fun formatMoney(value: Double): String = String.format(java.util.Locale.US, "%.2f", value)
