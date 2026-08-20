@@ -53,10 +53,10 @@ import java.util.Locale
 
 @Composable
 fun HomeScreen(
-    storeId: String,
-    saleDao: SaleDao,
     onNewBill: () -> Unit,
-    onNavigate: (String) -> Unit
+    onNavigate: (String) -> Unit,
+    storeId: String = "local-store",
+    saleDao: SaleDao? = null
 ) {
     val context = LocalContext.current
     val quickActions = listOf(
@@ -71,18 +71,22 @@ fun HomeScreen(
     val start = today.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
     val end = today.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
     val metrics by produceState<TodayMetrics?>(initialValue = null, saleDao, start, end) {
-        val payments = saleDao.getPaymentSummary(storeId, start, end).associateBy { it.paymentMethod.uppercase() }
-        val total = saleDao.getSalesTotal(storeId, start, end)
-        value = TodayMetrics(
-            totalSales = total,
-            billCount = saleDao.getSalesCount(storeId, start, end),
-            itemsSold = saleDao.getItemsSold(storeId, start, end),
-            cash = payments["CASH"]?.total ?: 0.0,
-            upi = payments["UPI"]?.total ?: 0.0,
-            card = payments["CARD"]?.total ?: 0.0,
-            credit = payments["CREDIT"]?.total ?: 0.0,
-            cogs = saleDao.getCogsTotal(storeId, start, end)
-        )
+        if (saleDao == null) {
+            value = TodayMetrics(0.0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+        } else {
+            val payments = saleDao.getPaymentSummary(storeId, start, end).associateBy { it.paymentMethod.uppercase() }
+            val total = saleDao.getSalesTotal(storeId, start, end)
+            value = TodayMetrics(
+                totalSales = total,
+                billCount = saleDao.getSalesCount(storeId, start, end),
+                itemsSold = saleDao.getItemsSold(storeId, start, end),
+                cash = payments["CASH"]?.total ?: 0.0,
+                upi = payments["UPI"]?.total ?: 0.0,
+                card = payments["CARD"]?.total ?: 0.0,
+                credit = payments["CREDIT"]?.total ?: 0.0,
+                cogs = saleDao.getCogsTotal(storeId, start, end)
+            )
+        }
     }
     var countedCash by mutableStateOf("")
 
