@@ -20,7 +20,7 @@ object DatabaseBackupManager {
     private const val PREFS = "retailpos_backup"
     private const val LAST_BACKUP_AT = "last_backup_at"
     private const val LOCAL_STORE_ID = "local-store"
-    private const val CURRENT_SCHEMA = 24
+    private const val CURRENT_SCHEMA = 25
     private val operationInProgress = AtomicBoolean(false)
 
     suspend fun exportEncrypted(context: Context, output: OutputStream, password: CharArray): BackupManifest {
@@ -31,7 +31,7 @@ object DatabaseBackupManager {
                 appSchemaVersion = CURRENT_SCHEMA,
                 storeId = LOCAL_STORE_ID,
                 createdAt = System.currentTimeMillis(),
-                sections = BackupSection.ALL.map { it.name }
+                sections = BackupSection.ALL
             )
             val payload = pack(manifest, snapshot)
             val encrypted = EncryptedBackupCodec.encrypt(payload, password)
@@ -68,12 +68,12 @@ object DatabaseBackupManager {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getLong(LAST_BACKUP_AT, 0L)
 
     private fun createSqliteSnapshot(context: Context): ByteArray {
-        val database = RetailDatabase.get(context)
+        RetailDatabase.get(context)
         val temp = File(context.cacheDir, "retailpos-backup-${System.currentTimeMillis()}.db")
         temp.delete()
         val escapedPath = temp.absolutePath.replace("'", "''")
         try {
-            val sqlite = database.openHelper.writableDatabase
+            val sqlite = RetailDatabase.get(context).openHelper.writableDatabase
             sqlite.execSQL("PRAGMA wal_checkpoint(FULL)")
             sqlite.execSQL("VACUUM INTO '$escapedPath'")
             return temp.readBytes()
@@ -86,6 +86,7 @@ object DatabaseBackupManager {
         require(bytes.isNotEmpty()) { "Backup database is empty" }
         RetailDatabase.closeForRestore()
         val databaseFile = context.getDatabasePath(DATABASE_FILE)
+        databaseFile.parentFile?.mkdirs()
         val backupFile = File(databaseFile.parentFile, "$DATABASE_FILE.restore")
         backupFile.writeBytes(bytes)
         check(backupFile.length() == bytes.size.toLong()) { "Restore copy was incomplete" }
@@ -117,8 +118,9 @@ object DatabaseBackupManager {
         val manifestJson = ByteArray(manifestLength).also(input::readFully)
         val manifest = BackupManifest.fromJson(JSONObject(String(manifestJson, Charsets.UTF_8)))
         val checksum = input.readUTF()
+        require(checksum.matches(Regex("[0-9a-fA-F]{64}"))) { "Invalid backup checksum" }
         val databaseLength = input.readInt()
-        require(databaseLength > 0) { "Backup database payload is empty" }
+        require(databaseLength in 16..500_000_000) { "Backup database payload is invalid or too large" }
         val databaseBytes = ByteArray(databaseLength).also(input::readFully)
         Unpacked(manifest, checksum, databaseBytes)
     }
