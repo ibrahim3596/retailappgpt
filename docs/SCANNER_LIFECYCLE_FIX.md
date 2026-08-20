@@ -1,0 +1,1 @@
+Scanner lifecycle fix was designed for the current branch but is kept in source separately from the main implementation until the repository cleanup commit is finalized.
