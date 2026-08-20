@@ -21,6 +21,8 @@ data class SaleEntity(
     val taxAmount: Double,
     val total: Double,
     val paymentMethod: String,
+    val amountTendered: Double?,
+    val changeAmount: Double,
     val idempotencyKey: String,
     val createdAt: Long
 )
@@ -47,7 +49,8 @@ data class SaleLineEntity(
 
 data class CheckoutResult(
     val saleId: String,
-    val total: Double
+    val total: Double,
+    val changeAmount: Double
 )
 
 data class PaymentSummary(
