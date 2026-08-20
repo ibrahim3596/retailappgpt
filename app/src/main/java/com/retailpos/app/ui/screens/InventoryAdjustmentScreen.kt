@@ -27,6 +27,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.retailpos.app.core.permissions.NavigationPermissionRules
+import com.retailpos.app.core.staff.StaffSessionStore
 import com.retailpos.app.data.InventoryBatchEntity
 import com.retailpos.app.data.InventoryMovementReason
 import com.retailpos.app.data.ProductEntity
@@ -44,6 +46,17 @@ fun InventoryAdjustmentScreen(
     onAdjust: (Double, String) -> Unit,
     error: String? = null
 ) {
+    val role = StaffSessionStore.current()?.role
+    if (role == null || !NavigationPermissionRules.canOpenInventory(role)) {
+        Scaffold(topBar = { TopAppBar(title = { Text("ADJUST STOCK", fontWeight = FontWeight.Black) }) }) { padding ->
+            Column(Modifier.fillMaxWidth().padding(padding).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("You do not have permission to adjust inventory.", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                OutlinedButton(onClick = onBack) { Text("BACK") }
+            }
+        }
+        return
+    }
+
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val database = remember(context) { RetailDatabase.get(context) }
@@ -97,31 +110,16 @@ fun InventoryAdjustmentScreen(
                             Text(batch.batchNumber?.takeIf { it.isNotBlank() } ?: "UNBATCHED", fontWeight = FontWeight.Bold)
                             Text("Available: ${"%.2f".format(Locale.getDefault(), batch.quantity)} ${product.unit}")
                             Text("Expiry: $expiry", style = MaterialTheme.typography.labelMedium)
-                            Text(
-                                if (selected) "SELECTED" else "Tap to select",
-                                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            Text(if (selected) "SELECTED" else "Tap to select", color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
             }
             item {
-                OutlinedTextField(
-                    value = quantity,
-                    onValueChange = { quantity = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    label = { Text("Quantity change (+/-)") }
-                )
+                OutlinedTextField(value = quantity, onValueChange = { quantity = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Quantity change (+/-)") })
             }
             item {
-                OutlinedTextField(
-                    value = reason,
-                    onValueChange = { reason = it.uppercase() },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    label = { Text("Reason") }
-                )
+                OutlinedTextField(value = reason, onValueChange = { reason = it.uppercase() }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Reason") })
             }
             item {
                 Text(
@@ -129,17 +127,14 @@ fun InventoryAdjustmentScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            item {
-                (localError ?: error)?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-            }
+            item { (localError ?: error)?.let { Text(it, color = MaterialTheme.colorScheme.error) } }
             item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedButton(onClick = onBack, modifier = Modifier.weight(1f)) { Text("CANCEL") }
                     Button(
                         onClick = {
                             quantity.toDoubleOrNull()?.let { value ->
-                                selectedBatchId?.let { batchId -> saveBatchAdjustment(batchId, value, reason) }
-                                    ?: onAdjust(value, reason)
+                                selectedBatchId?.let { batchId -> saveBatchAdjustment(batchId, value, reason) } ?: onAdjust(value, reason)
                             }
                         },
                         modifier = Modifier.weight(1f),
