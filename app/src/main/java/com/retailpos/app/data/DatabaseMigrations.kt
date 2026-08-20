@@ -94,4 +94,14 @@ object DatabaseMigrations {
             db.execSQL("ALTER TABLE product_metadata ADD COLUMN taxRatePercent REAL NOT NULL DEFAULT 0.0")
         }
     }
+    val MIGRATION_12_13 = object : Migration(12, 13) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE sales ADD COLUMN discountAmount REAL NOT NULL DEFAULT 0.0")
+            db.execSQL("ALTER TABLE sales ADD COLUMN taxAmount REAL NOT NULL DEFAULT 0.0")
+            db.execSQL("ALTER TABLE sale_lines ADD COLUMN taxableAmount REAL NOT NULL DEFAULT 0.0")
+            db.execSQL("ALTER TABLE sale_lines ADD COLUMN discountAmount REAL NOT NULL DEFAULT 0.0")
+            db.execSQL("ALTER TABLE sale_lines ADD COLUMN taxRatePercent REAL NOT NULL DEFAULT 0.0")
+            db.execSQL("ALTER TABLE sale_lines ADD COLUMN taxAmount REAL NOT NULL DEFAULT 0.0")
+        }
+    }
 }
