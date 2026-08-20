@@ -23,4 +23,10 @@ interface StaffDao {
 
     @Query("UPDATE staff SET active = :active, updatedAt = :updatedAt WHERE id = :staffId AND storeId = :storeId")
     suspend fun setActive(storeId: String, staffId: String, active: Boolean, updatedAt: Long): Int
+
+    @Query("UPDATE staff SET pinHash = :pinHash, failedPinAttempts = 0, lockedUntil = NULL, updatedAt = :updatedAt WHERE id = :staffId AND storeId = :storeId")
+    suspend fun updatePinHash(storeId: String, staffId: String, pinHash: String, updatedAt: Long): Int
+
+    @Query("UPDATE staff SET role = :role, updatedAt = :updatedAt WHERE id = :staffId AND storeId = :storeId")
+    suspend fun updateRole(storeId: String, staffId: String, role: String, updatedAt: Long): Int
 }
