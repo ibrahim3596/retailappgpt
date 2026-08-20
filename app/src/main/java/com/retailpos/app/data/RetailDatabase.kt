@@ -97,7 +97,7 @@ abstract class RetailDatabase : RoomDatabase() {
                     INSTANCE = it
                     val applicationContext = context.applicationContext
                     PendingPaymentStore.configure(applicationContext)
-                    ActiveCartStore.save(applicationContext, emptyList())
+                    ActiveCartStore.configure(applicationContext)
                     ProductCatalogLookup.configurePersistentCache(LOCAL_STORE_ID, it.productIdentificationCacheDao())
                 }
         }
