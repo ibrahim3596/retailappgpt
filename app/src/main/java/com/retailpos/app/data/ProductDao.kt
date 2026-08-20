@@ -18,6 +18,9 @@ interface ProductDao {
     @Query("SELECT DISTINCT p.* FROM products p WHERE p.storeId = :storeId AND (p.name LIKE '%' || :query || '%' OR p.brand LIKE '%' || :query || '%' OR p.sku LIKE '%' || :query || '%' OR EXISTS (SELECT 1 FROM product_barcodes b WHERE b.productId = p.id AND b.storeId = p.storeId AND b.value LIKE '%' || :query || '%')) ORDER BY p.name COLLATE NOCASE")
     fun searchProducts(storeId: String, query: String): Flow<List<ProductEntity>>
 
+    @Query("SELECT DISTINCT p.* FROM products p WHERE p.storeId = :storeId AND (LOWER(p.name) LIKE '%' || LOWER(:query) || '%' OR LOWER(p.brand) LIKE '%' || LOWER(:query) || '%') ORDER BY p.name COLLATE NOCASE LIMIT :limit")
+    suspend fun findLocalCandidates(storeId: String, query: String, limit: Int = 30): List<ProductEntity>
+
     @Query("SELECT * FROM products WHERE id = :productId AND storeId = :storeId LIMIT 1")
     suspend fun getById(productId: String, storeId: String): ProductEntity?
 
