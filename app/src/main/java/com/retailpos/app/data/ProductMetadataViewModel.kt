@@ -49,10 +49,10 @@ class ProductMetadataViewModel(
 
     fun save(productId: String, onResult: (ProductMetadataSaveResult) -> Unit) {
         val normalized = _form.value.normalized()
-        val error = normalized.validate()
-        if (error != null) {
-            _error.value = error
-            onResult(ProductMetadataSaveResult.Invalid(error))
+        val validationError = normalized.validate()
+        if (validationError != null) {
+            _error.value = validationError
+            onResult(ProductMetadataSaveResult.Invalid(validationError))
             return
         }
         viewModelScope.launch {
@@ -82,10 +82,10 @@ class ProductMetadataViewModel(
     }
 }
 
-enum class ProductMetadataSaveResult {
-    Success,
-    Error;
-    data class Invalid(val message: String) : ProductMetadataSaveResult()
+sealed interface ProductMetadataSaveResult {
+    data object Success : ProductMetadataSaveResult
+    data object Error : ProductMetadataSaveResult
+    data class Invalid(val message: String) : ProductMetadataSaveResult
 }
 
 class ProductMetadataViewModelFactory(private val storeId: String) : ViewModelProvider.Factory {
