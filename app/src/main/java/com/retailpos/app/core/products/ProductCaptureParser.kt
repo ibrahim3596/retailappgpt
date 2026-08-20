@@ -6,6 +6,7 @@ private val OCR_METADATA_PATTERN = Regex(
 )
 
 private val OCR_NUMBER_ONLY_PATTERN = Regex("[0-9 .₹$€£,/:%#*+()\\-]+")
+private val OCR_SYMBOL_PATTERN = Regex("[^\\p{L}\\p{N}\\s&+.-]")
 private val MRP_PATTERN = Regex(
     "(?:MRP|M\\.?R\\.?P\\.?)\\s*(?:₹|Rs\\.?|INR)?\\s*([0-9]+(?:[.,][0-9]{1,2})?)",
     RegexOption.IGNORE_CASE
@@ -19,6 +20,14 @@ data class ParsedProductText(
 )
 
 object ProductCaptureParser {
+    fun normalizeForMatching(value: String): String = value
+        .trim()
+        .lowercase()
+        .replace('&', ' ')
+        .replace(OCR_SYMBOL_PATTERN, " ")
+        .replace(Regex("\\s+"), " ")
+        .trim()
+
     fun parse(rawText: String): ParsedProductText {
         val usefulLines = cleanLines(rawText)
         val name = usefulLines
@@ -58,5 +67,7 @@ object ProductCaptureParser {
         .filter { it.length in 2..80 }
         .filterNot(OCR_NUMBER_ONLY_PATTERN::matches)
         .filterNot(OCR_METADATA_PATTERN::containsMatchIn)
-        .distinctBy(String::lowercase)
+        .map { it.replace(OCR_SYMBOL_PATTERN, " ").replace(Regex("\\s+"), " ").trim() }
+        .filter { it.length >= 2 }
+        .distinctBy(::normalizeForMatching)
 }
