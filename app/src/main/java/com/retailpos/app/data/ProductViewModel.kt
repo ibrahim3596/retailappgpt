@@ -50,6 +50,7 @@ class ProductViewModel(application: Application, private val storeId: String) : 
     fun setFilter(value: ProductListFilter) { _filter.value = value }
 
     fun findLocalCaptureCandidates(
+        barcode: String? = null,
         name: String?,
         brand: String?,
         packSize: Double? = null,
@@ -57,17 +58,23 @@ class ProductViewModel(application: Application, private val storeId: String) : 
         onComplete: ((List<ProductLocalCandidate>) -> Unit)? = null
     ) {
         viewModelScope.launch {
-            val candidates = repository.findLocalCandidates(storeId, name, brand, packSize, packUnit)
+            val candidates = repository.findLocalCandidates(storeId, name, brand, packSize, packUnit).toMutableList()
+            val exact = barcode?.takeIf { it.isNotBlank() }?.let { repository.getProductByBarcode(storeId, it) }
+            if (exact != null && candidates.none { it.product.id == exact.id }) {
+                candidates.add(0, ProductLocalCandidate(exact, 99, "Local canonical barcode match. Review the existing product instead of creating a duplicate."))
+            } else if (exact != null) {
+                val existingIndex = candidates.indexOfFirst { it.product.id == exact.id }
+                if (existingIndex > 0) {
+                    val current = candidates.removeAt(existingIndex)
+                    candidates.add(0, current.copy(score = maxOf(99, current.score), explanation = "Local canonical barcode match. Review the existing product instead of creating a duplicate."))
+                }
+            }
             _localCandidates.value = candidates
             onComplete?.invoke(candidates)
         }
     }
 
-    fun recordIdentificationFeedback(
-        barcode: String?,
-        candidateKey: String?,
-        feedback: ProductIdentificationFeedback
-    ) {
+    fun recordIdentificationFeedback(barcode: String?, candidateKey: String?, feedback: ProductIdentificationFeedback) {
         viewModelScope.launch { feedbackRepository.record(storeId, barcode, candidateKey, feedback) }
     }
 
