@@ -241,17 +241,15 @@ private fun RetailPosApp() {
                 onBack = { navController.popBackStack() },
                 onAddProduct = { navController.navigate("products/add?barcode=&identify=false&returnToBilling=false") },
                 onIntelligentCapture = { navController.navigate("products/add?barcode=&identify=true&returnToBilling=false") },
-                onEditProduct = { navController.navigate("products/edit/$it") }
+                onEditProduct = { navController.navigate("products/edit/$it") },
+                onEditDetails = { navController.navigate("products/details/$it") }
             )
         }
-        composable(
-            Routes.ADD_PRODUCT,
-            arguments = listOf(
-                navArgument("barcode") { type = NavType.StringType; defaultValue = "" },
-                navArgument("identify") { type = NavType.BoolType; defaultValue = false },
-                navArgument("returnToBilling") { type = NavType.BoolType; defaultValue = false }
-            )
-        ) { entry ->
+        composable(Routes.ADD_PRODUCT, arguments = listOf(
+            navArgument("barcode") { type = NavType.StringType; defaultValue = "" },
+            navArgument("identify") { type = NavType.BoolType; defaultValue = false },
+            navArgument("returnToBilling") { type = NavType.BoolType; defaultValue = false }
+        )) { entry ->
             val initialBarcode = entry.arguments?.getString("barcode").orEmpty()
             val returnToBilling = entry.arguments?.getBoolean("returnToBilling") ?: false
             ProductReviewScreen(
@@ -309,18 +307,9 @@ private fun RetailPosApp() {
     }
 
     unknownBarcode?.let { value ->
-        AlertDialog(
-            onDismissRequest = { unknownBarcode = null },
-            title = { Text("Product not found") },
-            text = { Text("No product is linked to barcode $value. You can add it manually or identify it intelligently from the product itself.") },
-            confirmButton = {
-                RowButtons(
-                    onIdentify = { unknownBarcode = null; navController.navigate("products/add?barcode=${Uri.encode(value)}&identify=true&returnToBilling=true") },
-                    onAdd = { unknownBarcode = null; navController.navigate("products/add?barcode=${Uri.encode(value)}&identify=false&returnToBilling=true") }
-                )
-            },
-            dismissButton = { TextButton(onClick = { unknownBarcode = null }) { Text("CANCEL") } }
-        )
+        AlertDialog(onDismissRequest = { unknownBarcode = null }, title = { Text("Product not found") }, text = { Text("No product is linked to barcode $value. You can add it manually or identify it intelligently from the product itself.") }, confirmButton = {
+            RowButtons(onIdentify = { unknownBarcode = null; navController.navigate("products/add?barcode=${Uri.encode(value)}&identify=true&returnToBilling=true") }, onAdd = { unknownBarcode = null; navController.navigate("products/add?barcode=${Uri.encode(value)}&identify=false&returnToBilling=true") })
+        }, dismissButton = { TextButton(onClick = { unknownBarcode = null }) { Text("CANCEL") } })
     }
     cartError?.let { message -> AlertDialog(onDismissRequest = { cartError = null }, title = { Text("Cannot add product") }, text = { Text(message) }, confirmButton = { TextButton(onClick = { cartError = null }) { Text("OK") } }) }
     completedSale?.let { saleId -> AlertDialog(onDismissRequest = { completedSale = null }, title = { Text("Sale completed") }, text = { Text("Sale saved successfully.\nReceipt ID: $saleId") }, confirmButton = { Button(onClick = { completedSale = null; openReceipt(saleId) }) { Text("VIEW RECEIPT") } }, dismissButton = { TextButton(onClick = { completedSale = null }) { Text("DONE") } }) }
