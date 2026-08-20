@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Transaction
 import com.retailpos.app.core.payment.PaymentSettlementRules
+import com.retailpos.app.core.payment.PendingPaymentStore
 import com.retailpos.app.core.permissions.StaffPermissionRules
 import com.retailpos.app.core.permissions.StaffRole
 import com.retailpos.app.core.products.PricingInput
@@ -91,48 +92,21 @@ abstract class SaleDao {
         findByIdempotencyKey(storeId, idempotencyKey)?.let { return CheckoutResult(it.id, it.total, it.changeAmount) }
 
         val subtotal = cart.sumOf { it.lineTotal }
-        StaffPermissionRules.validateBillDiscount(staffRole, subtotal, billDiscountAmount)?.let { error ->
-            throw IllegalArgumentException(error)
-        }
-
+        StaffPermissionRules.validateBillDiscount(staffRole, subtotal, billDiscountAmount)?.let { error -> throw IllegalArgumentException(error) }
         val effectiveTaxTreatment = taxTreatment ?: StoreTaxMode.fromStorage(getStoreSettings(storeId)?.gstMode ?: StoreTaxMode.NO_GST.storageValue).toTaxTreatment()
-        val safeDiscount = PricingRules.calculate(
-            PricingInput(subtotal = subtotal, discountAmount = billDiscountAmount, taxTreatment = TaxTreatment.NO_TAX)
-        ).discountAmount
-
+        val safeDiscount = PricingRules.calculate(PricingInput(subtotal = subtotal, discountAmount = billDiscountAmount, taxTreatment = TaxTreatment.NO_TAX)).discountAmount
         val pricedLines = cart.map { line ->
             val lineDiscount = if (subtotal <= 0.0) 0.0 else safeDiscount * (line.lineTotal / subtotal)
             val productTaxRate = if (effectiveTaxTreatment == TaxTreatment.NO_TAX) 0.0 else (getProductMetadata(line.productId, storeId)?.taxRatePercent ?: 0.0)
-            val pricing = PricingRules.calculate(
-                PricingInput(
-                    subtotal = line.lineTotal,
-                    discountAmount = lineDiscount,
-                    taxRatePercent = productTaxRate,
-                    taxTreatment = effectiveTaxTreatment
-                )
-            )
-            line to pricing
+            line to PricingRules.calculate(PricingInput(subtotal = line.lineTotal, discountAmount = lineDiscount, taxRatePercent = productTaxRate, taxTreatment = effectiveTaxTreatment))
         }
-
         val saleDiscount = pricedLines.sumOf { it.second.discountAmount }
         val saleTax = pricedLines.sumOf { it.second.taxAmount }
         val saleTotal = pricedLines.sumOf { it.second.total }
-        val payment = PaymentSettlementRules.settle(paymentMethod, saleTotal, amountTendered)
+        val effectiveTender = amountTendered ?: PendingPaymentStore.get()
+        val payment = PaymentSettlementRules.settle(paymentMethod, saleTotal, effectiveTender)
         val saleId = UUID.randomUUID().toString()
-        val sale = SaleEntity(
-            id = saleId,
-            storeId = storeId,
-            customerId = customerId,
-            subtotal = subtotal,
-            discountAmount = saleDiscount,
-            taxAmount = saleTax,
-            total = saleTotal,
-            paymentMethod = paymentMethod,
-            amountTendered = payment.amountTendered,
-            changeAmount = payment.change,
-            idempotencyKey = idempotencyKey,
-            createdAt = now
-        )
+        val sale = SaleEntity(saleId, storeId, customerId, subtotal, saleDiscount, saleTax, saleTotal, paymentMethod, payment.amountTendered, payment.change, idempotencyKey, now)
         val fallbackMovements = mutableListOf<InventoryMovementEntity>()
         for (line in cart) {
             val allocatedToBatch = allocateFefo(storeId, line.productId, line.quantity, saleId, now)
@@ -144,26 +118,9 @@ abstract class SaleDao {
         }
         if (fallbackMovements.isNotEmpty()) insertInventoryMovements(fallbackMovements)
         insertSale(sale)
-        insertLines(pricedLines.map { (line, pricing) ->
-            SaleLineEntity(
-                id = UUID.randomUUID().toString(),
-                saleId = saleId,
-                productId = line.productId,
-                name = line.name,
-                sku = line.sku,
-                quantity = line.quantity,
-                unit = line.unit,
-                unitPrice = line.unitPrice,
-                taxableAmount = pricing.taxableAmount,
-                discountAmount = pricing.discountAmount,
-                taxRatePercent = if (effectiveTaxTreatment == TaxTreatment.NO_TAX) 0.0 else (getProductMetadata(line.productId, storeId)?.taxRatePercent ?: 0.0),
-                taxAmount = pricing.taxAmount,
-                lineTotal = pricing.total
-            )
-        })
-        if (paymentMethod == "CREDIT") {
-            insertLedgerEntry(CustomerLedgerEntry(UUID.randomUUID().toString(), storeId, customerId!!, saleTotal, "CREDIT_SALE", "Sale $saleId", "SALE", saleId, now))
-        }
+        insertLines(pricedLines.map { (line, pricing) -> SaleLineEntity(UUID.randomUUID().toString(), saleId, line.productId, line.name, line.sku, line.quantity, line.unit, line.unitPrice, pricing.taxableAmount, pricing.discountAmount, if (effectiveTaxTreatment == TaxTreatment.NO_TAX) 0.0 else (getProductMetadata(line.productId, storeId)?.taxRatePercent ?: 0.0), pricing.taxAmount, pricing.total) })
+        if (paymentMethod == "CREDIT") insertLedgerEntry(CustomerLedgerEntry(UUID.randomUUID().toString(), storeId, customerId!!, saleTotal, "CREDIT_SALE", "Sale $saleId", "SALE", saleId, now))
+        PendingPaymentStore.clear()
         return CheckoutResult(saleId, saleTotal, payment.change)
     }
 }
