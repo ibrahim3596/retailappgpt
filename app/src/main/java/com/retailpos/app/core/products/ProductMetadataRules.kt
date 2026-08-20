@@ -8,4 +8,7 @@ object ProductMetadataRules {
 
     fun isValidPackSize(value: Double?): Boolean =
         value == null || (value.isFinite() && value > 0.0)
+
+    fun isValidTaxRatePercent(value: Double): Boolean =
+        value.isFinite() && value in 0.0..100.0
 }
