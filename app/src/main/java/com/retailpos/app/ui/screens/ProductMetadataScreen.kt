@@ -1,13 +1,18 @@
 package com.retailpos.app.ui.screens
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -36,6 +41,10 @@ fun ProductMetadataScreen(
     val form by viewModel.form.collectAsState()
     val error by viewModel.error.collectAsState()
 
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let { viewModel.setImageUri(it.toString()) }
+    }
+
     LaunchedEffect(productId) { viewModel.load(productId) }
 
     Scaffold(topBar = { TopAppBar(title = { Text("PRODUCT DETAILS") }) }) { padding ->
@@ -47,6 +56,24 @@ fun ProductMetadataScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            Text("PRODUCT IMAGE")
+            if (form.imageUri.isNullOrBlank()) {
+                Text("No product image selected.")
+            } else {
+                Text("Image selected")
+                Text(form.imageUri!!)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                Button(onClick = { imagePicker.launch("image/*") }, modifier = Modifier.weight(1f)) {
+                    Text(if (form.imageUri.isNullOrBlank()) "ADD IMAGE" else "CHANGE IMAGE")
+                }
+                if (!form.imageUri.isNullOrBlank()) {
+                    OutlinedButton(onClick = { viewModel.setImageUri(null) }, modifier = Modifier.weight(1f)) {
+                        Text("REMOVE")
+                    }
+                }
+            }
+
             ProductMetadataEditor(form = form, onChange = viewModel::update)
             error?.let { Text(it) }
             Button(onClick = {
