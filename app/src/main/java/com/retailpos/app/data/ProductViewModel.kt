@@ -10,6 +10,7 @@ import com.retailpos.app.core.identifiers.ProductIdentifierValidator
 import com.retailpos.app.core.products.ProductCaptureMetadataMapper
 import com.retailpos.app.core.products.ProductCaptureObservation
 import com.retailpos.app.core.products.ProductListFilter
+import com.retailpos.app.core.products.ProductLocalCandidate
 import com.retailpos.app.core.products.matches
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -29,12 +30,14 @@ class ProductViewModel(application: Application, private val storeId: String) : 
     private val _editingProduct = MutableStateFlow<ProductEntity?>(null)
     private val _metadata = MutableStateFlow<ProductMetadataEntity?>(null)
     private val _barcodes = MutableStateFlow<List<ProductBarcodeEntity>>(emptyList())
+    private val _localCandidates = MutableStateFlow<List<ProductLocalCandidate>>(emptyList())
 
     val query: StateFlow<String> = _query
     val filter: StateFlow<ProductListFilter> = _filter
     val editingProduct: StateFlow<ProductEntity?> = _editingProduct
     val metadata: StateFlow<ProductMetadataEntity?> = _metadata
     val barcodes: StateFlow<List<ProductBarcodeEntity>> = _barcodes
+    val localCandidates: StateFlow<List<ProductLocalCandidate>> = _localCandidates
 
     val products: StateFlow<List<ProductEntity>> = _query
         .flatMapLatest { search ->
@@ -46,6 +49,15 @@ class ProductViewModel(application: Application, private val storeId: String) : 
 
     fun setQuery(value: String) { _query.value = value }
     fun setFilter(value: ProductListFilter) { _filter.value = value }
+
+    fun findLocalCaptureCandidates(name: String?, brand: String?, onComplete: (() -> Unit)? = null) {
+        viewModelScope.launch {
+            _localCandidates.value = repository.findLocalCandidates(storeId, name, brand)
+            onComplete?.invoke()
+        }
+    }
+
+    fun clearLocalCaptureCandidates() { _localCandidates.value = emptyList() }
 
     fun loadProduct(productId: String?) {
         if (productId == null) {
