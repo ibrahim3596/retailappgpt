@@ -5,21 +5,27 @@ class CartManager {
 
     val lines: List<CartLine> get() = _lines.toList()
 
-    fun add(product: ProductEntity): AddToCartResult {
+    fun add(product: ProductEntity): AddToCartResult = addQuantity(product, 1.0)
+
+    fun addQuantity(product: ProductEntity, requestedQuantity: Double): AddToCartResult {
+        if (requestedQuantity <= 0.0 || !requestedQuantity.isFinite()) return AddToCartResult.InvalidQuantity
         if (product.stock <= 0.0) return AddToCartResult.OutOfStock
 
         val existing = _lines.firstOrNull { it.productId == product.id }
+        val newQuantity = (existing?.quantity ?: 0.0) + requestedQuantity
+        if (newQuantity > product.stock + 1e-9) return AddToCartResult.InsufficientStock
+
         if (existing != null) {
-            if (existing.quantity + 1.0 > product.stock) return AddToCartResult.InsufficientStock
             val index = _lines.indexOf(existing)
-            _lines[index] = existing.copy(quantity = existing.quantity + 1.0)
+            _lines[index] = existing.copy(quantity = newQuantity)
         } else {
             _lines += CartLine(
                 productId = product.id,
                 name = product.name,
                 sku = product.sku,
                 unit = product.unit,
-                unitPrice = product.sellingPrice
+                unitPrice = product.sellingPrice,
+                quantity = requestedQuantity
             )
         }
         return AddToCartResult.Added
@@ -30,4 +36,4 @@ class CartManager {
     fun clear() = _lines.clear()
 }
 
-enum class AddToCartResult { Added, OutOfStock, InsufficientStock }
+enum class AddToCartResult { Added, OutOfStock, InsufficientStock, InvalidQuantity }
