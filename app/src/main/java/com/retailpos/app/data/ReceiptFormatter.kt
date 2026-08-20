@@ -1,5 +1,6 @@
 package com.retailpos.app.data
 
+import com.retailpos.app.core.payment.ReceiptPaymentSummary
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -28,10 +29,7 @@ object ReceiptFormatter {
             if (sale.discountAmount > 0.0) appendLine("DISCOUNT: -${money(sale.discountAmount)}")
             if (sale.taxAmount > 0.0) appendLine("GST: ${money(sale.taxAmount)}")
             appendLine("TOTAL: ${money(sale.total)}")
-            if (sale.paymentMethod == "CASH" && sale.amountTendered != null) {
-                appendLine("CASH RECEIVED: ${money(sale.amountTendered)}")
-                if (sale.changeAmount > 0.0) appendLine("CHANGE: ${money(sale.changeAmount)}")
-            }
+            ReceiptPaymentSummary.lines(sale.paymentMethod, sale.amountTendered, sale.changeAmount).forEach(::appendLine)
         }
     }
 
