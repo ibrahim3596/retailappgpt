@@ -66,13 +66,21 @@ class ProductViewModel(application: Application, private val storeId: String) : 
                 val existingIndex = candidates.indexOfFirst { it.product.id == exact.id }
                 if (existingIndex > 0) {
                     val current = candidates.removeAt(existingIndex)
-                    candidates.add(0, current.copy(score = maxOf(99, current.score), explanation = "Local canonical barcode match. Review the existing product instead of creating a duplicate."))
+                    candidates.add(0, current.copy(score = 99, explanation = "Local canonical barcode match. Review the existing product instead of creating a duplicate."))
                 }
             }
             _localCandidates.value = candidates
             onComplete?.invoke(candidates)
         }
     }
+
+    fun findLocalCaptureCandidates(
+        name: String?,
+        brand: String?,
+        packSize: Double? = null,
+        packUnit: String? = null,
+        onComplete: ((List<ProductLocalCandidate>) -> Unit)? = null
+    ) = findLocalCaptureCandidates(null, name, brand, packSize, packUnit, onComplete)
 
     fun recordIdentificationFeedback(barcode: String?, candidateKey: String?, feedback: ProductIdentificationFeedback) {
         viewModelScope.launch { feedbackRepository.record(storeId, barcode, candidateKey, feedback) }
