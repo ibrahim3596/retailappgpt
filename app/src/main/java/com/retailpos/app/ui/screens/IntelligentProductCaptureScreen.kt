@@ -49,8 +49,8 @@ import com.google.mlkit.vision.label.defaults.ImageLabelerOptions
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import com.retailpos.app.core.products.ProductCaptureParser
+import com.retailpos.app.core.products.ProductPackParser
 import java.util.concurrent.Executors
-
 
 data class ProductCaptureResult(
     val barcode: String?,
@@ -58,6 +58,8 @@ data class ProductCaptureResult(
     val detectedBrand: String?,
     val categoryHint: String?,
     val detectedMrp: Double?,
+    val detectedPackSize: Double?,
+    val detectedPackUnit: String?,
     val rawText: String,
     val labelConfidence: Float?
 )
@@ -159,12 +161,15 @@ fun IntelligentProductCaptureScreen(
                                     fun maybeEmit() {
                                         if (!barcodesDone || !textDone || !labelsDone) return
                                         val parsed = ProductCaptureParser.parse(text)
+                                        val pack = ProductPackParser.parse(text)
                                         val result = ProductCaptureResult(
                                             barcode = barcode,
                                             detectedName = parsed.name,
                                             detectedBrand = parsed.brand,
                                             categoryHint = bestLabel,
                                             detectedMrp = parsed.mrp,
+                                            detectedPackSize = pack?.size,
+                                            detectedPackUnit = pack?.unit,
                                             rawText = text,
                                             labelConfidence = bestConfidence
                                         )
@@ -173,7 +178,9 @@ fun IntelligentProductCaptureScreen(
                                             result.detectedName,
                                             result.detectedBrand,
                                             result.categoryHint,
-                                            result.detectedMrp
+                                            result.detectedMrp,
+                                            result.detectedPackSize,
+                                            result.detectedPackUnit
                                         ).joinToString("|")
                                         val now = System.currentTimeMillis()
                                         if (fingerprint != lastFingerprint || now - lastEmitAt > 1_500L) {
@@ -232,7 +239,7 @@ fun IntelligentProductCaptureScreen(
                     Text("Point the camera at the front of the product", style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        "We combine barcode + printed text + visual category hints. The result is a suggestion and must be reviewed before saving.",
+                        "We combine barcode + printed text + pack size + visual category hints. The result is a suggestion and must be reviewed before saving.",
                         style = MaterialTheme.typography.bodySmall
                     )
                     resultPreview?.let { result ->
@@ -241,6 +248,9 @@ fun IntelligentProductCaptureScreen(
                         result.detectedBrand?.let { Text("Brand: $it", style = MaterialTheme.typography.bodySmall) }
                         result.barcode?.let { Text("Barcode: $it", style = MaterialTheme.typography.bodySmall) }
                         result.detectedMrp?.let { Text("Printed MRP: ₹${formatMoney(it)}", style = MaterialTheme.typography.bodySmall) }
+                        if (result.detectedPackSize != null && !result.detectedPackUnit.isNullOrBlank()) {
+                            Text("Pack size: ${formatQuantity(result.detectedPackSize)} ${result.detectedPackUnit}", style = MaterialTheme.typography.bodySmall)
+                        }
                         result.categoryHint?.let { Text("Category hint: $it", style = MaterialTheme.typography.bodySmall) }
                         Spacer(Modifier.height(8.dp))
                         Button(onClick = { onResult(result) }, modifier = Modifier.fillMaxWidth()) { Text("USE DETECTED DETAILS") }
@@ -252,3 +262,4 @@ fun IntelligentProductCaptureScreen(
 }
 
 private fun formatMoney(value: Double): String = String.format(java.util.Locale.US, "%.2f", value)
+private fun formatQuantity(value: Double): String = if (value % 1.0 == 0.0) value.toInt().toString() else String.format(java.util.Locale.US, "%.2f", value)
