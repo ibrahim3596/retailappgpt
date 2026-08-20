@@ -122,4 +122,12 @@ object DatabaseMigrations {
             db.execSQL("ALTER TABLE sales ADD COLUMN changeAmount REAL NOT NULL DEFAULT 0.0")
         }
     }
+    val MIGRATION_16_17 = object : Migration(16, 17) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS product_identification_feedback (id TEXT NOT NULL, storeId TEXT NOT NULL, barcode TEXT, candidateKey TEXT, outcome TEXT NOT NULL, rankingBoost INTEGER NOT NULL, explanation TEXT NOT NULL, createdAt INTEGER NOT NULL, PRIMARY KEY(id))")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_product_identification_feedback_storeId_createdAt ON product_identification_feedback(storeId, createdAt)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_product_identification_feedback_storeId_candidateKey_createdAt ON product_identification_feedback(storeId, candidateKey, createdAt)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_product_identification_feedback_storeId_barcode_createdAt ON product_identification_feedback(storeId, barcode, createdAt)")
+        }
+    }
 }
