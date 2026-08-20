@@ -3,6 +3,7 @@ package com.retailpos.app.data
 import androidx.room.withTransaction
 import com.retailpos.app.core.identifiers.ProductIdentityRules
 import com.retailpos.app.core.identifiers.ProductIdentifierValidator
+import com.retailpos.app.core.products.ProductCaptureParser
 import com.retailpos.app.core.products.ProductLocalCandidate
 import com.retailpos.app.core.products.ProductLocalCandidateRanking
 import kotlinx.coroutines.flow.Flow
@@ -23,8 +24,9 @@ class ProductRepository(
         barcodeDao.getProductByBarcode(storeId, ProductIdentifierValidator.normalize(value))
 
     suspend fun findLocalCandidates(storeId: String, name: String?, brand: String?, limit: Int = 30): List<ProductLocalCandidate> {
-        val queries = listOf(name, brand).filter { !it.isNullOrBlank() }
-            .map { ProductIdentityRules.normalizeSku(it!!) }
+        val queries = listOf(name, brand)
+            .filter { !it.isNullOrBlank() }
+            .map { ProductCaptureParser.normalizeForMatching(it.orEmpty()) }
             .filter { it.isNotBlank() }
             .distinct()
         val candidates = queries.flatMap { dao.findLocalCandidates(storeId, it, limit) }
