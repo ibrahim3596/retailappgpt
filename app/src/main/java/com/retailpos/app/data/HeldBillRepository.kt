@@ -10,7 +10,17 @@ class HeldBillRepository(private val database: RetailDatabase) {
         database.heldBillDao().save(
             HeldBillEntity(id, storeId, now, now),
             lines.map {
-                HeldBillLineEntity(id, it.productId, it.name, it.sku, it.unit, it.unitPrice, it.quantity)
+                HeldBillLineEntity(
+                    heldBillId = id,
+                    productId = it.productId,
+                    name = it.name,
+                    sku = it.sku,
+                    unit = it.unit,
+                    unitPrice = it.unitPrice,
+                    quantity = it.quantity,
+                    overrideUnitPrice = it.overrideUnitPrice,
+                    itemDiscountAmount = it.itemDiscountAmount
+                )
             }
         )
         return id
@@ -21,7 +31,16 @@ class HeldBillRepository(private val database: RetailDatabase) {
             id = bill.id,
             createdAt = bill.createdAt,
             lines = database.heldBillDao().getLines(bill.id).map {
-                CartLine(it.productId, it.name, it.sku, it.unit, it.unitPrice, it.quantity)
+                CartLine(
+                    productId = it.productId,
+                    name = it.name,
+                    sku = it.sku,
+                    unit = it.unit,
+                    unitPrice = it.unitPrice,
+                    quantity = it.quantity,
+                    overrideUnitPrice = it.overrideUnitPrice,
+                    itemDiscountAmount = it.itemDiscountAmount
+                )
             }
         )
     }
@@ -29,7 +48,16 @@ class HeldBillRepository(private val database: RetailDatabase) {
     suspend fun take(storeId: String, id: String): HeldBillSnapshot? = database.withTransaction {
         val bill = database.heldBillDao().getAll(storeId).firstOrNull { it.id == id } ?: return@withTransaction null
         val lines = database.heldBillDao().getLines(id).map {
-            CartLine(it.productId, it.name, it.sku, it.unit, it.unitPrice, it.quantity)
+            CartLine(
+                productId = it.productId,
+                name = it.name,
+                sku = it.sku,
+                unit = it.unit,
+                unitPrice = it.unitPrice,
+                quantity = it.quantity,
+                overrideUnitPrice = it.overrideUnitPrice,
+                itemDiscountAmount = it.itemDiscountAmount
+            )
         }
         database.heldBillDao().deleteBill(id, storeId)
         HeldBillSnapshot(bill.id, bill.createdAt, lines)
