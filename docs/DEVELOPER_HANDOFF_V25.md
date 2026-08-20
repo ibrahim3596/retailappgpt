@@ -30,7 +30,8 @@ The user chose: finish core feature development first, then freeze scope and run
    - Added unit coverage for the refund-method rules.
 
 4. **Staff/inventory controls**
-   - Inventory adjustments, batch adjustments, and stock receiving now enforce `StaffPermission.ADJUST_INVENTORY` inside `InventoryDao`.
+   - Added explicit `StaffPermission.ADJUST_INVENTORY`.
+   - Inventory adjustments, batch adjustments, and stock receiving now enforce it inside `InventoryDao`.
    - Permission enforcement is therefore at the data/business boundary, not only UI level.
    - Inventory valuation and near-expiry DAO queries remain present and are preserved.
 
@@ -40,12 +41,17 @@ The user chose: finish core feature development first, then freeze scope and run
    - This improves process-recreation resilience for pending checkout tender data.
    - Full persistent checkout-idempotency recovery is still a separate hardening task because the in-memory idempotency key lives in the app shell.
 
+## Important implementation status
+
+The latest branch head includes these five slices, but no local Android/Gradle build has been run after the batch yet. Do not describe the current commit as compile-verified or CI-green.
+
 ## Current known follow-ups
 
 - Wire `FavoriteProductDao` into `PosScreen`/`MainActivity` for visible persistent favorites/recent quick-add.
 - Add item-level discount and price-override UI with `StaffPermission` enforcement.
 - Add report/settings/product navigation permission guards where currently only the underlying action is protected.
-- Complete split-payment analytics normalization so split sales report by tender components rather than as raw encoded paymentMethod strings.
+- Complete split-payment analytics normalization so split sales report by tender components rather than as raw encoded `paymentMethod` strings.
+- Complete full persistent checkout-idempotency recovery across process death.
 - Complete full physical-device and integration testing only after development freeze.
 
 ## No CI
