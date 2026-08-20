@@ -110,4 +110,10 @@ object DatabaseMigrations {
             db.execSQL("INSERT OR IGNORE INTO store_settings (storeId, gstMode, defaultTaxRatePercent, currency, updatedAt) VALUES ('local-store', 'NO_GST', 0.0, 'INR', strftime('%s','now') * 1000)")
         }
     }
+    val MIGRATION_14_15 = object : Migration(14, 15) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS staff (id TEXT NOT NULL, storeId TEXT NOT NULL, name TEXT NOT NULL, username TEXT NOT NULL, role TEXT NOT NULL, pinHash TEXT NOT NULL, active INTEGER NOT NULL, failedPinAttempts INTEGER NOT NULL, lockedUntil INTEGER, createdAt INTEGER NOT NULL, updatedAt INTEGER NOT NULL, PRIMARY KEY(id))")
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_staff_storeId_username ON staff(storeId, username)")
+        }
+    }
 }
