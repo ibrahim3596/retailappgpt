@@ -90,9 +90,7 @@ object DatabaseMigrations {
         }
     }
     val MIGRATION_11_12 = object : Migration(11, 12) {
-        override fun migrate(db: SupportSQLiteDatabase) {
-            db.execSQL("ALTER TABLE product_metadata ADD COLUMN taxRatePercent REAL NOT NULL DEFAULT 0.0")
-        }
+        override fun migrate(db: SupportSQLiteDatabase) { db.execSQL("ALTER TABLE product_metadata ADD COLUMN taxRatePercent REAL NOT NULL DEFAULT 0.0") }
     }
     val MIGRATION_12_13 = object : Migration(12, 13) {
         override fun migrate(db: SupportSQLiteDatabase) {
@@ -111,16 +109,10 @@ object DatabaseMigrations {
         }
     }
     val MIGRATION_14_15 = object : Migration(14, 15) {
-        override fun migrate(db: SupportSQLiteDatabase) {
-            db.execSQL("CREATE TABLE IF NOT EXISTS staff (id TEXT NOT NULL, storeId TEXT NOT NULL, name TEXT NOT NULL, username TEXT NOT NULL, role TEXT NOT NULL, pinHash TEXT NOT NULL, active INTEGER NOT NULL, failedPinAttempts INTEGER NOT NULL, lockedUntil INTEGER, createdAt INTEGER NOT NULL, updatedAt INTEGER NOT NULL, PRIMARY KEY(id))")
-            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_staff_storeId_username ON staff(storeId, username)")
-        }
+        override fun migrate(db: SupportSQLiteDatabase) { db.execSQL("CREATE TABLE IF NOT EXISTS staff (id TEXT NOT NULL, storeId TEXT NOT NULL, name TEXT NOT NULL, username TEXT NOT NULL, role TEXT NOT NULL, pinHash TEXT NOT NULL, active INTEGER NOT NULL, failedPinAttempts INTEGER NOT NULL, lockedUntil INTEGER, createdAt INTEGER NOT NULL, updatedAt INTEGER NOT NULL, PRIMARY KEY(id))"); db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_staff_storeId_username ON staff(storeId, username)") }
     }
     val MIGRATION_15_16 = object : Migration(15, 16) {
-        override fun migrate(db: SupportSQLiteDatabase) {
-            db.execSQL("ALTER TABLE sales ADD COLUMN amountTendered REAL")
-            db.execSQL("ALTER TABLE sales ADD COLUMN changeAmount REAL NOT NULL DEFAULT 0.0")
-        }
+        override fun migrate(db: SupportSQLiteDatabase) { db.execSQL("ALTER TABLE sales ADD COLUMN amountTendered REAL"); db.execSQL("ALTER TABLE sales ADD COLUMN changeAmount REAL NOT NULL DEFAULT 0.0") }
     }
     val MIGRATION_16_17 = object : Migration(16, 17) {
         override fun migrate(db: SupportSQLiteDatabase) {
@@ -128,6 +120,14 @@ object DatabaseMigrations {
             db.execSQL("CREATE INDEX IF NOT EXISTS index_product_identification_feedback_storeId_createdAt ON product_identification_feedback(storeId, createdAt)")
             db.execSQL("CREATE INDEX IF NOT EXISTS index_product_identification_feedback_storeId_candidateKey_createdAt ON product_identification_feedback(storeId, candidateKey, createdAt)")
             db.execSQL("CREATE INDEX IF NOT EXISTS index_product_identification_feedback_storeId_barcode_createdAt ON product_identification_feedback(storeId, barcode, createdAt)")
+        }
+    }
+    val MIGRATION_17_18 = object : Migration(17, 18) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS held_bills (id TEXT NOT NULL, storeId TEXT NOT NULL, createdAt INTEGER NOT NULL, updatedAt INTEGER NOT NULL, PRIMARY KEY(id))")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_held_bills_storeId_createdAt ON held_bills(storeId, createdAt)")
+            db.execSQL("CREATE TABLE IF NOT EXISTS held_bill_lines (heldBillId TEXT NOT NULL, productId TEXT NOT NULL, name TEXT NOT NULL, sku TEXT, unit TEXT NOT NULL, unitPrice REAL NOT NULL, quantity REAL NOT NULL, PRIMARY KEY(heldBillId, productId))")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_held_bill_lines_heldBillId ON held_bill_lines(heldBillId)")
         }
     }
 }
