@@ -42,6 +42,8 @@ abstract class SaleDao {
     abstract suspend fun getItemsSold(storeId: String, start: Long, end: Long): Double
     @Query("SELECT paymentMethod, COUNT(*) AS transactionCount, COALESCE(SUM(total), 0) AS total FROM sales WHERE storeId = :storeId AND createdAt >= :start AND createdAt < :end GROUP BY paymentMethod ORDER BY total DESC")
     abstract suspend fun getPaymentSummary(storeId: String, start: Long, end: Long): List<PaymentSummary>
+    @Query("SELECT sl.productId AS productId, MAX(sl.name) AS name, COALESCE(SUM(sl.quantity), 0.0) AS quantity, COALESCE(SUM(sl.total), 0.0) AS revenue FROM sale_lines sl INNER JOIN sales s ON s.id = sl.saleId WHERE s.storeId = :storeId AND s.createdAt >= :start AND s.createdAt < :end GROUP BY sl.productId ORDER BY quantity DESC, revenue DESC LIMIT :limit")
+    abstract suspend fun getTopProducts(storeId: String, start: Long, end: Long, limit: Int = 10): List<TopProductSales>
     @Query("SELECT * FROM sales WHERE storeId = :storeId ORDER BY createdAt DESC LIMIT :limit")
     abstract suspend fun getRecentSales(storeId: String, limit: Int): List<SaleEntity>
     @Query("SELECT * FROM product_metadata WHERE productId = :productId AND storeId = :storeId LIMIT 1")
