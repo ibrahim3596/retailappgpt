@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Transaction
+import com.retailpos.app.core.payment.CheckoutRecoveryFingerprint
 import com.retailpos.app.core.payment.PaymentSettlementRules
 import com.retailpos.app.core.payment.PendingPaymentStore
 import com.retailpos.app.core.permissions.StaffPermissionRules
@@ -107,7 +108,6 @@ abstract class SaleDao {
         require(paymentMethod != "CREDIT" || !customerId.isNullOrBlank()) { "Select a customer for credit sales" }
         findByIdempotencyKey(storeId, idempotencyKey)?.let { return CheckoutResult(it.id, it.total, it.changeAmount) }
 
-        // Preflight the complete restored/active cart before any batch or stock mutation.
         cart.forEach { line ->
             val product = queryProduct(line.productId, storeId)
                 ?: throw IllegalArgumentException("${line.name} is no longer in the product catalog.")
@@ -132,7 +132,8 @@ abstract class SaleDao {
         val saleDiscount = pricedLines.sumOf { it.second.discountAmount }
         val saleTax = pricedLines.sumOf { it.second.taxAmount }
         val saleTotal = pricedLines.sumOf { it.second.total }
-        val effectiveTender = amountTendered ?: PendingPaymentStore.get()
+        val fingerprint = CheckoutRecoveryFingerprint.of(cart)
+        val effectiveTender = amountTendered ?: PendingPaymentStore.getAmountTendered(fingerprint)
         val payment = PaymentSettlementRules.settle(paymentMethod, saleTotal, effectiveTender)
         val saleId = UUID.randomUUID().toString()
         val saleLines = pricedLines.map { (line, pricing) ->
