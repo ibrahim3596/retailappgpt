@@ -1,0 +1,1 @@
+Repository-wide audit status: restore validation, staff session/login races, inventory permission gates, and intelligent-capture ML synchronization have been fixed. Barcode scanner lifecycle rewrite is staged for the next atomic source cleanup because the contents API has returned stale-blob conflicts. CI is intentionally not run.
