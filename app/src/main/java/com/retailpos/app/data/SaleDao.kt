@@ -132,8 +132,8 @@ abstract class SaleDao {
         val saleDiscount = pricedLines.sumOf { it.second.discountAmount }
         val saleTax = pricedLines.sumOf { it.second.taxAmount }
         val saleTotal = pricedLines.sumOf { it.second.total }
-        val fingerprint = CheckoutRecoveryFingerprint.of(cart)
-        val effectiveTender = amountTendered ?: PendingPaymentStore.getAmountTendered(fingerprint)
+        val cartFingerprint = CheckoutRecoveryFingerprint.of(cart)
+        val effectiveTender = amountTendered ?: PendingPaymentStore.getAmountTenderedForCart(cartFingerprint)
         val payment = PaymentSettlementRules.settle(paymentMethod, saleTotal, effectiveTender)
         val saleId = UUID.randomUUID().toString()
         val saleLines = pricedLines.map { (line, pricing) ->
