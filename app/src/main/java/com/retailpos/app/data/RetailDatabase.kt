@@ -49,6 +49,7 @@ abstract class RetailDatabase : RoomDatabase() {
     abstract fun supplierDao(): SupplierDao
     abstract fun purchaseDao(): PurchaseDao
     abstract fun supplierLedgerDao(): SupplierLedgerDao
+    abstract fun returnDao(): ReturnDao
 
     companion object {
         private const val LOCAL_STORE_ID = "local-store"
@@ -84,10 +85,7 @@ abstract class RetailDatabase : RoomDatabase() {
                 .build()
                 .also {
                     INSTANCE = it
-                    ProductCatalogLookup.configurePersistentCache(
-                        LOCAL_STORE_ID,
-                        it.productIdentificationCacheDao()
-                    )
+                    ProductCatalogLookup.configurePersistentCache(LOCAL_STORE_ID, it.productIdentificationCacheDao())
                 }
         }
     }
