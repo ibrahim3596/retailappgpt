@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
+import com.retailpos.app.core.permissions.NavigationPermissionRules
 import com.retailpos.app.core.staff.StaffSessionStore
 import com.retailpos.app.data.RetailDatabase
 import com.retailpos.app.ui.screens.ReturnScreen
@@ -18,7 +19,7 @@ class ReturnActivity : ComponentActivity() {
                 val context = LocalContext.current
                 val database = remember(context) { RetailDatabase.get(context) }
                 val role = StaffSessionStore.current()?.role
-                if (role == null) {
+                if (role == null || !NavigationPermissionRules.canProcessReturns(role)) {
                     finish()
                 } else {
                     ReturnScreen(
