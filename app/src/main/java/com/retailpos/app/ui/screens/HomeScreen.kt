@@ -75,7 +75,7 @@ fun HomeScreen(
     val today = LocalDate.now()
     val start = today.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
     val end = today.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
-    val metrics by produceState<TodayMetrics?>(initialValue = null, actualSaleDao, start, end) {
+    val metricsState by produceState<TodayMetrics?>(initialValue = null, actualSaleDao, start, end) {
         val payments = actualSaleDao.getPaymentSummary(storeId, start, end).associateBy { it.paymentMethod.uppercase() }
         val total = actualSaleDao.getSalesTotal(storeId, start, end)
         value = TodayMetrics(
@@ -89,6 +89,7 @@ fun HomeScreen(
             cogs = actualSaleDao.getCogsTotal(storeId, start, end)
         )
     }
+    val metrics = metricsState ?: TodayMetrics(0.0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
     var countedCash by remember { mutableStateOf("") }
 
     fun switchCashier() {
@@ -147,21 +148,11 @@ fun HomeScreen(
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("DAY-END CASH RECONCILIATION", fontWeight = FontWeight.Bold)
                         Text("Expected cash: ₹${money(metrics.cash)}")
-                        OutlinedTextField(
-                            value = countedCash,
-                            onValueChange = { countedCash = it },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            label = { Text("Cash counted") }
-                        )
+                        OutlinedTextField(value = countedCash, onValueChange = { countedCash = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Cash counted") })
                         val counted = countedCash.replace(',', '.').toDoubleOrNull()
                         if (counted != null && counted >= 0.0) {
                             val difference = DayEndReconciliationRules.cashDifference(metrics.cash, counted)
-                            Text(
-                                "Difference: ₹${money(difference)}",
-                                fontWeight = FontWeight.Bold,
-                                color = if (kotlin.math.abs(difference) < 0.005) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
-                            )
+                            Text("Difference: ₹${money(difference)}", fontWeight = FontWeight.Bold, color = if (kotlin.math.abs(difference) < 0.005) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
                         }
                     }
                 }
@@ -199,14 +190,8 @@ private fun TodayPerformanceCard(metrics: TodayMetrics) {
             Text("TODAY", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
             Text("₹${money(metrics.totalSales)}", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Black)
             Text("${metrics.billCount} bills • ${fmt(metrics.itemsSold)} items sold")
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("Cash ₹${money(metrics.cash)}")
-                Text("UPI ₹${money(metrics.upi)}")
-            }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("Card ₹${money(metrics.card)}")
-                Text("Khata ₹${money(metrics.credit)}")
-            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("Cash ₹${money(metrics.cash)}"); Text("UPI ₹${money(metrics.upi)}") }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("Card ₹${money(metrics.card)}"); Text("Khata ₹${money(metrics.credit)}") }
             Text("COGS ₹${money(metrics.cogs)} • Gross profit ₹${money(metrics.grossProfit)}", fontWeight = FontWeight.Bold)
         }
     }
