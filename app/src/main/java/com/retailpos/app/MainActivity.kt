@@ -16,6 +16,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -30,6 +31,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.retailpos.app.core.payment.ActiveCartRecovery
+import com.retailpos.app.core.payment.ActiveCartRecoveryIssue
 import com.retailpos.app.core.payment.PendingPaymentStore
 import com.retailpos.app.core.pos.CartLinePricingRules
 import com.retailpos.app.core.products.VoiceOrderParser
@@ -120,8 +123,24 @@ fun RetailPosApp(staffSession: StaffSession) {
     var inventoryReceiveError by remember { mutableStateOf<String?>(null) }
     var showHeldBills by remember { mutableStateOf(false) }
     var heldBills by remember { mutableStateOf<List<HeldBillSnapshot>>(emptyList()) }
+    var recoveryIssues by remember { mutableStateOf<List<ActiveCartRecoveryIssue>>(emptyList()) }
+    var showRecoveryDialog by remember { mutableStateOf(false) }
     val searchResults by repository.searchProducts(LOCAL_STORE_ID, posQuery).collectAsState(initial = emptyList())
     val customers by database.customerDao().observeAll(LOCAL_STORE_ID).collectAsState(initial = emptyList())
+
+    LaunchedEffect(cart) {
+        if (cart.isEmpty()) {
+            recoveryIssues = emptyList()
+            showRecoveryDialog = false
+        } else {
+            val products = cart.map { it.productId }
+                .distinct()
+                .mapNotNull { id -> database.productDao().getById(id, LOCAL_STORE_ID) }
+                .associateBy { it.id }
+            recoveryIssues = ActiveCartRecovery.validate(cart, products)
+            if (recoveryIssues.isNotEmpty()) showRecoveryDialog = true
+        }
+    }
 
     fun refreshHeldBills() {
         scope.launch { heldBills = heldBillRepository.list(LOCAL_STORE_ID) }
@@ -204,7 +223,7 @@ fun RetailPosApp(staffSession: StaffSession) {
                 val restored = snapshot.lines.map { line ->
                     val current = database.productDao().getById(line.productId, LOCAL_STORE_ID) ?: error("${line.name} no longer exists")
                     if (line.quantity > current.stock + 1e-9) error("${line.name} has only ${current.stock.clean()} ${current.unit} available")
-                    line.copy(unitPrice = current.sellingPrice)
+                    line
                 }
                 replaceCart(restored)
                 checkoutIdempotencyKey = null
@@ -226,7 +245,7 @@ fun RetailPosApp(staffSession: StaffSession) {
     }
 
     fun completeSale(paymentMethod: String, customerId: String?, billDiscountAmount: Double) {
-        if (checkoutProcessing || cart.isEmpty()) return
+        if (checkoutProcessing || cart.isEmpty() || recoveryIssues.isNotEmpty()) return
         checkoutProcessing = true; checkoutError = null
         val cartSnapshot = cart.toList()
         val idempotencyKey = checkoutIdempotencyKey
@@ -253,7 +272,7 @@ fun RetailPosApp(staffSession: StaffSession) {
 
     NavHost(navController = navController, startDestination = Routes.HOME) {
         composable(Routes.HOME) { HomeScreen(onNewBill = { navController.navigate(Routes.POS) }, onNavigate = navController::navigate) }
-        composable(Routes.POS) { PosScreen(cart = cart, searchResults = searchResults, onSearchQueryChanged = { posQuery = it }, onAddProduct = { addProductToCart(it) }, onVoiceInput = ::handleVoiceInput, onVoiceError = { cartError = it }, onSetCartQuantity = ::setCartQuantity, onRemoveFromCart = { productId -> cartManager.remove(productId).also { cart = cartManager.lines } }, onBack = { navController.popBackStack() }, onOpenScanner = { navController.navigate(Routes.BILLING_SCANNER) }, onCheckout = { if (cart.isNotEmpty()) { checkoutIdempotencyKey = PendingPaymentStore.getOrCreateIdempotencyKey { UUID.randomUUID().toString() }; navController.navigate(Routes.CHECKOUT) } }, onHoldBill = ::holdCurrentBill, onOpenHeldBills = { refreshHeldBills(); showHeldBills = true }, onClearBill = { cartManager.clear(); cart = emptyList(); posQuery = ""; PendingPaymentStore.clear(); checkoutIdempotencyKey = null; cartError = "Bill cleared." }) }
+        composable(Routes.POS) { PosScreen(cart = cart, searchResults = searchResults, onSearchQueryChanged = { posQuery = it }, onAddProduct = { addProductToCart(it) }, onVoiceInput = ::handleVoiceInput, onVoiceError = { cartError = it }, onSetCartQuantity = ::setCartQuantity, onRemoveFromCart = { productId -> cartManager.remove(productId).also { cart = cartManager.lines } }, onBack = { navController.popBackStack() }, onOpenScanner = { navController.navigate(Routes.BILLING_SCANNER) }, onCheckout = { if (cart.isNotEmpty() && recoveryIssues.isEmpty()) { checkoutIdempotencyKey = PendingPaymentStore.getOrCreateIdempotencyKey { UUID.randomUUID().toString() }; navController.navigate(Routes.CHECKOUT) } }, onHoldBill = ::holdCurrentBill, onOpenHeldBills = { refreshHeldBills(); showHeldBills = true }, onClearBill = { cartManager.clear(); cart = emptyList(); posQuery = ""; PendingPaymentStore.clear(); checkoutIdempotencyKey = null; cartError = "Bill cleared." }) }
         composable(Routes.CHECKOUT) { CheckoutScreen(cart = cart, customers = customers, onBack = { navController.popBackStack() }, onComplete = ::completeSale, isProcessing = checkoutProcessing, error = checkoutError, staffRole = staffSession.role, onUpdateCartLine = ::updateCartLinePricing) }
         composable(Routes.RECEIPT) { receiptSale?.let { sale -> ReceiptScreen(sale = sale, lines = receiptLines, onBack = { receiptSale = null; receiptLines = emptyList(); navController.navigate(Routes.HOME) { popUpTo(Routes.RECEIPT) { inclusive = true } } }, onShare = ::shareReceipt) } }
         composable(Routes.BILLING_SCANNER) { BarcodeScannerScreen(title = "BILLING SCANNER", onBack = { navController.popBackStack() }) { raw, _ -> scope.launch { val barcode = repository.getByBarcode(LOCAL_STORE_ID, raw); val product = barcode?.let { repository.getById(it.productId, LOCAL_STORE_ID) }; if (product == null) unknownBarcode = raw else { addProductToCart(product); if (cartError == null) navController.popBackStack() } } } }
@@ -274,6 +293,21 @@ fun RetailPosApp(staffSession: StaffSession) {
     if (unknownBarcode != null) AlertDialog(onDismissRequest = { unknownBarcode = null }, title = { Text("UNKNOWN PRODUCT") }, text = { Text("Barcode ${unknownBarcode.orEmpty()} was not found. Identify the product or add it manually.") }, confirmButton = { Button(onClick = { navController.navigate("products/add?barcode=${Uri.encode(unknownBarcode.orEmpty())}&identify=true&returnToBilling=true"); unknownBarcode = null }) { Text("IDENTIFY PRODUCT") } }, dismissButton = { TextButton(onClick = { navController.navigate("products/add?barcode=${Uri.encode(unknownBarcode.orEmpty())}&identify=false&returnToBilling=true"); unknownBarcode = null }) { Text("ADD MANUALLY") } })
 
     if (showHeldBills) AlertDialog(onDismissRequest = { showHeldBills = false }, title = { Text("HELD BILLS") }, text = { if (heldBills.isEmpty()) Text("No held bills.") else Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { heldBills.forEachIndexed { index, bill -> TextButton(onClick = { restoreHeldBill(bill) }) { Text("${index + 1}. ${bill.lines.size} item line(s) • ${money(bill.lines.sumOf { it.lineTotal })}") } } } }, confirmButton = { TextButton(onClick = { showHeldBills = false }) { Text("CLOSE") } })
+
+    if (showRecoveryDialog && recoveryIssues.isNotEmpty()) AlertDialog(
+        onDismissRequest = { showRecoveryDialog = false },
+        title = { Text("BILL NEEDS ATTENTION") },
+        text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { Text("This saved bill contains items that changed while the app was closed."); recoveryIssues.forEach { issue -> Text("• ${ActiveCartRecovery.message(issue)}") }; Text("Remove the affected lines before continuing.", color = MaterialTheme.colorScheme.error) } },
+        confirmButton = {
+            Button(onClick = {
+                recoveryIssues.map { it.line.productId }.distinct().forEach { cartManager.remove(it) }
+                cart = cartManager.lines
+                showRecoveryDialog = false
+                cartError = "Affected saved bill lines were removed."
+            }) { Text("REMOVE AFFECTED ITEMS") }
+        },
+        dismissButton = { TextButton(onClick = { showRecoveryDialog = false }) { Text("REVIEW MANUALLY") } }
+    )
 
     if (completedSale != null) AlertDialog(onDismissRequest = { completedSale = null }, title = { Text("SALE COMPLETE") }, text = { Text("Sale ${completedSale.orEmpty()} was recorded successfully.") }, confirmButton = { TextButton(onClick = { val id = completedSale.orEmpty(); completedSale = null; openReceipt(id) }) { Text("VIEW RECEIPT") } }, dismissButton = { TextButton(onClick = { completedSale = null }) { Text("DONE") } })
 }
