@@ -71,7 +71,7 @@ fun CheckoutScreen(
     var showCustomerPicker by remember { mutableStateOf(false) }
     var discountMode by remember { mutableStateOf(DiscountMode.AMOUNT) }
     var discountInput by remember { mutableStateOf("") }
-    var cashTenderedInput by remember { mutableStateOf("") }
+    var cashTenderedInput by remember { mutableStateOf(PendingPaymentStore.get()?.let(::moneyValue) ?: "") }
     var splitSecondMethod by remember { mutableStateOf("UPI") }
     var splitFirstAmount by remember { mutableStateOf("") }
     var splitSecondAmount by remember { mutableStateOf("") }
@@ -249,7 +249,7 @@ fun CheckoutScreen(
             item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedButton(onClick = onBack, enabled = !isProcessing, modifier = Modifier.weight(1f).height(56.dp)) { Text("BACK") }
-                    Button(onClick = { PendingPaymentStore.set(if (paymentMethod == "CASH") tendered else if (paymentMethod == "SPLIT") total else null); onComplete(settlementMethod, selectedCustomer?.id, discount) }, enabled = cart.isNotEmpty() && !isProcessing && !creditWithoutCustomer && pricingPreview != null && pricingError == null && paymentError == null, modifier = Modifier.weight(1.4f).height(56.dp)) { Text(if (isProcessing) "PROCESSING…" else "COMPLETE SALE", fontWeight = FontWeight.Bold) }
+                    Button(onClick = { PendingPaymentStore.set(if (paymentMethod == "CASH") tendered else null); onComplete(settlementMethod, selectedCustomer?.id, discount) }, enabled = cart.isNotEmpty() && !isProcessing && !creditWithoutCustomer && pricingPreview != null && pricingError == null && paymentError == null, modifier = Modifier.weight(1.4f).height(56.dp)) { Text(if (isProcessing) "PROCESSING…" else "COMPLETE SALE", fontWeight = FontWeight.Bold) }
                 }
             }
         }
