@@ -9,7 +9,10 @@ data class ProductIdentificationSignals(
     val barcodeMatchesCatalog: Boolean = false,
     val catalogMatched: Boolean = false,
     val printedTextDetected: Boolean = false,
-    val visualHintDetected: Boolean = false
+    val visualHintDetected: Boolean = false,
+    val textAgreesWithCandidate: Boolean = false,
+    val multipleFrameAgreement: Boolean = false,
+    val packCompatibleWithSellingUnit: Boolean = false
 )
 
 data class ProductIdentificationScore(
@@ -20,7 +23,7 @@ data class ProductIdentificationScore(
 
 object ProductIdentificationRanking {
     fun score(signals: ProductIdentificationSignals): ProductIdentificationScore {
-        val score = when {
+        var score = when {
             signals.barcodeDetected && signals.barcodeMatchesCatalog -> 98
             signals.barcodeDetected && signals.catalogMatched && signals.printedTextDetected -> 94
             signals.barcodeDetected && signals.catalogMatched -> 90
@@ -31,6 +34,12 @@ object ProductIdentificationRanking {
             signals.visualHintDetected -> 40
             else -> 0
         }
+
+        if (signals.textAgreesWithCandidate) score += 3
+        if (signals.multipleFrameAgreement) score += 3
+        if (signals.packCompatibleWithSellingUnit) score += 1
+        score = score.coerceIn(0, 99)
+
         val evidence = ProductIdentificationEvidence(
             barcodeDetected = signals.barcodeDetected,
             catalogMatched = signals.catalogMatched,
@@ -40,14 +49,24 @@ object ProductIdentificationRanking {
         )
         val confidence = ProductIdentificationConfidence.evaluate(evidence)
         val explanation = when {
-            signals.barcodeDetected && signals.barcodeMatchesCatalog -> "Barcode matches the catalog candidate. Verify store-controlled price, stock and SKU."
-            signals.barcodeDetected && signals.catalogMatched && signals.printedTextDetected -> "Barcode, catalog and printed text agree. Review the candidate before saving."
-            signals.barcodeDetected && signals.catalogMatched -> "Barcode has a catalog candidate. Review the candidate before applying catalog fields."
-            signals.barcodeDetected && signals.printedTextDetected -> "Barcode and printed text were detected, but the exact catalog identity is not confirmed."
-            signals.barcodeDetected -> "A barcode was detected. No independent identity evidence is available yet."
-            signals.printedTextDetected -> "Printed text was detected without a reliable barcode match. Treat it as a suggestion."
-            signals.visualHintDetected -> "Only a visual category hint is available. Do not treat this as product identity."
-            else -> "No reliable product identity evidence was detected."
+            signals.barcodeDetected && signals.barcodeMatchesCatalog && signals.textAgreesWithCandidate && signals.multipleFrameAgreement ->
+                "Barcode, candidate text and repeated frames agree. Review retailer-controlled fields before saving."
+            signals.barcodeDetected && signals.barcodeMatchesCatalog ->
+                "Barcode matches the catalog candidate. Verify store-controlled price, stock and SKU."
+            signals.barcodeDetected && signals.catalogMatched && signals.printedTextDetected && signals.textAgreesWithCandidate ->
+                "Barcode, catalog and matching printed text agree. Review the candidate before saving."
+            signals.barcodeDetected && signals.catalogMatched && signals.printedTextDetected ->
+                "Barcode, catalog and printed text were detected. Review the candidate before applying catalog fields."
+            signals.barcodeDetected && signals.catalogMatched ->
+                "Barcode has a catalog candidate. Review the candidate before applying catalog fields."
+            signals.barcodeDetected && signals.printedTextDetected ->
+                "Barcode and printed text were detected, but the exact catalog identity is not confirmed."
+            signals.printedTextDetected ->
+                "Printed text was detected without a reliable barcode match. Treat it as a suggestion."
+            signals.visualHintDetected ->
+                "Only a visual category hint is available. Do not treat this as product identity."
+            else ->
+                "No reliable product identity evidence was detected."
         }
         return ProductIdentificationScore(score, confidence, explanation)
     }
