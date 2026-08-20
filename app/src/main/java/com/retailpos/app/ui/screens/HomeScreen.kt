@@ -46,7 +46,9 @@ import com.retailpos.app.ExpenseActivity
 import com.retailpos.app.PurchaseActivity
 import com.retailpos.app.ReturnActivity
 import com.retailpos.app.StaffGateActivity
+import com.retailpos.app.core.permissions.NavigationPermissionRules
 import com.retailpos.app.core.reconciliation.DayEndReconciliationRules
+import com.retailpos.app.core.staff.StaffRole
 import com.retailpos.app.core.staff.StaffSessionStore
 import com.retailpos.app.data.RetailDatabase
 import com.retailpos.app.data.SaleDao
@@ -62,16 +64,17 @@ fun HomeScreen(
     saleDao: SaleDao? = null
 ) {
     val context = LocalContext.current
+    val staffRole = StaffSessionStore.current()?.role ?: StaffRole.CASHIER
     val database = remember(context) { RetailDatabase.get(context) }
     val actualSaleDao = saleDao ?: database.saleDao()
-    val quickActions = listOf(
-        "products" to (Icons.Default.Storefront to "Products"),
-        "inventory" to (Icons.Default.Inventory2 to "Inventory"),
-        "purchases" to (Icons.Default.ShoppingCart to "Purchases"),
-        "customers" to (Icons.Default.Person to "Customers"),
-        "analytics" to (Icons.Default.Analytics to "Analytics"),
-        "settings" to (Icons.Default.Settings to "Settings")
-    )
+    val quickActions = buildList {
+        if (NavigationPermissionRules.canOpenProducts(staffRole)) add("products" to (Icons.Default.Storefront to "Products"))
+        if (NavigationPermissionRules.canOpenInventory(staffRole)) add("inventory" to (Icons.Default.Inventory2 to "Inventory"))
+        if (NavigationPermissionRules.canOpenInventory(staffRole)) add("purchases" to (Icons.Default.ShoppingCart to "Purchases"))
+        add("customers" to (Icons.Default.Person to "Customers"))
+        if (NavigationPermissionRules.canOpenAnalytics(staffRole)) add("analytics" to (Icons.Default.Analytics to "Analytics"))
+        if (NavigationPermissionRules.canOpenSettings(staffRole)) add("settings" to (Icons.Default.Settings to "Settings"))
+    }
     val today = LocalDate.now()
     val start = today.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
     val end = today.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
@@ -102,7 +105,7 @@ fun HomeScreen(
 
     fun openQuickAction(route: String) {
         when (route) {
-            "purchases" -> context.startActivity(Intent(context, PurchaseActivity::class.java))
+            "purchases" -> if (NavigationPermissionRules.canOpenInventory(staffRole)) context.startActivity(Intent(context, PurchaseActivity::class.java))
             else -> onNavigate(route)
         }
     }
@@ -133,9 +136,11 @@ fun HomeScreen(
                     Text("NEW BILL", fontWeight = FontWeight.Bold)
                 }
             }
-            item {
-                Button(onClick = { context.startActivity(Intent(context, PurchaseActivity::class.java)) }, modifier = Modifier.fillMaxWidth().height(52.dp)) {
-                    Text("PURCHASE / RECEIVE STOCK", fontWeight = FontWeight.Bold)
+            if (NavigationPermissionRules.canOpenInventory(staffRole)) {
+                item {
+                    Button(onClick = { context.startActivity(Intent(context, PurchaseActivity::class.java)) }, modifier = Modifier.fillMaxWidth().height(52.dp)) {
+                        Text("PURCHASE / RECEIVE STOCK", fontWeight = FontWeight.Bold)
+                    }
                 }
             }
             item {
