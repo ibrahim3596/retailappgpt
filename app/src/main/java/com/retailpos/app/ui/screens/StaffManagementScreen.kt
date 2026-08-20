@@ -27,6 +27,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -51,7 +52,9 @@ fun StaffManagementScreen(
 ) {
     var staff by remember { mutableStateOf<List<StaffEntity>>(emptyList()) }
     var showAdd by remember { mutableStateOf(false) }
+    var resetPinFor by remember { mutableStateOf<StaffEntity?>(null) }
     var message by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
 
     suspend fun refresh() { staff = manager.list(storeId) }
     LaunchedEffect(Unit) { refresh() }
@@ -63,10 +66,9 @@ fun StaffManagementScreen(
             } else {
                 Button(onClick = { showAdd = true }, modifier = Modifier.fillMaxWidth()) { Text("ADD STAFF") }
             }
-            if (message != null) Text(message!!, color = MaterialTheme.colorScheme.primary)
+            message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
             LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(staff, key = { it.id }) { member ->
-                    var actionBusy by remember(member.id) { mutableStateOf(false) }
                     Card(Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -74,22 +76,31 @@ fun StaffManagementScreen(
                                     Text(member.name, fontWeight = FontWeight.Bold)
                                     Text("@${member.username} • ${member.role}", color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
-                                Text(if (member.active) "ACTIVE" else "INACTIVE", color = if (member.active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                                Text(
+                                    if (member.active) "ACTIVE" else "INACTIVE",
+                                    color = if (member.active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                                    fontWeight = FontWeight.Bold
+                                )
                             }
-                            if (canManage && !actionBusy) {
+                            if (canManage) {
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     OutlinedButton(onClick = {
-                                        actionBusy = true
-                                        androidx.compose.runtime.LaunchedEffect(member.active) { }
+                                        scope.launch {
+                                            val success = manager.setActive(storeId, member.id, !member.active)
+                                            message = if (success) "${member.name} ${if (member.active) "disabled" else "enabled"}." else "Unable to change account status."
+                                            refresh()
+                                        }
                                     }) { Text(if (member.active) "DISABLE" else "ENABLE") }
-                                    OutlinedButton(onClick = {
-                                        actionBusy = true
-                                    }) { Text("RESET PIN") }
+                                    OutlinedButton(onClick = { resetPinFor = member }) { Text("RESET PIN") }
                                 }
-                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                     StaffRole.entries.forEach { role ->
                                         TextButton(enabled = role.name != member.role, onClick = {
-                                            actionBusy = true
+                                            scope.launch {
+                                                val success = manager.changeRole(storeId, member.id, role)
+                                                message = if (success) "${member.name} changed to ${role.name}." else "Unable to change role."
+                                                refresh()
+                                            }
                                         }) { Text(role.name) }
                                     }
                                 }
@@ -105,11 +116,27 @@ fun StaffManagementScreen(
         AddStaffDialog(
             onDismiss = { showAdd = false },
             onCreate = { name, username, pin, role ->
-                kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.Main.immediate) {
+                scope.launch {
                     runCatching { staffRepository.createStaff(storeId, name, username, pin, role) }
-                        .onSuccess { showAdd = false; message = "Staff account created." }
+                        .onSuccess { showAdd = false; message = "Staff account created."; refresh() }
                         .onFailure { message = it.message ?: "Unable to create staff." }
-                    staff = manager.list(storeId)
+                }
+            }
+        )
+    }
+
+    resetPinFor?.let { member ->
+        ResetPinDialog(
+            name = member.name,
+            onDismiss = { resetPinFor = null },
+            onReset = { newPin ->
+                scope.launch {
+                    runCatching { manager.changePin(storeId, member.id, newPin) }
+                        .onSuccess {
+                            resetPinFor = null
+                            message = if (it) "PIN reset for ${member.name}." else "Unable to reset PIN."
+                        }
+                        .onFailure { message = it.message ?: "Unable to reset PIN." }
                 }
             }
         )
@@ -145,6 +172,34 @@ private fun AddStaffDialog(
             }
         },
         confirmButton = { Button(onClick = { onCreate(name, username, pin, role) }) { Text("CREATE") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("CANCEL") } }
+    )
+}
+
+@Composable
+private fun ResetPinDialog(name: String, onDismiss: () -> Unit, onReset: (String) -> Unit) {
+    var pin by remember { mutableStateOf("") }
+    var confirm by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Reset PIN for $name") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(pin, { pin = it.filter(Char::isDigit).take(8) }, Modifier.fillMaxWidth(), label = { Text("New PIN") }, singleLine = true, visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword))
+                OutlinedTextField(confirm, { confirm = it.filter(Char::isDigit).take(8) }, Modifier.fillMaxWidth(), label = { Text("Confirm PIN") }, singleLine = true, visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword))
+                error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            }
+        },
+        confirmButton = {
+            Button(onClick = {
+                when {
+                    pin.length !in 4..8 || !pin.all(Char::isDigit) -> error = "PIN must contain 4 to 8 digits."
+                    pin != confirm -> error = "PINs do not match."
+                    else -> onReset(pin)
+                }
+            }) { Text("RESET") }
+        },
         dismissButton = { TextButton(onClick = onDismiss) { Text("CANCEL") } }
     )
 }
