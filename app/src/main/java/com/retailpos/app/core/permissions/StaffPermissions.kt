@@ -9,6 +9,7 @@ enum class StaffPermission {
     VOID_BILL,
     PROCESS_RETURN,
     ADJUST_INVENTORY,
+    MANAGE_EXPENSES,
     VIEW_REPORTS,
     MANAGE_PRODUCTS,
     MANAGE_STAFF,
