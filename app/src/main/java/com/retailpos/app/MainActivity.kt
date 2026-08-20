@@ -35,6 +35,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.retailpos.app.core.products.VoiceOrderParser
 import com.retailpos.app.core.products.VoiceSaleCommandParser
 import com.retailpos.app.data.AddToCartResult
 import com.retailpos.app.data.CartManager
@@ -129,31 +130,41 @@ private fun RetailPosApp() {
 
     fun handleVoiceInput(spoken: String) {
         scope.launch {
-            val command = VoiceSaleCommandParser.parse(spoken)
-            if (command == null) {
-                cartError = "I heard ‘$spoken’, but could not find a quantity and unit. Try ‘aadha kilo shakkar’."
+            val commands = VoiceOrderParser.parse(spoken)
+            if (commands == null) {
+                cartError = "I heard ‘$spoken’, but could not parse the order. Try ‘aadha kilo shakkar’ or ‘aadha kilo shakkar aur 1 litre tel’."
                 return@launch
             }
 
-            val matches = repository.searchProducts(LOCAL_STORE_ID, command.productQuery).first()
-            if (matches.isEmpty()) {
-                posQuery = command.productQuery
-                cartError = "No product matched ‘${command.productQuery}’. Add the product to the catalog first."
-                return@launch
-            }
-            if (matches.size > 1) {
-                posQuery = command.productQuery
-                cartError = "Multiple products matched ‘${command.productQuery}’. Select the exact product from the search results before using voice quantity."
-                return@launch
+            val resolved = mutableListOf<Pair<ProductEntity, Double>>()
+            for (command in commands) {
+                val matches = repository.searchProducts(LOCAL_STORE_ID, command.productQuery).first()
+                if (matches.isEmpty()) {
+                    posQuery = command.productQuery
+                    cartError = "No product matched ‘${command.productQuery}’. Add the product to the catalog first. Nothing was added to the cart."
+                    return@launch
+                }
+                if (matches.size > 1) {
+                    posQuery = command.productQuery
+                    cartError = "Multiple products matched ‘${command.productQuery}’. Select the exact product before using this multi-item voice order. Nothing was added to the cart."
+                    return@launch
+                }
+
+                val product = matches.first()
+                val normalizedQuantity = VoiceSaleCommandParser.toBaseQuantity(command.quantity, command.unit, product.unit)
+                if (normalizedQuantity == null) {
+                    cartError = "‘${command.unit}’ does not match ${product.name}'s selling unit ‘${product.unit}’. Nothing was added to the cart."
+                    return@launch
+                }
+                if (normalizedQuantity <= 0.0 || normalizedQuantity > product.stock) {
+                    cartError = "Requested ${normalizedQuantity.clean()} ${product.unit} of ${product.name}, but only ${product.stock.clean()} ${product.unit} is available. Nothing was added to the cart."
+                    return@launch
+                }
+                resolved += product to normalizedQuantity
             }
 
-            val product = matches.first()
-            val normalizedQuantity = VoiceSaleCommandParser.toBaseQuantity(command.quantity, command.unit, product.unit)
-            if (normalizedQuantity == null) {
-                cartError = "‘${command.unit}’ does not match ${product.name}'s selling unit ‘${product.unit}’. Keep loose-item products configured with their price basis, such as kg, g, litre or ml."
-                return@launch
-            }
-            addProductToCart(product, normalizedQuantity)
+            // Validate the complete utterance before mutating the cart, so a later failure cannot leave a partial voice order.
+            resolved.forEach { (product, quantity) -> addProductToCart(product, quantity) }
         }
     }
 
@@ -312,3 +323,5 @@ private fun FoundationPlaceholder(title: String, subtitle: String) {
         }
     }
 }
+
+private fun Double.clean(): String = if (this % 1.0 == 0.0) toInt().toString() else String.format(java.util.Locale.US, "%.3f", this)
