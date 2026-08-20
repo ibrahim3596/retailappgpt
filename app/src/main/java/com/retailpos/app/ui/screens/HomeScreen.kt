@@ -39,10 +39,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.retailpos.app.ExpenseActivity
 import com.retailpos.app.PurchaseActivity
 import com.retailpos.app.ReturnActivity
 import com.retailpos.app.StaffGateActivity
@@ -75,7 +75,7 @@ fun HomeScreen(
     val today = LocalDate.now()
     val start = today.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
     val end = today.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
-    val metricsState by produceState<TodayMetrics?>(initialValue = null, actualSaleDao, start, end) {
+    val metricsState by produceState<TodayMetrics?>(initialValue = null, actualSaleDao, database, start, end) {
         val payments = actualSaleDao.getPaymentSummary(storeId, start, end).associateBy { it.paymentMethod.uppercase() }
         val total = actualSaleDao.getSalesTotal(storeId, start, end)
         value = TodayMetrics(
@@ -86,7 +86,8 @@ fun HomeScreen(
             upi = payments["UPI"]?.total ?: 0.0,
             card = payments["CARD"]?.total ?: 0.0,
             credit = payments["CREDIT"]?.total ?: 0.0,
-            cogs = actualSaleDao.getCogsTotal(storeId, start, end)
+            cogs = actualSaleDao.getCogsTotal(storeId, start, end),
+            expenses = database.expenseDao().totalBetween(storeId, start, end)
         )
     }
     val metrics = metricsState ?: TodayMetrics(0.0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
@@ -102,7 +103,6 @@ fun HomeScreen(
     fun openQuickAction(route: String) {
         when (route) {
             "purchases" -> context.startActivity(Intent(context, PurchaseActivity::class.java))
-            "returns" -> context.startActivity(Intent(context, ReturnActivity::class.java))
             else -> onNavigate(route)
         }
     }
@@ -144,6 +144,11 @@ fun HomeScreen(
                 }
             }
             item {
+                Button(onClick = { context.startActivity(Intent(context, ExpenseActivity::class.java)) }, modifier = Modifier.fillMaxWidth().height(52.dp)) {
+                    Text("EXPENSES", fontWeight = FontWeight.Bold)
+                }
+            }
+            item {
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("DAY-END CASH RECONCILIATION", fontWeight = FontWeight.Bold)
@@ -178,9 +183,11 @@ private data class TodayMetrics(
     val upi: Double,
     val card: Double,
     val credit: Double,
-    val cogs: Double
+    val cogs: Double,
+    val expenses: Double
 ) {
     val grossProfit: Double get() = totalSales - cogs
+    val operatingResult: Double get() = grossProfit - expenses
 }
 
 @Composable
@@ -193,6 +200,7 @@ private fun TodayPerformanceCard(metrics: TodayMetrics) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("Cash ₹${money(metrics.cash)}"); Text("UPI ₹${money(metrics.upi)}") }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("Card ₹${money(metrics.card)}"); Text("Khata ₹${money(metrics.credit)}") }
             Text("COGS ₹${money(metrics.cogs)} • Gross profit ₹${money(metrics.grossProfit)}", fontWeight = FontWeight.Bold)
+            Text("Expenses ₹${money(metrics.expenses)} • Operating result ₹${money(metrics.operatingResult)}", fontWeight = FontWeight.Black)
         }
     }
 }
