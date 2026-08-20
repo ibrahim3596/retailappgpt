@@ -30,6 +30,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.retailpos.app.core.pos.CartLinePricingRules
 import com.retailpos.app.core.products.VoiceOrderParser
 import com.retailpos.app.core.products.VoiceSaleCommandParser
 import com.retailpos.app.core.staff.StaffSession
@@ -128,6 +129,16 @@ fun RetailPosApp(staffSession: StaffSession) {
     fun replaceCart(lines: List<CartLine>) {
         cartManager.replace(lines)
         cart = cartManager.lines
+    }
+
+    fun updateCartLinePricing(updatedLine: CartLine) {
+        runCatching {
+            val current = cartManager.lines.firstOrNull { it.productId == updatedLine.productId } ?: error("Cart line no longer exists")
+            CartLinePricingRules.validate(updatedLine, staffSession.role)?.let { error(it) }
+            require(updatedLine.quantity == current.quantity) { "Quantity cannot be changed from the pricing editor." }
+            replaceCart(cartManager.lines.map { if (it.productId == updatedLine.productId) updatedLine else it })
+            cartError = null
+        }.onFailure { cartError = it.message ?: "Pricing change could not be applied." }
     }
 
     fun addProductToCart(product: ProductEntity, quantity: Double = 1.0) {
@@ -239,7 +250,7 @@ fun RetailPosApp(staffSession: StaffSession) {
     NavHost(navController = navController, startDestination = Routes.HOME) {
         composable(Routes.HOME) { HomeScreen(onNewBill = { navController.navigate(Routes.POS) }, onNavigate = navController::navigate) }
         composable(Routes.POS) { PosScreen(cart = cart, searchResults = searchResults, onSearchQueryChanged = { posQuery = it }, onAddProduct = { addProductToCart(it) }, onVoiceInput = ::handleVoiceInput, onVoiceError = { cartError = it }, onSetCartQuantity = ::setCartQuantity, onRemoveFromCart = { productId -> cartManager.remove(productId).also { cart = cartManager.lines } }, onBack = { navController.popBackStack() }, onOpenScanner = { navController.navigate(Routes.BILLING_SCANNER) }, onCheckout = { if (cart.isNotEmpty()) { checkoutIdempotencyKey = checkoutIdempotencyKey ?: UUID.randomUUID().toString(); navController.navigate(Routes.CHECKOUT) } }, onHoldBill = ::holdCurrentBill, onOpenHeldBills = { refreshHeldBills(); showHeldBills = true }, onClearBill = { cartManager.clear(); cart = emptyList(); posQuery = ""; cartError = "Bill cleared." }) }
-        composable(Routes.CHECKOUT) { CheckoutScreen(cart = cart, customers = customers, onBack = { navController.popBackStack() }, onComplete = ::completeSale, isProcessing = checkoutProcessing, error = checkoutError) }
+        composable(Routes.CHECKOUT) { CheckoutScreen(cart = cart, customers = customers, onBack = { navController.popBackStack() }, onComplete = ::completeSale, isProcessing = checkoutProcessing, error = checkoutError, staffRole = staffSession.role, onUpdateCartLine = ::updateCartLinePricing) }
         composable(Routes.RECEIPT) { receiptSale?.let { sale -> ReceiptScreen(sale = sale, lines = receiptLines, onBack = { receiptSale = null; receiptLines = emptyList(); navController.navigate(Routes.HOME) { popUpTo(Routes.RECEIPT) { inclusive = true } } }, onShare = ::shareReceipt) } }
         composable(Routes.BILLING_SCANNER) { BarcodeScannerScreen(title = "BILLING SCANNER", onBack = { navController.popBackStack() }) { raw, _ -> scope.launch { val barcode = repository.getByBarcode(LOCAL_STORE_ID, raw); val product = barcode?.let { repository.getById(it.productId, LOCAL_STORE_ID) }; if (product == null) unknownBarcode = raw else { addProductToCart(product); if (cartError == null) navController.popBackStack() } } } }
         composable(Routes.PRODUCTS) { ProductListScreen(storeId = LOCAL_STORE_ID, onBack = { navController.popBackStack() }, onAddProduct = { navController.navigate("products/add?barcode=&identify=false&returnToBilling=false") }, onIntelligentCapture = { navController.navigate("products/add?barcode=&identify=true&returnToBilling=false") }, onEditProduct = { navController.navigate("products/edit/$it") }, onEditDetails = { navController.navigate("products/details/$it") }) }
