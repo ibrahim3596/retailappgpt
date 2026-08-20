@@ -17,6 +17,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -31,8 +32,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.retailpos.app.data.PaymentSummary
 import com.retailpos.app.data.ReceiptFormatter
+import com.retailpos.app.data.RetailDatabase
 import com.retailpos.app.data.SaleDao
 import com.retailpos.app.data.SaleEntity
+import com.retailpos.app.data.TopProductSales
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -47,11 +50,17 @@ fun AnalyticsScreen(
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
+    val database = remember(context) { RetailDatabase.get(context) }
     val scope = rememberCoroutineScope()
     var salesTotal by remember { mutableStateOf(0.0) }
     var salesCount by remember { mutableStateOf(0) }
     var itemsSold by remember { mutableStateOf(0.0) }
+    var cogs by remember { mutableStateOf(0.0) }
+    var expenses by remember { mutableStateOf(0.0) }
+    var receivables by remember { mutableStateOf(0.0) }
+    var payables by remember { mutableStateOf(0.0) }
     var paymentSummary by remember { mutableStateOf<List<PaymentSummary>>(emptyList()) }
+    var topProducts by remember { mutableStateOf<List<TopProductSales>>(emptyList()) }
     var recentSales by remember { mutableStateOf<List<SaleEntity>>(emptyList()) }
     var reprintError by remember { mutableStateOf<String?>(null) }
     val currency = remember { NumberFormat.getCurrencyInstance(Locale.getDefault()) }
@@ -70,9 +79,17 @@ fun AnalyticsScreen(
         salesTotal = saleDao.getSalesTotal(storeId, start, end)
         salesCount = saleDao.getSalesCount(storeId, start, end)
         itemsSold = saleDao.getItemsSold(storeId, start, end)
+        cogs = saleDao.getCogsTotal(storeId, start, end)
+        expenses = database.expenseDao().totalBetween(storeId, start, end)
+        receivables = database.khataDao().totalReceivables(storeId).coerceAtLeast(0.0)
+        payables = database.supplierLedgerDao().totalPayables(storeId).coerceAtLeast(0.0)
         paymentSummary = saleDao.getPaymentSummary(storeId, start, end)
+        topProducts = saleDao.getTopProducts(storeId, start, end, 10)
         recentSales = saleDao.getRecentSales(storeId, 10)
     }
+
+    val grossProfit = salesTotal - cogs
+    val operatingResult = grossProfit - expenses
 
     fun reprint(sale: SaleEntity) {
         scope.launch {
@@ -95,14 +112,32 @@ fun AnalyticsScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            item {
-                Text("Today", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
-            }
+            item { Text("Today", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black) }
             item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     AnalyticsStat("SALES", currency.format(salesTotal), Modifier.weight(1f))
                     AnalyticsStat("BILLS", salesCount.toString(), Modifier.weight(1f))
                     AnalyticsStat("ITEMS", String.format(Locale.getDefault(), "%.0f", itemsSold), Modifier.weight(1f))
+                }
+            }
+            item {
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Text("Profitability", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+                        Text("COGS ${currency.format(cogs)}")
+                        Text("Gross profit ${currency.format(grossProfit)}", fontWeight = FontWeight.Bold)
+                        Text("Expenses ${currency.format(expenses)}")
+                        Text("Operating result ${currency.format(operatingResult)}", fontWeight = FontWeight.Black)
+                    }
+                }
+            }
+            item {
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Text("Business balances", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+                        Text("Customer receivables ${currency.format(receivables)}")
+                        Text("Supplier payables ${currency.format(payables)}")
+                    }
                 }
             }
             item { Text("Payment mix", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black) }
@@ -117,6 +152,22 @@ fun AnalyticsScreen(
                                 Text("${summary.transactionCount} bill${if (summary.transactionCount == 1) "" else "s"}", color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             Text(currency.format(summary.total), fontWeight = FontWeight.Black)
+                        }
+                    }
+                }
+            }
+            item { Text("Top sellers today", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black) }
+            if (topProducts.isEmpty()) {
+                item { Text("No product sales recorded today.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            } else {
+                items(topProducts, key = { it.productId }) { top ->
+                    Card(Modifier.fillMaxWidth()) {
+                        Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Text(top.name, fontWeight = FontWeight.Bold)
+                                Text("${String.format(Locale.getDefault(), "%.2f", top.quantity)} units", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Text(currency.format(top.revenue), fontWeight = FontWeight.Black)
                         }
                     }
                 }
