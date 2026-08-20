@@ -35,10 +35,8 @@ class HeldBillRepository(private val database: RetailDatabase) {
     }
 
     /**
-     * Atomically claims a held bill for resume after validating that every
-     * referenced product still exists and has enough current stock.
-     * The held bill is deleted only after validation succeeds, so two
-     * concurrent resume attempts cannot both claim the same bill.
+     * Atomic claim for a held bill. Validation and deletion happen in the
+     * same Room transaction, so concurrent resume attempts cannot both win.
      */
     suspend fun takeForResume(storeId: String, id: String): HeldBillSnapshot? = database.withTransaction {
         val bill = database.heldBillDao().getAll(storeId).firstOrNull { it.id == id }
@@ -49,7 +47,9 @@ class HeldBillRepository(private val database: RetailDatabase) {
         lines.forEach { line ->
             val product = database.productDao().getById(line.productId, storeId)
                 ?: throw IllegalArgumentException("${line.name} no longer exists in the product catalog.")
-            require(line.quantity > 0.0 && line.quantity.isFinite()) { "${line.name} has an invalid held quantity." }
+            require(line.quantity > 0.0 && line.quantity.isFinite()) {
+                "${line.name} has an invalid held quantity."
+            }
             require(line.quantity <= product.stock + 1e-9) {
                 "${line.name} has only ${product.stock.clean()} ${product.unit} available"
             }
@@ -59,13 +59,11 @@ class HeldBillRepository(private val database: RetailDatabase) {
         HeldBillSnapshot(bill.id, bill.createdAt, lines)
     }
 
-    suspend fun take(storeId: String, id: String): HeldBillSnapshot? = database.withTransaction {
-        val bill = database.heldBillDao().getAll(storeId).firstOrNull { it.id == id }
-            ?: return@withTransaction null
-        val lines = database.heldBillDao().getLines(id).map(::toCartLine)
-        database.heldBillDao().deleteBill(id, storeId)
-        HeldBillSnapshot(bill.id, bill.createdAt, lines)
-    }
+    /**
+     * Preserve the existing API used by MainActivity, but make the operation
+     * safe by delegating to the atomic, validated claim path.
+     */
+    suspend fun take(storeId: String, id: String): HeldBillSnapshot? = takeForResume(storeId, id)
 
     private fun toCartLine(line: HeldBillLineEntity): CartLine = CartLine(
         productId = line.productId,
