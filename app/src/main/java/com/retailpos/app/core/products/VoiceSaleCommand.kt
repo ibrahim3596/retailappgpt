@@ -18,17 +18,35 @@ enum class WeightUnit {
 object VoiceSaleCommandParser {
     private val NUMBER = Regex("(?:\\d+(?:[.,]\\d+)?)")
     private val KG = Regex("(?:kg|kgs|kilo|kilos|kilogram|kilograms|किलो|किलोग्राम)", RegexOption.IGNORE_CASE)
-    private val G = Regex("(?:g|gm|gms|gram|grams|ग्र\.?|ग्राम)", RegexOption.IGNORE_CASE)
-    private val L = Regex("(?:l|lt|ltr|litre|liter|litres|liters|लीटर|लीटर)", RegexOption.IGNORE_CASE)
+    private val G = Regex("(?:g|gm|gms|gram|grams|ग्र\\.?|ग्राम)", RegexOption.IGNORE_CASE)
+    private val L = Regex("(?:l|lt|ltr|litre|liter|litres|liters|लीटर)", RegexOption.IGNORE_CASE)
     private val ML = Regex("(?:ml|millilitre|milliliter|मिली|मिलीलिटर)", RegexOption.IGNORE_CASE)
 
     private val FRACTIONS = mapOf(
         "aadha" to 0.5, "adha" to 0.5, "half" to 0.5, "आधा" to 0.5,
         "pauna" to 0.75, "pouna" to 0.75, "पौना" to 0.75,
         "sawa" to 1.25, "sava" to 1.25, "सवा" to 1.25,
-        "dedh" to 1.5, "ढाई" to 2.5, "dhai" to 2.5,
-        "do" to 2.0, "ek" to 1.0, "one" to 1.0, "two" to 2.0,
-        "teen" to 3.0, "three" to 3.0, "चार" to 4.0, "char" to 4.0
+        "dedh" to 1.5, "डेढ़" to 1.5, "ढाई" to 2.5, "dhai" to 2.5,
+        "do" to 2.0, "दो" to 2.0, "ek" to 1.0, "एक" to 1.0,
+        "one" to 1.0, "two" to 2.0, "teen" to 3.0, "तीन" to 3.0,
+        "three" to 3.0, "चार" to 4.0, "char" to 4.0, "five" to 5.0, "पांच" to 5.0
+    )
+
+    private val ALIASES = mapOf(
+        "shakkar" to listOf("sugar", "shakkar"),
+        "शक्कर" to listOf("sugar", "shakkar", "शक्कर"),
+        "cheeni" to listOf("sugar", "cheeni"),
+        "चीनी" to listOf("sugar", "cheeni", "चीनी"),
+        "chawal" to listOf("rice", "chawal"),
+        "चावल" to listOf("rice", "chawal", "चावल"),
+        "atta" to listOf("atta", "wheat flour"),
+        "आटा" to listOf("atta", "wheat flour", "आटा"),
+        "maida" to listOf("maida", "refined flour"),
+        "मैदा" to listOf("maida", "refined flour", "मैदा"),
+        "tel" to listOf("oil", "tel"),
+        "तेल" to listOf("oil", "tel", "तेल"),
+        "namak" to listOf("salt", "namak"),
+        "नमक" to listOf("salt", "namak", "नमक")
     )
 
     fun parse(spoken: String): VoiceSaleCommand? {
@@ -46,33 +64,27 @@ object VoiceSaleCommandParser {
         val fractionToken = FRACTIONS.keys.firstOrNull { token -> Regex("(^|\\s)$token(?=\\s|$)").containsMatchIn(text) }
         var quantity = fractionToken?.let(FRACTIONS::get)
         if (quantity == null) {
-            val number = NUMBER.find(text)?.value?.replace(',', '.')?.toDoubleOrNull()
-            quantity = number
+            quantity = NUMBER.find(text)?.value?.replace(',', '.')?.toDoubleOrNull()
         }
-        if (quantity == null) return null
+        if (quantity == null || quantity <= 0.0) return null
 
-        // Phrases like "aadha kilo sugar" are already expressed in the requested unit.
-        // Numeric grams/liters remain in their native unit and are normalized by the caller.
         text = text
             .replace(NUMBER, " ")
             .replace(KG, " ")
             .replace(G, " ")
             .replace(L, " ")
             .replace(ML, " ")
-            .let { cleanFractionTokens(it) }
+            .let(::cleanFractionTokens)
             .replace(Regex("\\b(ka|ki|ke|of|mein|me|dena|do|de|please|plz)\\b"), " ")
             .replace(Regex("\\s+"), " ")
             .trim()
 
-        // A fraction token can be a quantity word and not part of the product name.
-        if (fractionToken != null) {
-            text = Regex("(^|\\s)${Regex.escape(fractionToken)}(?=\\s|$)", RegexOption.IGNORE_CASE)
-                .replace(text, " ")
-                .replace(Regex("\\s+"), " ")
-                .trim()
-        }
-
         return text.takeIf { it.isNotBlank() }?.let { VoiceSaleCommand(it, quantity, explicitUnit) }
+    }
+
+    fun productQueries(query: String): List<String> {
+        val normalized = query.trim().lowercase()
+        return ALIASES[normalized].orEmpty().plus(normalized).distinct()
     }
 
     private fun cleanFractionTokens(text: String): String = FRACTIONS.keys.fold(text) { acc, token ->
