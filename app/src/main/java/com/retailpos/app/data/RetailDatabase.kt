@@ -54,6 +54,7 @@ abstract class RetailDatabase : RoomDatabase() {
     abstract fun supplierLedgerDao(): SupplierLedgerDao
     abstract fun returnDao(): ReturnDao
     abstract fun expenseDao(): ExpenseDao
+    abstract fun favoriteProductDao(): FavoriteProductDao
 
     companion object {
         private const val LOCAL_STORE_ID = "local-store"
