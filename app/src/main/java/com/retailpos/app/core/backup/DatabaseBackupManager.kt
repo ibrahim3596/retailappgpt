@@ -1,6 +1,7 @@
 package com.retailpos.app.core.backup
 
 import android.content.Context
+import android.database.sqlite.SQLiteDatabase
 import androidx.core.content.edit
 import com.retailpos.app.data.RetailDatabase
 import java.io.ByteArrayInputStream
@@ -84,13 +85,15 @@ object DatabaseBackupManager {
 
     private fun replaceDatabase(context: Context, bytes: ByteArray) {
         require(bytes.isNotEmpty()) { "Backup database is empty" }
-        RetailDatabase.closeForRestore()
         val databaseFile = context.getDatabasePath(DATABASE_FILE)
         databaseFile.parentFile?.mkdirs()
         val restoreFile = File(databaseFile.parentFile, "$DATABASE_FILE.restore")
         val previousFile = File(databaseFile.parentFile, "$DATABASE_FILE.pre-restore")
         restoreFile.writeBytes(bytes)
         check(restoreFile.length() == bytes.size.toLong()) { "Restore copy was incomplete" }
+
+        validateSQLiteFile(restoreFile)
+        RetailDatabase.closeForRestore()
         if (previousFile.exists()) previousFile.delete()
 
         val hadExisting = databaseFile.exists()
@@ -102,14 +105,40 @@ object DatabaseBackupManager {
 
         try {
             check(restoreFile.renameTo(databaseFile)) { "Could not activate restored database" }
+            validateSQLiteFile(databaseFile)
             previousFile.delete()
         } catch (error: Exception) {
             databaseFile.delete()
-            if (hadExisting && previousFile.exists()) previousFile.renameTo(databaseFile)
+            if (hadExisting && previousFile.exists()) {
+                check(previousFile.renameTo(databaseFile)) { "Restore failed and previous database could not be recovered" }
+            }
             restoreFile.delete()
             throw error
         } finally {
             restoreFile.delete()
+        }
+    }
+
+    private fun validateSQLiteFile(file: File) {
+        require(file.exists() && file.length() >= 16L) { "Restored database file is missing or too small" }
+        val database = runCatching {
+            SQLiteDatabase.openDatabase(file.path, null, SQLiteDatabase.OPEN_READONLY)
+        }.getOrElse { throw IllegalArgumentException("Restored database could not be opened", it) }
+        try {
+            val userVersion = database.rawQuery("PRAGMA user_version", null).use { cursor ->
+                check(cursor.moveToFirst()) { "Restored database has no user_version" }
+                cursor.getInt(0)
+            }
+            check(userVersion == CURRENT_SCHEMA) {
+                "Restored database schema $userVersion is incompatible with this app (expected $CURRENT_SCHEMA)."
+            }
+            val integrity = database.rawQuery("PRAGMA quick_check", null).use { cursor ->
+                check(cursor.moveToFirst()) { "Restored database integrity check returned no result" }
+                cursor.getString(0)
+            }
+            check(integrity.equals("ok", ignoreCase = true)) { "Restored database integrity check failed: $integrity" }
+        } finally {
+            database.close()
         }
     }
 
