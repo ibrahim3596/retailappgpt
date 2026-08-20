@@ -1,12 +1,16 @@
 package com.retailpos.app.ui.screens
 
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -22,9 +26,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.retailpos.app.data.BarcodeMutationResult
@@ -34,6 +42,8 @@ import com.retailpos.app.data.ProductMetadataViewModelFactory
 import com.retailpos.app.data.ProductViewModel
 import com.retailpos.app.data.ProductViewModelFactory
 import com.retailpos.app.ui.components.ProductMetadataEditor
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -42,6 +52,7 @@ fun ProductMetadataScreen(
     productId: String,
     onBack: () -> Unit
 ) {
+    val context = LocalContext.current
     val metadataFactory = remember(storeId) { ProductMetadataViewModelFactory(storeId) }
     val metadataViewModel: ProductMetadataViewModel = viewModel(factory = metadataFactory)
     val productFactory = remember(storeId) { ProductViewModelFactory(storeId) }
@@ -52,8 +63,28 @@ fun ProductMetadataScreen(
     var secondaryBarcode by remember { mutableStateOf("") }
     var barcodeMessage by remember { mutableStateOf<String?>(null) }
 
-    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        uri?.let { metadataViewModel.setImageUri(it.toString()) }
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    it,
+                    android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            }
+            metadataViewModel.setImageUri(it.toString())
+        }
+    }
+
+    val imageBitmap by produceState<Bitmap?>(initialValue = null, form.imageUri) {
+        value = withContext(Dispatchers.IO) {
+            form.imageUri?.let { uriString ->
+                runCatching {
+                    context.contentResolver.openInputStream(android.net.Uri.parse(uriString))?.use { input ->
+                        BitmapFactory.decodeStream(input)
+                    }
+                }.getOrNull()
+            }
+        }
     }
 
     LaunchedEffect(productId) {
@@ -71,10 +102,18 @@ fun ProductMetadataScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text("PRODUCT IMAGE")
+            imageBitmap?.let {
+                Image(
+                    bitmap = it.asImageBitmap(),
+                    contentDescription = "Product image",
+                    modifier = Modifier.fillMaxWidth().height(220.dp),
+                    contentScale = ContentScale.Fit
+                )
+            }
             if (form.imageUri.isNullOrBlank()) Text("No product image selected.")
-            else Text("Image selected: ${form.imageUri}")
+            else if (imageBitmap == null) Text("Image selected but preview is unavailable on this device.")
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                Button(onClick = { imagePicker.launch("image/*") }, modifier = Modifier.weight(1f)) {
+                Button(onClick = { imagePicker.launch(arrayOf("image/jpeg", "image/png", "image/webp")) }, modifier = Modifier.weight(1f)) {
                     Text(if (form.imageUri.isNullOrBlank()) "ADD IMAGE" else "CHANGE IMAGE")
                 }
                 if (!form.imageUri.isNullOrBlank()) {
