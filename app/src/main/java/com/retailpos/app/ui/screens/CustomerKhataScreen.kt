@@ -22,6 +22,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -29,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.retailpos.app.core.customer.KhataRules
 import com.retailpos.app.data.CustomerEntity
 import com.retailpos.app.data.CustomerLedgerEntry
 import com.retailpos.app.data.KhataDao
@@ -41,7 +43,7 @@ import java.util.UUID
 fun CustomerKhataScreen(storeId: String, customerId: String, onBack: () -> Unit) {
     val context = LocalContext.current
     val database = remember(context) { RetailDatabase.get(context) }
-    val customer by androidx.compose.runtime.produceState<CustomerEntity?>(initialValue = null, customerId) {
+    val customer by produceState<CustomerEntity?>(initialValue = null, customerId) {
         value = database.customerDao().getById(customerId, storeId)
     }
     if (customer != null) {
@@ -61,9 +63,7 @@ private fun CustomerKhataScreen(storeId: String, customer: CustomerEntity, dao: 
     val entries by dao.observeEntries(storeId, customer.id).collectAsState(initial = emptyList())
     var showPayment by remember { mutableStateOf(false) }
 
-    Scaffold(
-        topBar = { TopAppBar(title = { Text(customer.name, fontWeight = FontWeight.Black) }) }
-    ) { padding ->
+    Scaffold(topBar = { TopAppBar(title = { Text(customer.name, fontWeight = FontWeight.Black) }) }) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item {
                 Card(Modifier.fillMaxWidth()) {
@@ -71,10 +71,11 @@ private fun CustomerKhataScreen(storeId: String, customer: CustomerEntity, dao: 
                         Text("OUTSTANDING", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
                         Text(money(balance), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black)
                         Text(
-                            when {
-                                balance > 0.0 -> "Customer owes the store"
-                                balance < 0.0 -> "Store has excess credit"
-                                else -> "Settled"
+                            when (KhataRules.displayState(balance)) {
+                                com.retailpos.app.core.customer.KhataState.DUE -> "Customer owes the store"
+                                com.retailpos.app.core.customer.KhataState.CREDIT -> "Store has excess credit"
+                                com.retailpos.app.core.customer.KhataState.SETTLED -> "Settled"
+                                com.retailpos.app.core.customer.KhataState.INVALID -> "Invalid balance"
                             },
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -93,10 +94,7 @@ private fun CustomerKhataScreen(storeId: String, customer: CustomerEntity, dao: 
                                 Text(entry.type.replace('_', ' '), fontWeight = FontWeight.Bold)
                                 Text(entry.note, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
-                            Text(
-                                if (entry.amount >= 0) "+${money(entry.amount)}" else money(entry.amount),
-                                fontWeight = FontWeight.Bold
-                            )
+                            Text(if (entry.amount >= 0) "+${money(entry.amount)}" else money(entry.amount), fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -113,15 +111,8 @@ private fun CustomerKhataScreen(storeId: String, customer: CustomerEntity, dao: 
                 scope.launch {
                     dao.insert(
                         CustomerLedgerEntry(
-                            UUID.randomUUID().toString(),
-                            storeId,
-                            customer.id,
-                            -amount,
-                            "PAYMENT",
-                            note.ifBlank { "Payment received" },
-                            "PAYMENT",
-                            UUID.randomUUID().toString(),
-                            System.currentTimeMillis()
+                            UUID.randomUUID().toString(), storeId, customer.id, -amount, "PAYMENT",
+                            note.ifBlank { "Payment received" }, "PAYMENT", UUID.randomUUID().toString(), System.currentTimeMillis()
                         )
                     )
                     showPayment = false
@@ -151,12 +142,8 @@ private fun PaymentDialog(outstanding: Double, onDismiss: () -> Unit, onSave: (D
         confirmButton = {
             Button(onClick = {
                 val value = amount.replace(',', '.').toDoubleOrNull()
-                when {
-                    value == null || !value.isFinite() || value <= 0.0 -> error = "Enter a valid positive amount."
-                    outstanding <= 0.0 -> error = "There is no outstanding balance to collect."
-                    value > outstanding + 0.000001 -> error = "Payment cannot exceed the outstanding amount."
-                    else -> onSave(value, note.trim())
-                }
+                val validation = value?.let { KhataRules.validatePayment(outstanding, it) } ?: "Payment must be a valid number"
+                if (validation != null) error = validation else onSave(value!!, note.trim())
             }) { Text("SAVE PAYMENT") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("CANCEL") } }
