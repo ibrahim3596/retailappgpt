@@ -19,14 +19,7 @@ class CartManager {
             val index = _lines.indexOf(existing)
             _lines[index] = existing.copy(quantity = newQuantity)
         } else {
-            _lines += CartLine(
-                productId = product.id,
-                name = product.name,
-                sku = product.sku,
-                unit = product.unit,
-                unitPrice = product.sellingPrice,
-                quantity = requestedQuantity
-            )
+            _lines += CartLine(product.id, product.name, product.sku, product.unit, product.sellingPrice, requestedQuantity)
         }
         return AddToCartResult.Added
     }
@@ -35,16 +28,19 @@ class CartManager {
         if (requestedQuantity <= 0.0 || !requestedQuantity.isFinite()) return AddToCartResult.InvalidQuantity
         if (availableStock <= 0.0) return AddToCartResult.OutOfStock
         if (requestedQuantity > availableStock + 1e-9) return AddToCartResult.InsufficientStock
-
         val index = _lines.indexOfFirst { it.productId == productId }
         if (index < 0) return AddToCartResult.InvalidQuantity
-
         _lines[index] = _lines[index].copy(quantity = requestedQuantity)
         return AddToCartResult.Added
     }
 
-    fun remove(productId: String): Boolean = _lines.removeIf { it.productId == productId }
+    fun replace(lines: List<CartLine>) {
+        require(lines.all { it.quantity.isFinite() && it.quantity > 0.0 }) { "Invalid cart quantity" }
+        _lines.clear()
+        _lines.addAll(lines)
+    }
 
+    fun remove(productId: String): Boolean = _lines.removeIf { it.productId == productId }
     fun clear() = _lines.clear()
 }
 
