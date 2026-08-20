@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import com.retailpos.app.core.payment.ActiveCartStore
 import com.retailpos.app.core.payment.PendingPaymentStore
 
 @Database(
@@ -94,7 +95,9 @@ abstract class RetailDatabase : RoomDatabase() {
                 .build()
                 .also {
                     INSTANCE = it
-                    PendingPaymentStore.configure(context.applicationContext)
+                    val applicationContext = context.applicationContext
+                    PendingPaymentStore.configure(applicationContext)
+                    ActiveCartStore.save(applicationContext, emptyList())
                     ProductCatalogLookup.configurePersistentCache(LOCAL_STORE_ID, it.productIdentificationCacheDao())
                 }
         }
