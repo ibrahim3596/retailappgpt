@@ -9,6 +9,7 @@ import com.retailpos.app.core.identifiers.ProductIdentityRules
 import com.retailpos.app.core.identifiers.ProductIdentifierValidator
 import com.retailpos.app.core.products.ProductCaptureMetadataMapper
 import com.retailpos.app.core.products.ProductCaptureObservation
+import com.retailpos.app.core.products.ProductIdentificationFeedback
 import com.retailpos.app.core.products.ProductListFilter
 import com.retailpos.app.core.products.ProductLocalCandidate
 import com.retailpos.app.core.products.matches
@@ -24,6 +25,7 @@ import java.util.UUID
 class ProductViewModel(application: Application, private val storeId: String) : AndroidViewModel(application) {
     private val database = RetailDatabase.get(application)
     private val repository = ProductRepository(database.productDao(), database.productBarcodeDao(), database)
+    private val feedbackRepository = ProductIdentificationFeedbackRepository(database.productIdentificationFeedbackDao())
     private val metadataRepository = ProductMetadataRepository(database.productMetadataDao())
     private val _query = MutableStateFlow("")
     private val _filter = MutableStateFlow(ProductListFilter.ALL)
@@ -40,22 +42,33 @@ class ProductViewModel(application: Application, private val storeId: String) : 
     val localCandidates: StateFlow<List<ProductLocalCandidate>> = _localCandidates
 
     val products: StateFlow<List<ProductEntity>> = _query
-        .flatMapLatest { search ->
-            if (search.isBlank()) repository.observeProducts(storeId)
-            else repository.searchProducts(storeId, search)
-        }
+        .flatMapLatest { search -> if (search.isBlank()) repository.observeProducts(storeId) else repository.searchProducts(storeId, search) }
         .map { list -> list.filter { product -> _filter.value.matches(product.stock, product.lowStockThreshold) } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun setQuery(value: String) { _query.value = value }
     fun setFilter(value: ProductListFilter) { _filter.value = value }
 
-    fun findLocalCaptureCandidates(name: String?, brand: String?, onComplete: ((List<ProductLocalCandidate>) -> Unit)? = null) {
+    fun findLocalCaptureCandidates(
+        name: String?,
+        brand: String?,
+        packSize: Double? = null,
+        packUnit: String? = null,
+        onComplete: ((List<ProductLocalCandidate>) -> Unit)? = null
+    ) {
         viewModelScope.launch {
-            val candidates = repository.findLocalCandidates(storeId, name, brand)
+            val candidates = repository.findLocalCandidates(storeId, name, brand, packSize, packUnit)
             _localCandidates.value = candidates
             onComplete?.invoke(candidates)
         }
+    }
+
+    fun recordIdentificationFeedback(
+        barcode: String?,
+        candidateKey: String?,
+        feedback: ProductIdentificationFeedback
+    ) {
+        viewModelScope.launch { feedbackRepository.record(storeId, barcode, candidateKey, feedback) }
     }
 
     fun clearLocalCaptureCandidates() { _localCandidates.value = emptyList() }
@@ -120,12 +133,8 @@ class ProductViewModel(application: Application, private val storeId: String) : 
                     val existingMetadata = productId?.let { metadataRepository.get(it, storeId) }
                     val metadata = ProductCaptureMetadataMapper.map(product.id, storeId, captureObservation, existingMetadata)
                     repository.saveProductWithMetadata(product, metadata)
-                } else {
-                    repository.saveProductWithPrimaryBarcode(product)
-                }
-                if (!saved) {
-                    onResult(SaveProductResult.DuplicateBarcode); return@launch
-                }
+                } else repository.saveProductWithPrimaryBarcode(product)
+                if (!saved) { onResult(SaveProductResult.DuplicateBarcode); return@launch }
                 onResult(SaveProductResult.Success)
                 onProductSaved(product.id)
             } catch (_: Exception) { onResult(SaveProductResult.Error) }
