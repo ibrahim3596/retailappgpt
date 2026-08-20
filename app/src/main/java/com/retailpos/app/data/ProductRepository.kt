@@ -35,6 +35,26 @@ class ProductRepository(
         return if (database != null) database.withTransaction { operation() } else operation()
     }
 
+    suspend fun saveProductWithMetadata(
+        product: ProductEntity,
+        metadata: ProductMetadataEntity,
+        barcodeType: String = "UNKNOWN"
+    ): Boolean {
+        if (database == null) {
+            val saved = saveProductWithPrimaryBarcode(product, barcodeType)
+            if (saved) databaseOrThrow().productMetadataDao().upsert(metadata)
+            return saved
+        }
+        return database.withTransaction {
+            val saved = saveProductWithPrimaryBarcode(product, barcodeType)
+            if (!saved) return@withTransaction false
+            database.productMetadataDao().upsert(metadata)
+            true
+        }
+    }
+
+    private fun databaseOrThrow(): RetailDatabase = checkNotNull(database) { "Database is required for metadata persistence" }
+
     suspend fun savePrimaryBarcode(productId: String, storeId: String, value: String, type: String = "UNKNOWN"): Boolean {
         val normalized = ProductIdentityRules.normalizeBarcode(value)
         if (normalized.isBlank()) {
