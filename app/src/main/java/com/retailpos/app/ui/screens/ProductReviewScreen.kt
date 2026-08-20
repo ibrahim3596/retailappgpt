@@ -50,7 +50,7 @@ fun ProductReviewScreen(
     initialBarcode: String = "",
     autoIdentify: Boolean = false,
     onBack: () -> Unit,
-    onSaved: ((String?) -> Unit)? = null
+    onSaved: (() -> Unit)? = null
 ) {
     val factory = remember(storeId) { ProductViewModelFactory(storeId) }
     val viewModel: ProductViewModel = viewModel(factory = factory)
@@ -134,13 +134,7 @@ fun ProductReviewScreen(
                 val hasBarcode = !result.barcode.isNullOrBlank()
                 val hasText = !result.detectedName.isNullOrBlank() || !result.detectedBrand.isNullOrBlank()
                 val hasVisual = result.categoryHint != null
-                val baseScore = ProductIdentificationRanking.score(
-                    ProductIdentificationSignals(
-                        barcodeDetected = hasBarcode,
-                        printedTextDetected = hasText,
-                        visualHintDetected = hasVisual
-                    )
-                )
+                val baseScore = ProductIdentificationRanking.score(ProductIdentificationSignals(barcodeDetected = hasBarcode, printedTextDetected = hasText, visualHintDetected = hasVisual))
                 identificationConfidence = baseScore.score
                 identificationStatus = when {
                     hasBarcode && hasText -> "IDENTIFICATION: BARCODE + CAMERA/OCR"
@@ -150,7 +144,6 @@ fun ProductReviewScreen(
                     else -> "IDENTIFICATION: LIMITED EVIDENCE"
                 }
                 identificationExplanation = baseScore.explanation
-
                 val detectedBarcode = result.barcode
                 if (!detectedBarcode.isNullOrBlank()) {
                     catalogStatus = "Checking public product catalog…"
@@ -160,13 +153,7 @@ fun ProductReviewScreen(
                         if (catalog != null) {
                             catalogCandidate = catalog
                             catalogStatus = "Catalog match found. Review it before applying catalog identity."
-                            val catalogScore = ProductIdentificationRanking.score(
-                                ProductIdentificationSignals(
-                                    barcodeDetected = true,
-                                    catalogMatched = true,
-                                    printedTextDetected = hasText
-                                )
-                            )
+                            val catalogScore = ProductIdentificationRanking.score(ProductIdentificationSignals(barcodeDetected = true, catalogMatched = true, printedTextDetected = hasText))
                             identificationConfidence = catalogScore.score
                             identificationExplanation = catalogScore.explanation
                         } else {
@@ -185,10 +172,7 @@ fun ProductReviewScreen(
     }
 
     Scaffold(topBar = { TopAppBar(title = { Text(if (isEdit) "EDIT PRODUCT" else "ADD PRODUCT", fontWeight = FontWeight.Black) }) }) { padding ->
-        Column(
-            Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
+        Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(if (isEdit) "Update product details" else "Product details", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             if (!isEdit) {
                 Button(onClick = { showIntelligentCapture = true }, modifier = Modifier.fillMaxWidth()) { Text("INTELLIGENTLY IDENTIFY PRODUCT", fontWeight = FontWeight.Bold) }
@@ -196,13 +180,7 @@ fun ProductReviewScreen(
             }
             identificationStatus?.let { Text(it, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold) }
             identificationConfidence?.let {
-                val level = when {
-                    it >= 95 -> "HIGH"
-                    it >= 80 -> "GOOD"
-                    it >= 60 -> "MEDIUM"
-                    it > 0 -> "LOW"
-                    else -> "NONE"
-                }
+                val level = when { it >= 95 -> "HIGH"; it >= 80 -> "GOOD"; it >= 60 -> "MEDIUM"; it > 0 -> "LOW"; else -> "NONE" }
                 Text("IDENTIFICATION CONFIDENCE: $level ($it%)", color = if (it >= 80) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
             }
             identificationExplanation?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
@@ -236,10 +214,8 @@ fun ProductReviewScreen(
                     Text("Barcode-backed candidate. Applying it never changes retailer price, purchase price, stock or SKU.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                         Button(onClick = {
-                            catalog.name?.let { name = it }
-                            catalog.brand?.let { brand = it }
-                            catalog.quantity?.let { captureHint = "Catalog quantity: $it" }
-                            catalog.category?.let { captureHint = "Catalog category: $it" }
+                            catalog.name?.let { name = it }; catalog.brand?.let { brand = it }
+                            catalog.quantity?.let { captureHint = "Catalog quantity: $it" }; catalog.category?.let { captureHint = "Catalog category: $it" }
                             identificationStatus = "IDENTIFICATION: CATALOG APPLIED"
                             identificationConfidence = ProductIdentificationRanking.score(ProductIdentificationSignals(barcodeDetected = true, catalogMatched = true, barcodeMatchesCatalog = true)).score
                             identificationExplanation = "Catalog candidate accepted by the retailer. Verify all fields before saving."
@@ -248,7 +224,7 @@ fun ProductReviewScreen(
                         }, modifier = Modifier.weight(1f)) { Text("USE CATALOG") }
                         OutlinedButton(onClick = {
                             catalogCandidate = null
-                            identificationConfidence = ProductIdentificationRanking.score(ProductIdentificationSignals(barcodeDetected = !barcode.isNullOrBlank(), printedTextDetected = name.isNotBlank() || brand.isNotBlank())).score
+                            identificationConfidence = ProductIdentificationRanking.score(ProductIdentificationSignals(barcodeDetected = barcode.isNotBlank(), printedTextDetected = name.isNotBlank() || brand.isNotBlank())).score
                             identificationExplanation = "Catalog suggestion dismissed. Camera/OCR details remain under retailer control."
                             catalogStatus = "Catalog suggestion dismissed."
                         }, modifier = Modifier.weight(1f)) { Text("KEEP CAMERA") }
@@ -289,7 +265,7 @@ fun ProductReviewScreen(
                 val thresholdValue = lowStockThreshold.toDoubleOrNull() ?: -1.0
                 viewModel.saveProduct(productId, name, brand, barcode, sku, mrpValue, saleValue, purchaseValue, stockValue, unit, thresholdValue) { result ->
                     when (result) {
-                        SaveProductResult.Success -> onSaved?.invoke(barcode.trim().ifBlank { null }) ?: onBack()
+                        SaveProductResult.Success -> onSaved?.invoke() ?: onBack()
                         SaveProductResult.DuplicateSku -> errorMessage = "That SKU is already used by another product in this store."
                         SaveProductResult.DuplicateBarcode -> errorMessage = "That barcode is already assigned to another product in this store."
                         SaveProductResult.InvalidInput -> errorMessage = "Check the product name and numbers. Sale price must not exceed MRP, and stock/threshold cannot be negative."
