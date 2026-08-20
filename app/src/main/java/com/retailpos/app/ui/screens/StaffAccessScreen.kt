@@ -17,6 +17,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -26,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import com.retailpos.app.core.staff.StaffRole
 import com.retailpos.app.data.StaffRepository
 import com.retailpos.app.data.StaffSignInResult
+import kotlinx.coroutines.launch
 
 @Composable
 fun StaffAccessScreen(
@@ -40,42 +42,21 @@ fun StaffAccessScreen(
     var confirmPin by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(hasStaff) {
         mode = if (hasStaff) AccessMode.SIGN_IN else AccessMode.SETUP
-    }
-
-    Scaffold(topBar = { TopAppBar(title = { Text(if (mode == AccessMode.SETUP) "SET UP OWNER" else "STAFF LOGIN", fontWeight = FontWeight.Black) }) }) { padding ->
-        Column(
-            Modifier.fillMaxSize().padding(padding).padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text(
-                if (mode == AccessMode.SETUP) "Create the first local owner account. This stays on the device." else "Sign in with your shop staff PIN.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            if (mode == AccessMode.SETUP) {
-                OutlinedTextField(name, { name = it; error = null }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Owner name") })
-            }
-            OutlinedTextField(username, { username = it; error = null }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Username") })
-            OutlinedTextField(pin, { pin = it.filter(Char::isDigit).take(8); error = null }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("PIN (4–8 digits)") }, visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword))
-            if (mode == AccessMode.SETUP) {
-                OutlinedTextField(confirmPin, { confirmPin = it.filter(Char::isDigit).take(8); error = null }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Confirm PIN") }, visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword))
-            }
-            Button(
-                onClick = {
-                    busy = true
-                    error = null
-                },
-                enabled = !busy,
-                modifier = Modifier.fillMaxWidth()
-            ) { Text(if (busy) "PLEASE WAIT…" else if (mode == AccessMode.SETUP) "CREATE OWNER" else "SIGN IN") }
-            if (error != null) Text(error!!, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+        if (hasStaff) {
+            name = ""
+            confirmPin = ""
         }
     }
 
-    if (busy) {
-        LaunchedEffect(mode, username, pin, confirmPin, name) {
+    fun submit() {
+        if (busy) return
+        busy = true
+        error = null
+        scope.launch {
             runCatching {
                 if (mode == AccessMode.SETUP) {
                     require(pin == confirmPin) { "PINs do not match." }
@@ -91,6 +72,32 @@ fun StaffAccessScreen(
                 }
             }.onFailure { error = it.message ?: "Unable to sign in." }
             busy = false
+        }
+    }
+
+    Scaffold(topBar = { TopAppBar(title = { Text(if (mode == AccessMode.SETUP) "SET UP OWNER" else "STAFF LOGIN", fontWeight = FontWeight.Black) }) }) { padding ->
+        Column(
+            Modifier.fillMaxSize().padding(padding).padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                if (mode == AccessMode.SETUP) "Create the first local owner account. This stays on the device." else "Sign in with your shop staff PIN.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            if (mode == AccessMode.SETUP) {
+                OutlinedTextField(name, { name = it; error = null }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Owner name") }, enabled = !busy)
+            }
+            OutlinedTextField(username, { username = it; error = null }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Username") }, enabled = !busy)
+            OutlinedTextField(pin, { pin = it.filter(Char::isDigit).take(8); error = null }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("PIN (4–8 digits)") }, visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword), enabled = !busy)
+            if (mode == AccessMode.SETUP) {
+                OutlinedTextField(confirmPin, { confirmPin = it.filter(Char::isDigit).take(8); error = null }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Confirm PIN") }, visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword), enabled = !busy)
+            }
+            Button(
+                onClick = ::submit,
+                enabled = !busy,
+                modifier = Modifier.fillMaxWidth()
+            ) { Text(if (busy) "PLEASE WAIT…" else if (mode == AccessMode.SETUP) "CREATE OWNER" else "SIGN IN") }
+            if (error != null) Text(error!!, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
         }
     }
 }
