@@ -104,4 +104,10 @@ object DatabaseMigrations {
             db.execSQL("ALTER TABLE sale_lines ADD COLUMN taxAmount REAL NOT NULL DEFAULT 0.0")
         }
     }
+    val MIGRATION_13_14 = object : Migration(13, 14) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS store_settings (storeId TEXT NOT NULL, gstMode TEXT NOT NULL, defaultTaxRatePercent REAL NOT NULL, currency TEXT NOT NULL, updatedAt INTEGER NOT NULL, PRIMARY KEY(storeId))")
+            db.execSQL("INSERT OR IGNORE INTO store_settings (storeId, gstMode, defaultTaxRatePercent, currency, updatedAt) VALUES ('local-store', 'NO_GST', 0.0, 'INR', strftime('%s','now') * 1000)")
+        }
+    }
 }
