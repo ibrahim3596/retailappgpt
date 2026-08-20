@@ -2,13 +2,14 @@
 
 ## Purpose
 
-Voice Billing allows a shopkeeper to speak a natural-language order and turn it into a cart quantity without replacing the normal product lookup flow.
+Voice Billing allows a shopkeeper to speak a natural-language order and turn it into cart quantities without replacing the normal product lookup flow.
 
 Examples:
 
 - `aadha kilo shakkar` → product `sugar`, quantity `0.5 kg`
 - `500 gram sugar` → product `sugar`, quantity `0.5 kg` when the product's configured selling unit is `kg`
 - `1 litre oil` → product `oil`, quantity `1 litre`
+- `aadha kilo shakkar aur 1 litre tel` → two validated cart lines in one voice action
 
 ## Product pricing model
 
@@ -22,18 +23,24 @@ Examples:
 
 The voice feature does not contain product-specific prices. It converts the requested quantity into the product's configured selling unit and uses the existing cart pricing calculation.
 
+## Multi-item orders
+
+A single utterance can contain multiple independently parseable requests, separated by common connectors such as `aur`, `and`, `plus`, `और`, `మరియు`, `കൂടാതെ`, `மற்றும்`, `ಮತ್ತು`, `এবং`, `અને`, `ਅਤੇ`, or `ଏବଂ`.
+
+The complete utterance is resolved before the cart is mutated. If any item is missing, ambiguous, incompatible with the product unit, or beyond available stock, the entire voice action is rejected so a partial order cannot accidentally enter the bill.
+
 ## Safety rules
 
-Voice input is never allowed to silently create a product.
+Voice input is never allowed to silently create a product or silently choose between multiple products.
 
 The resolver:
 
 1. parses quantity + unit + product wording
 2. searches the local product catalog
-3. requires exactly one matching product
+3. requires exactly one matching product for every spoken item
 4. converts the spoken unit into the product's configured unit
-5. enforces available stock
-6. adds the fractional quantity to the existing cart line
+5. verifies available stock
+6. only then adds the complete validated set of quantities to the existing cart
 
 Ambiguous or incompatible requests are rejected and shown to the cashier instead of guessing.
 
@@ -55,7 +62,11 @@ Hindi (`hi-IN`) is the default voice language. The language picker currently exp
 
 The selected language is stored locally so the shopkeeper does not need to choose it on every bill.
 
-The app uses Android's speech-recognition service rather than shipping its own large speech model. On Android 13/API 33+ the app can ask the selected recognizer whether a language is installed, pending, supported on-device, or only available online. The app can also request a language-model download through Android's speech APIs when the recognizer exposes that capability.
+The parser also contains deterministic common-product aliases and unit words across these Indian scripts so recognized text such as Telugu or Tamil product names can still resolve against a local catalog containing English master names.
+
+The app uses Android's speech-recognition service rather than shipping its own large speech model. On Android 13/API 33+ the app can ask the selected recognizer whether a language is installed, pending, supported on-device, or only available online. The app can also request a language-model download through Android's speech APIs when the recognizer exposes that capability. Android documents those support states through `RecognitionSupport`, and model download through `SpeechRecognizer.triggerModelDownload()`. citeturn857839search0turn857839search1
+
+On Android 14/API 34+ the app can receive model-download progress, scheduled, success, and error callbacks through `ModelDownloadListener`. citeturn857839search4
 
 Important: the app cannot guarantee that every Android phone provides every Indian language. Recognition language availability is controlled by the installed recognition service and device. Unsupported languages are reported rather than silently falling back to a different language.
 
@@ -63,10 +74,12 @@ On Android versions below API 33, the app does not have the same public API for 
 
 ## Offline direction
 
-The long-term goal is offline-first voice billing. The current implementation prefers on-device speech recognition when available, while still supporting devices whose recognition service is online-only. Voice language download is a device/recognizer capability, not a RetailPOS-controlled model installation.
+The long-term goal is offline-first voice billing. The app prefers the on-device recognizer when the device exposes one, while still allowing devices with only online recognition to use voice billing. Language-model availability is a device/recognizer capability, not a RetailPOS-controlled model installation.
 
-The billing transformation itself is always local and deterministic: speech text is converted into structured quantity/unit/product data, then resolved against the local Room catalog and existing cart rules.
+The critical billing transformation is always local and deterministic: speech text is converted into structured quantity/unit/product data, then resolved against the local Room catalog and existing cart rules.
 
-## Current limitation
+## Current limitations
 
-The current parser intentionally uses deterministic retail rules rather than an LLM. Future improvements can add a richer multilingual alias layer, multi-item voice orders, learned corrections, and offline language packs without allowing arbitrary AI output to directly change prices.
+The current implementation is deliberately deterministic rather than LLM-driven. This keeps critical billing transformations inspectable and prevents arbitrary AI output from changing prices.
+
+Future improvements include broader regional aliases, learned retailer corrections, richer number/fraction handling, explicit offline-voice mode, and further language-specific natural phrasing.
