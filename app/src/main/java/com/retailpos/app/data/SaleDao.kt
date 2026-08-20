@@ -8,6 +8,7 @@ import com.retailpos.app.core.payment.PaymentSettlementRules
 import com.retailpos.app.core.payment.PendingPaymentStore
 import com.retailpos.app.core.permissions.StaffPermissionRules
 import com.retailpos.app.core.permissions.StaffRole
+import com.retailpos.app.core.pos.CartLinePricingRules
 import com.retailpos.app.core.products.PricingInput
 import com.retailpos.app.core.products.PricingRules
 import com.retailpos.app.core.products.StoreTaxMode
@@ -104,14 +105,19 @@ abstract class SaleDao {
         require(paymentMethod != "CREDIT" || !customerId.isNullOrBlank()) { "Select a customer for credit sales" }
         findByIdempotencyKey(storeId, idempotencyKey)?.let { return CheckoutResult(it.id, it.total, it.changeAmount) }
 
+        cart.forEach { line ->
+            CartLinePricingRules.validate(line, staffRole)?.let { throw IllegalArgumentException("${line.name}: $it") }
+        }
+
         val subtotal = cart.sumOf { it.lineTotal }
         StaffPermissionRules.validateBillDiscount(staffRole, subtotal, billDiscountAmount)?.let { error -> throw IllegalArgumentException(error) }
         val effectiveTaxTreatment = taxTreatment ?: StoreTaxMode.fromStorage(getStoreSettings(storeId)?.gstMode ?: StoreTaxMode.NO_GST.storageValue).toTaxTreatment()
         val safeDiscount = PricingRules.calculate(PricingInput(subtotal = subtotal, discountAmount = billDiscountAmount, taxTreatment = TaxTreatment.NO_TAX)).discountAmount
         val pricedLines = cart.map { line ->
-            val lineDiscount = if (subtotal <= 0.0) 0.0 else safeDiscount * (line.lineTotal / subtotal)
+            val lineBillDiscount = if (subtotal <= 0.0) 0.0 else safeDiscount * (line.lineTotal / subtotal)
+            val combinedDiscount = line.itemDiscountAmount + lineBillDiscount
             val productTaxRate = if (effectiveTaxTreatment == TaxTreatment.NO_TAX) 0.0 else (getProductMetadata(line.productId, storeId)?.taxRatePercent ?: 0.0)
-            line to PricingRules.calculate(PricingInput(subtotal = line.lineTotal, discountAmount = lineDiscount, taxRatePercent = productTaxRate, taxTreatment = effectiveTaxTreatment))
+            line to PricingRules.calculate(PricingInput(subtotal = line.grossLineTotal, discountAmount = combinedDiscount, taxRatePercent = productTaxRate, taxTreatment = effectiveTaxTreatment))
         }
         val saleDiscount = pricedLines.sumOf { it.second.discountAmount }
         val saleTax = pricedLines.sumOf { it.second.taxAmount }
@@ -120,9 +126,9 @@ abstract class SaleDao {
         val payment = PaymentSettlementRules.settle(paymentMethod, saleTotal, effectiveTender)
         val saleId = UUID.randomUUID().toString()
         val saleLines = pricedLines.map { (line, pricing) ->
-            SaleLineEntity(UUID.randomUUID().toString(), saleId, line.productId, line.name, line.sku, line.quantity, line.unit, line.unitPrice, pricing.taxableAmount, pricing.discountAmount, if (effectiveTaxTreatment == TaxTreatment.NO_TAX) 0.0 else (getProductMetadata(line.productId, storeId)?.taxRatePercent ?: 0.0), pricing.taxAmount, pricing.total)
+            SaleLineEntity(UUID.randomUUID().toString(), saleId, line.productId, line.name, line.sku, line.quantity, line.unit, line.effectiveUnitPrice, pricing.taxableAmount, pricing.discountAmount, if (effectiveTaxTreatment == TaxTreatment.NO_TAX) 0.0 else (getProductMetadata(line.productId, storeId)?.taxRatePercent ?: 0.0), pricing.taxAmount, pricing.total)
         }
-        val sale = SaleEntity(saleId, storeId, customerId, subtotal, saleDiscount, saleTax, saleTotal, paymentMethod, payment.amountTendered, payment.change, idempotencyKey, now)
+        val sale = SaleEntity(saleId, storeId, customerId, cart.sumOf { it.grossLineTotal }, saleDiscount, saleTax, saleTotal, paymentMethod, payment.amountTendered, payment.change, idempotencyKey, now)
         val allCosts = mutableListOf<SaleCostAllocationEntity>()
         val fallbackMovements = mutableListOf<InventoryMovementEntity>()
         for ((index, line) in cart.withIndex()) {
