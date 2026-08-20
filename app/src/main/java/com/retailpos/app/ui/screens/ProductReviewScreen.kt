@@ -55,7 +55,7 @@ fun ProductReviewScreen(
     initialBarcode: String = "",
     autoIdentify: Boolean = false,
     onBack: () -> Unit,
-    onSaved: (() -> Unit)? = null,
+    onSaved: ((String) -> Unit)? = null,
     onExistingProductSelected: ((String) -> Unit)? = null
 ) {
     val factory = remember(storeId) { ProductViewModelFactory(storeId) }
@@ -119,11 +119,8 @@ fun ProductReviewScreen(
     val isEdit = productId != null
 
     fun applyLocalCandidate(candidate: ProductLocalCandidate) {
-        if (onExistingProductSelected != null) {
-            onExistingProductSelected.invoke(candidate.product.id)
-        } else {
-            errorMessage = "This product already exists in your product master. Open it from Product Master instead of creating a duplicate."
-        }
+        onExistingProductSelected?.invoke(candidate.product.id)
+            ?: run { errorMessage = "This product already exists in your product master. Open it from Product Master instead of creating a duplicate." }
     }
 
     fun persistProduct() {
@@ -157,7 +154,7 @@ fun ProductReviewScreen(
             captureObservation = persistenceObservation
         ) { result ->
             when (result) {
-                SaveProductResult.Success -> onSaved?.invoke() ?: onBack()
+                SaveProductResult.Success -> onSaved?.invoke(productId ?: "") ?: onBack()
                 SaveProductResult.DuplicateSku -> errorMessage = "That SKU is already used by another product in this store."
                 SaveProductResult.DuplicateBarcode -> errorMessage = "That barcode is already assigned to another product in this store."
                 SaveProductResult.InvalidInput -> errorMessage = "Check the product name and numbers. Sale price must not exceed MRP, and stock/threshold cannot be negative."
@@ -194,30 +191,15 @@ fun ProductReviewScreen(
                     mrp = result.detectedMrp,
                     categoryHint = result.categoryHint,
                     categoryConfidence = result.labelConfidence,
-                    pack = if (result.detectedPackSize != null && !result.detectedPackUnit.isNullOrBlank()) {
-                        ParsedPack(
-                            result.detectedPackSize,
-                            result.detectedPackUnit,
-                            "${result.detectedPackSize} ${result.detectedPackUnit}"
-                        )
-                    } else null,
+                    pack = if (result.detectedPackSize != null && !result.detectedPackUnit.isNullOrBlank()) ParsedPack(result.detectedPackSize, result.detectedPackUnit, "${result.detectedPackSize} ${result.detectedPackUnit}") else null,
                     frameCount = result.frameCount
                 )
                 captureObservation = observation
                 val hasBarcode = !observation.barcode.isNullOrBlank()
                 val hasText = !observation.printedName.isNullOrBlank() || !observation.printedBrand.isNullOrBlank()
                 val hasVisual = observation.categoryHint != null
-                val packCompatible = observation.pack?.let {
-                    ProductPackCompatibility.classify(it, unit).compatibility != PackCompatibility.MISMATCH_REQUIRES_REVIEW
-                } ?: false
-                val baseScore = ProductIdentificationRanking.score(
-                    ProductIdentificationSignals(
-                        barcodeDetected = hasBarcode,
-                        printedTextDetected = hasText,
-                        visualHintDetected = hasVisual,
-                        packCompatibleWithSellingUnit = packCompatible
-                    )
-                )
+                val packCompatible = observation.pack?.let { ProductPackCompatibility.classify(it, unit).compatibility != PackCompatibility.MISMATCH_REQUIRES_REVIEW } ?: false
+                val baseScore = ProductIdentificationRanking.score(ProductIdentificationSignals(barcodeDetected = hasBarcode, printedTextDetected = hasText, visualHintDetected = hasVisual, packCompatibleWithSellingUnit = packCompatible))
                 identificationConfidence = baseScore.score
                 identificationStatus = when {
                     hasBarcode && hasText -> "IDENTIFICATION: BARCODE + CAMERA/OCR"
@@ -228,36 +210,18 @@ fun ProductReviewScreen(
                 }
                 identificationExplanation = baseScore.explanation
                 captureHint = buildString {
-                    observation.categoryHint?.let { hint ->
-                        append("Visual hint: $hint")
-                        observation.categoryConfidence?.let { append(" (${String.format(java.util.Locale.US, "%.0f%%", it * 100f)})") }
-                        append(". ")
-                    }
-                    observation.pack?.let { pack ->
-                        append("Observed pack: ${pack.sourceText}. Verify against selling unit.")
-                    }
+                    observation.categoryHint?.let { hint -> append("Visual hint: $hint"); observation.categoryConfidence?.let { append(" (${String.format(java.util.Locale.US, "%.0f%%", it * 100f)})") }; append(". ") }
+                    observation.pack?.let { pack -> append("Observed pack: ${pack.sourceText}. Verify against selling unit.") }
                     if (observation.frameCount > 1) append(" Evidence across ${observation.frameCount} frames.")
                 }.ifBlank { null }
 
                 localCandidateStatus = "Checking your local product master…"
-                viewModel.findLocalCaptureCandidates(
-                    name = observation.printedName,
-                    brand = observation.printedBrand
-                ) { candidates ->
-                    if (candidates.isEmpty()) {
-                        localCandidateStatus = "No strong local product match found."
-                    } else {
+                viewModel.findLocalCaptureCandidates(observation.printedName, observation.printedBrand) { candidates ->
+                    if (candidates.isEmpty()) localCandidateStatus = "No strong local product match found."
+                    else {
                         localCandidateStatus = "Local product matches found. Review before creating a new product."
                         val top = candidates.first()
-                        val localScore = ProductIdentificationRanking.score(
-                            ProductIdentificationSignals(
-                                barcodeDetected = hasBarcode,
-                                printedTextDetected = hasText,
-                                textAgreesWithCandidate = top.score >= 80,
-                                multipleFrameAgreement = observation.frameCount >= 2,
-                                packCompatibleWithSellingUnit = packCompatible
-                            )
-                        )
+                        val localScore = ProductIdentificationRanking.score(ProductIdentificationSignals(barcodeDetected = hasBarcode, printedTextDetected = hasText, textAgreesWithCandidate = top.score >= 80, multipleFrameAgreement = observation.frameCount >= 2, packCompatibleWithSellingUnit = packCompatible))
                         identificationConfidence = maxOf(identificationConfidence ?: 0, localScore.score)
                         identificationExplanation = "${localScore.explanation} ${top.explanation}"
                     }
@@ -272,21 +236,10 @@ fun ProductReviewScreen(
                         if (catalog != null) {
                             catalogCandidate = catalog
                             catalogStatus = "Catalog match found. Review it before applying catalog identity."
-                            val catalogScore = ProductIdentificationRanking.score(
-                                ProductIdentificationSignals(
-                                    barcodeDetected = true,
-                                    catalogMatched = true,
-                                    printedTextDetected = hasText,
-                                    textAgreesWithCandidate = hasText,
-                                    multipleFrameAgreement = observation.frameCount >= 2,
-                                    packCompatibleWithSellingUnit = packCompatible
-                                )
-                            )
+                            val catalogScore = ProductIdentificationRanking.score(ProductIdentificationSignals(barcodeDetected = true, catalogMatched = true, printedTextDetected = hasText, textAgreesWithCandidate = hasText, multipleFrameAgreement = observation.frameCount >= 2, packCompatibleWithSellingUnit = packCompatible))
                             identificationConfidence = maxOf(identificationConfidence ?: 0, catalogScore.score)
                             identificationExplanation = catalogScore.explanation
-                        } else {
-                            catalogStatus = "No public catalog match. Using camera/OCR detection only."
-                        }
+                        } else catalogStatus = "No public catalog match. Using camera/OCR detection only."
                     }
                 } else {
                     catalogStatus = null
@@ -307,10 +260,7 @@ fun ProductReviewScreen(
                 Text("Point the camera at the front of the product. Identity is a suggestion and must be reviewed before saving.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             identificationStatus?.let { Text(it, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold) }
-            identificationConfidence?.let {
-                val level = when { it >= 95 -> "HIGH"; it >= 80 -> "GOOD"; it >= 60 -> "MEDIUM"; it > 0 -> "LOW"; else -> "NONE" }
-                Text("IDENTIFICATION CONFIDENCE: $level ($it%)", color = if (it >= 80) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-            }
+            identificationConfidence?.let { val level = when { it >= 95 -> "HIGH"; it >= 80 -> "GOOD"; it >= 60 -> "MEDIUM"; it > 0 -> "LOW"; else -> "NONE" }; Text("IDENTIFICATION CONFIDENCE: $level ($it%)", color = if (it >= 80) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold) }
             identificationExplanation?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             OutlinedTextField(name, { name = it; errorMessage = null }, Modifier.fillMaxWidth(), label = { Text("Product name") }, singleLine = true)
             OutlinedTextField(brand, { brand = it }, Modifier.fillMaxWidth(), label = { Text("Brand") }, singleLine = true)
@@ -319,27 +269,10 @@ fun ProductReviewScreen(
                 OutlinedButton(onClick = { showBarcodeScanner = true }, modifier = Modifier.padding(top = 8.dp)) { Text("SCAN") }
             }
             OutlinedTextField(sku, { sku = it; errorMessage = null }, Modifier.fillMaxWidth(), label = { Text("SKU / Item code") }, singleLine = true)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                OutlinedTextField(mrp, { mrp = it }, Modifier.weight(1f), label = { Text("MRP") }, singleLine = true)
-                OutlinedTextField(sellingPrice, { sellingPrice = it }, Modifier.weight(1f), label = { Text("Sale price") }, singleLine = true)
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                OutlinedTextField(purchasePrice, { purchasePrice = it }, Modifier.weight(1f), label = { Text("Purchase price") }, singleLine = true)
-                OutlinedTextField(value = stock, onValueChange = { if (!isEdit) stock = it }, modifier = Modifier.weight(1f), label = { Text(if (isEdit) "Current stock" else "Opening stock") }, singleLine = true, enabled = !isEdit)
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                OutlinedTextField(unit, { unit = it }, Modifier.weight(1f), label = { Text("Unit") }, singleLine = true)
-                OutlinedTextField(lowStockThreshold, { lowStockThreshold = it }, Modifier.weight(1f), label = { Text("Low-stock alert") }, singleLine = true)
-            }
-            captureObservation?.pack?.let { pack ->
-                val compatibility = ProductPackCompatibility.classify(pack, unit)
-                Text(
-                    "OBSERVED PACK: ${pack.sourceText} • ${compatibility.explanation}",
-                    color = if (compatibility.compatibility == PackCompatibility.MISMATCH_REQUIRES_REVIEW) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-                    style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.Bold
-                )
-            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) { OutlinedTextField(mrp, { mrp = it }, Modifier.weight(1f), label = { Text("MRP") }, singleLine = true); OutlinedTextField(sellingPrice, { sellingPrice = it }, Modifier.weight(1f), label = { Text("Sale price") }, singleLine = true) }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) { OutlinedTextField(purchasePrice, { purchasePrice = it }, Modifier.weight(1f), label = { Text("Purchase price") }, singleLine = true); OutlinedTextField(value = stock, onValueChange = { if (!isEdit) stock = it }, modifier = Modifier.weight(1f), label = { Text(if (isEdit) "Current stock" else "Opening stock") }, singleLine = true, enabled = !isEdit) }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) { OutlinedTextField(unit, { unit = it }, Modifier.weight(1f), label = { Text("Unit") }, singleLine = true); OutlinedTextField(lowStockThreshold, { lowStockThreshold = it }, Modifier.weight(1f), label = { Text("Low-stock alert") }, singleLine = true) }
+            captureObservation?.pack?.let { pack -> val compatibility = ProductPackCompatibility.classify(pack, unit); Text("OBSERVED PACK: ${pack.sourceText} • ${compatibility.explanation}", color = if (compatibility.compatibility == PackCompatibility.MISMATCH_REQUIRES_REVIEW) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold) }
             localCandidateStatus?.let { Text(it, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall) }
             localCandidates.take(3).forEach { candidate ->
                 Column(Modifier.fillMaxWidth().padding(4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -361,23 +294,8 @@ fun ProductReviewScreen(
                     catalog.category?.let { Text("Category: $it", style = MaterialTheme.typography.bodyMedium) }
                     Text("Barcode-backed candidate. Applying it never changes retailer price, purchase price, stock or SKU.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                        Button(onClick = {
-                            catalog.name?.let { name = it }
-                            catalog.brand?.let { brand = it }
-                            catalog.quantity?.let { captureHint = "Catalog quantity: $it" }
-                            catalog.category?.let { captureHint = "Catalog category: $it" }
-                            identificationStatus = "IDENTIFICATION: CATALOG APPLIED"
-                            identificationConfidence = ProductIdentificationRanking.score(ProductIdentificationSignals(barcodeDetected = true, catalogMatched = true, barcodeMatchesCatalog = true)).score
-                            identificationExplanation = "Catalog candidate accepted by the retailer. Verify all fields before saving."
-                            catalogStatus = "Catalog identity applied. Store-controlled fields remain unchanged."
-                            catalogCandidate = null
-                        }, modifier = Modifier.weight(1f)) { Text("USE CATALOG") }
-                        OutlinedButton(onClick = {
-                            catalogCandidate = null
-                            identificationConfidence = ProductIdentificationRanking.score(ProductIdentificationSignals(barcodeDetected = barcode.isNotBlank(), printedTextDetected = name.isNotBlank() || brand.isNotBlank())).score
-                            identificationExplanation = "Catalog suggestion dismissed. Camera/OCR details remain under retailer control."
-                            catalogStatus = "Catalog suggestion dismissed."
-                        }, modifier = Modifier.weight(1f)) { Text("KEEP CAMERA") }
+                        Button(onClick = { catalog.name?.let { name = it }; catalog.brand?.let { brand = it }; catalog.quantity?.let { captureHint = "Catalog quantity: $it" }; catalog.category?.let { captureHint = "Catalog category: $it" }; identificationStatus = "IDENTIFICATION: CATALOG APPLIED"; identificationConfidence = ProductIdentificationRanking.score(ProductIdentificationSignals(barcodeDetected = true, catalogMatched = true, barcodeMatchesCatalog = true)).score; identificationExplanation = "Catalog candidate accepted by the retailer. Verify all fields before saving."; catalogStatus = "Catalog identity applied. Store-controlled fields remain unchanged."; catalogCandidate = null }, modifier = Modifier.weight(1f)) { Text("USE CATALOG") }
+                        OutlinedButton(onClick = { catalogCandidate = null; identificationConfidence = ProductIdentificationRanking.score(ProductIdentificationSignals(barcodeDetected = barcode.isNotBlank(), printedTextDetected = name.isNotBlank() || brand.isNotBlank())).score; identificationExplanation = "Catalog suggestion dismissed. Camera/OCR details remain under retailer control."; catalogStatus = "Catalog suggestion dismissed." }, modifier = Modifier.weight(1f)) { Text("KEEP CAMERA") }
                     }
                 }
             }
@@ -385,23 +303,10 @@ fun ProductReviewScreen(
             Text("ADDITIONAL BAR CODES", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
             if (productId == null) Text("Save the product first, then add additional barcodes.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             else {
-                barcodes.filter { !it.isPrimary }.forEach { code ->
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Column(Modifier.weight(1f)) { Text(code.value, fontWeight = FontWeight.Bold); Text(code.type, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                        TextButton(onClick = { viewModel.removeSecondaryBarcode(code.id) }) { Text("REMOVE") }
-                    }
-                }
+                barcodes.filter { !it.isPrimary }.forEach { code -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Column(Modifier.weight(1f)) { Text(code.value, fontWeight = FontWeight.Bold); Text(code.type, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }; TextButton(onClick = { viewModel.removeSecondaryBarcode(code.id) }) { Text("REMOVE") } } }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                     OutlinedTextField(secondaryBarcode, { secondaryBarcode = it; secondaryBarcodeError = null }, Modifier.weight(1f), label = { Text("Secondary barcode") }, singleLine = true)
-                    OutlinedButton(onClick = {
-                        viewModel.addSecondaryBarcode(productId, secondaryBarcode, "UNKNOWN") { result ->
-                            when (result) {
-                                BarcodeMutationResult.Success -> { secondaryBarcode = ""; secondaryBarcodeError = null }
-                                BarcodeMutationResult.Duplicate -> secondaryBarcodeError = "That barcode is already assigned to a product in this store."
-                                BarcodeMutationResult.Invalid -> secondaryBarcodeError = "Enter a barcode before adding it."
-                            }
-                        }
-                    }, modifier = Modifier.padding(top = 8.dp)) { Text("ADD") }
+                    OutlinedButton(onClick = { viewModel.addSecondaryBarcode(productId, secondaryBarcode, "UNKNOWN") { result -> when (result) { BarcodeMutationResult.Success -> { secondaryBarcode = ""; secondaryBarcodeError = null }; BarcodeMutationResult.Duplicate -> secondaryBarcodeError = "That barcode is already assigned to a product in this store."; BarcodeMutationResult.Invalid -> secondaryBarcodeError = "Enter a barcode before adding it." } } }, modifier = Modifier.padding(top = 8.dp)) { Text("ADD") }
                 }
                 secondaryBarcodeError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             }
