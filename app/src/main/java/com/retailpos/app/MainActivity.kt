@@ -7,7 +7,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
@@ -25,7 +24,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -39,8 +37,8 @@ import com.retailpos.app.data.AddToCartResult
 import com.retailpos.app.data.CartLine
 import com.retailpos.app.data.CartManager
 import com.retailpos.app.data.CustomerEntity
+import com.retailpos.app.data.HeldBillRepository
 import com.retailpos.app.data.HeldBillSnapshot
-import com.retailpos.app.data.HeldBillStore
 import com.retailpos.app.data.InventoryMovementReason
 import com.retailpos.app.data.ProductEntity
 import com.retailpos.app.data.ProductRepository
@@ -104,6 +102,7 @@ fun RetailPosApp(staffSession: StaffSession) {
     val scope = rememberCoroutineScope()
     val database = remember(context) { RetailDatabase.get(context) }
     val repository = remember(database) { ProductRepository(database.productDao(), database.productBarcodeDao()) }
+    val heldBillRepository = remember(database) { HeldBillRepository(database) }
     val cartManager = remember { CartManager() }
     var cart by remember { mutableStateOf(cartManager.lines) }
     var posQuery by remember { mutableStateOf("") }
@@ -118,11 +117,13 @@ fun RetailPosApp(staffSession: StaffSession) {
     var inventoryAdjustmentError by remember { mutableStateOf<String?>(null) }
     var inventoryReceiveError by remember { mutableStateOf<String?>(null) }
     var showHeldBills by remember { mutableStateOf(false) }
-    var heldBills by remember { mutableStateOf(HeldBillStore.list()) }
+    var heldBills by remember { mutableStateOf<List<HeldBillSnapshot>>(emptyList()) }
     val searchResults by repository.searchProducts(LOCAL_STORE_ID, posQuery).collectAsState(initial = emptyList())
     val customers by database.customerDao().observeAll(LOCAL_STORE_ID).collectAsState(initial = emptyList())
 
-    fun refreshHeldBills() { heldBills = HeldBillStore.list() }
+    fun refreshHeldBills() {
+        scope.launch { heldBills = heldBillRepository.list(LOCAL_STORE_ID) }
+    }
 
     fun replaceCart(lines: List<CartLine>) {
         cartManager.replace(lines)
@@ -153,42 +154,22 @@ fun RetailPosApp(staffSession: StaffSession) {
     fun handleVoiceInput(spoken: String) {
         scope.launch {
             val commands = VoiceOrderParser.parse(spoken)
-            if (commands == null) {
-                cartError = "I heard ‘$spoken’, but could not parse the order. Try ‘aadha kilo shakkar’ or ‘aadha kilo shakkar aur 1 litre tel’."
-                return@launch
-            }
+            if (commands == null) { cartError = "I heard ‘$spoken’, but could not parse the order. Try ‘aadha kilo shakkar’ or ‘aadha kilo shakkar aur 1 litre tel’."; return@launch }
             val resolved = mutableListOf<Pair<ProductEntity, Double>>()
             for (command in commands) {
                 val matches = repository.searchProducts(LOCAL_STORE_ID, command.productQuery).first()
-                if (matches.isEmpty()) {
-                    posQuery = command.productQuery
-                    cartError = "No product matched ‘${command.productQuery}’. Add the product to the catalog first. Nothing was added to the cart."
-                    return@launch
-                }
-                if (matches.size > 1) {
-                    posQuery = command.productQuery
-                    cartError = "Multiple products matched ‘${command.productQuery}’. Select the exact product before using this multi-item voice order. Nothing was added to the cart."
-                    return@launch
-                }
+                if (matches.isEmpty()) { posQuery = command.productQuery; cartError = "No product matched ‘${command.productQuery}’. Add the product to the catalog first. Nothing was added to the cart."; return@launch }
+                if (matches.size > 1) { posQuery = command.productQuery; cartError = "Multiple products matched ‘${command.productQuery}’. Select the exact product before using this multi-item voice order. Nothing was added to the cart."; return@launch }
                 val product = matches.first()
                 val normalizedQuantity = VoiceSaleCommandParser.toBaseQuantity(command.quantity, command.unit, product.unit)
-                if (normalizedQuantity == null) {
-                    cartError = "‘${command.unit}’ does not match ${product.name}'s selling unit ‘${product.unit}’. Nothing was added to the cart."
-                    return@launch
-                }
-                if (normalizedQuantity <= 0.0) {
-                    cartError = "The requested quantity for ${product.name} is invalid. Nothing was added to the cart."
-                    return@launch
-                }
+                if (normalizedQuantity == null) { cartError = "‘${command.unit}’ does not match ${product.name}'s selling unit ‘${product.unit}’. Nothing was added to the cart."; return@launch }
+                if (normalizedQuantity <= 0.0) { cartError = "The requested quantity for ${product.name} is invalid. Nothing was added to the cart."; return@launch }
                 resolved += product to normalizedQuantity
             }
             val requestedByProduct = resolved.groupBy { it.first.id }.mapValues { (_, entries) -> entries.sumOf { it.second } }
             for ((productId, requestedQuantity) in requestedByProduct) {
                 val product = resolved.first { it.first.id == productId }.first
-                if (requestedQuantity > product.stock) {
-                    cartError = "Requested ${requestedQuantity.clean()} ${product.unit} of ${product.name}, but only ${product.stock.clean()} ${product.unit} is available. Nothing was added to the cart."
-                    return@launch
-                }
+                if (requestedQuantity > product.stock) { cartError = "Requested ${requestedQuantity.clean()} ${product.unit} of ${product.name}, but only ${product.stock.clean()} ${product.unit} is available. Nothing was added to the cart."; return@launch }
             }
             resolved.forEach { (product, quantity) -> addProductToCart(product, quantity) }
         }
@@ -196,21 +177,27 @@ fun RetailPosApp(staffSession: StaffSession) {
 
     fun holdCurrentBill() {
         if (cart.isEmpty()) return
-        HeldBillStore.hold(cart)
-        cartManager.clear(); cart = emptyList(); posQuery = ""; cartError = "Bill held successfully."; refreshHeldBills()
+        scope.launch {
+            try {
+                heldBillRepository.hold(LOCAL_STORE_ID, cart)
+                cartManager.clear(); cart = emptyList(); posQuery = ""; cartError = "Bill held successfully."; refreshHeldBills()
+            } catch (error: Exception) { cartError = error.message ?: "Bill could not be held." }
+        }
     }
 
     fun restoreHeldBill(snapshot: HeldBillSnapshot) {
         if (cart.isNotEmpty()) { cartError = "Clear or hold the current bill before resuming another bill."; return }
         scope.launch {
-            val restored = snapshot.lines.map { line ->
-                val current = database.productDao().getById(line.productId, LOCAL_STORE_ID) ?: throw IllegalStateException("${line.name} no longer exists")
-                val stock = current.stock
-                if (line.quantity > stock) throw IllegalStateException("${line.name} has only ${stock.clean()} ${current.unit} available")
-                line.copy(unitPrice = current.sellingPrice)
-            }
-            runCatching { replaceCart(restored); HeldBillStore.take(snapshot.id); refreshHeldBills(); showHeldBills = false; cartError = "Held bill resumed." }
-                .onFailure { cartError = it.message ?: "Held bill could not be resumed." }
+            runCatching {
+                val restored = snapshot.lines.map { line ->
+                    val current = database.productDao().getById(line.productId, LOCAL_STORE_ID) ?: error("${line.name} no longer exists")
+                    if (line.quantity > current.stock + 1e-9) error("${line.name} has only ${current.stock.clean()} ${current.unit} available")
+                    line.copy(unitPrice = current.sellingPrice)
+                }
+                replaceCart(restored)
+                heldBillRepository.take(LOCAL_STORE_ID, snapshot.id) ?: error("Held bill is no longer available")
+                refreshHeldBills(); showHeldBills = false; cartError = "Held bill resumed."
+            }.onFailure { cartError = it.message ?: "Held bill could not be resumed." }
         }
     }
 
@@ -251,19 +238,12 @@ fun RetailPosApp(staffSession: StaffSession) {
 
     NavHost(navController = navController, startDestination = Routes.HOME) {
         composable(Routes.HOME) { HomeScreen(onNewBill = { navController.navigate(Routes.POS) }, onNavigate = navController::navigate) }
-        composable(Routes.POS) {
-            PosScreen(cart = cart, searchResults = searchResults, onSearchQueryChanged = { posQuery = it }, onAddProduct = { addProductToCart(it) }, onVoiceInput = ::handleVoiceInput, onVoiceError = { cartError = it }, onSetCartQuantity = ::setCartQuantity, onRemoveFromCart = { productId -> cartManager.remove(productId).also { cart = cartManager.lines } }, onBack = { navController.popBackStack() }, onOpenScanner = { navController.navigate(Routes.BILLING_SCANNER) }, onCheckout = { if (cart.isNotEmpty()) { checkoutIdempotencyKey = checkoutIdempotencyKey ?: UUID.randomUUID().toString(); navController.navigate(Routes.CHECKOUT) } }, onHoldBill = ::holdCurrentBill, onOpenHeldBills = { refreshHeldBills(); showHeldBills = true }, onClearBill = { cartManager.clear(); cart = emptyList(); posQuery = ""; cartError = "Bill cleared." })
-        }
+        composable(Routes.POS) { PosScreen(cart = cart, searchResults = searchResults, onSearchQueryChanged = { posQuery = it }, onAddProduct = { addProductToCart(it) }, onVoiceInput = ::handleVoiceInput, onVoiceError = { cartError = it }, onSetCartQuantity = ::setCartQuantity, onRemoveFromCart = { productId -> cartManager.remove(productId).also { cart = cartManager.lines } }, onBack = { navController.popBackStack() }, onOpenScanner = { navController.navigate(Routes.BILLING_SCANNER) }, onCheckout = { if (cart.isNotEmpty()) { checkoutIdempotencyKey = checkoutIdempotencyKey ?: UUID.randomUUID().toString(); navController.navigate(Routes.CHECKOUT) } }, onHoldBill = ::holdCurrentBill, onOpenHeldBills = { refreshHeldBills(); showHeldBills = true }, onClearBill = { cartManager.clear(); cart = emptyList(); posQuery = ""; cartError = "Bill cleared." }) }
         composable(Routes.CHECKOUT) { CheckoutScreen(cart = cart, customers = customers, onBack = { navController.popBackStack() }, onComplete = ::completeSale, isProcessing = checkoutProcessing, error = checkoutError) }
         composable(Routes.RECEIPT) { receiptSale?.let { sale -> ReceiptScreen(sale = sale, lines = receiptLines, onBack = { receiptSale = null; receiptLines = emptyList(); navController.navigate(Routes.HOME) { popUpTo(Routes.RECEIPT) { inclusive = true } } }, onShare = ::shareReceipt) } }
-        composable(Routes.BILLING_SCANNER) {
-            BarcodeScannerScreen(title = "BILLING SCANNER", onBack = { navController.popBackStack() }) { raw, _ -> scope.launch { val barcode = repository.getByBarcode(LOCAL_STORE_ID, raw); val product = barcode?.let { repository.getById(it.productId, LOCAL_STORE_ID) }; if (product == null) unknownBarcode = raw else { addProductToCart(product); if (cartError == null) navController.popBackStack() } } }
-        }
+        composable(Routes.BILLING_SCANNER) { BarcodeScannerScreen(title = "BILLING SCANNER", onBack = { navController.popBackStack() }) { raw, _ -> scope.launch { val barcode = repository.getByBarcode(LOCAL_STORE_ID, raw); val product = barcode?.let { repository.getById(it.productId, LOCAL_STORE_ID) }; if (product == null) unknownBarcode = raw else { addProductToCart(product); if (cartError == null) navController.popBackStack() } } } }
         composable(Routes.PRODUCTS) { ProductListScreen(storeId = LOCAL_STORE_ID, onBack = { navController.popBackStack() }, onAddProduct = { navController.navigate("products/add?barcode=&identify=false&returnToBilling=false") }, onIntelligentCapture = { navController.navigate("products/add?barcode=&identify=true&returnToBilling=false") }, onEditProduct = { navController.navigate("products/edit/$it") }, onEditDetails = { navController.navigate("products/details/$it") }) }
-        composable(Routes.ADD_PRODUCT, arguments = listOf(navArgument("barcode") { type = NavType.StringType; defaultValue = "" }, navArgument("identify") { type = NavType.BoolType; defaultValue = false }, navArgument("returnToBilling") { type = NavType.BoolType; defaultValue = false })) { entry ->
-            val initialBarcode = entry.arguments?.getString("barcode").orEmpty(); val returnToBilling = entry.arguments?.getBoolean("returnToBilling") ?: false
-            ProductReviewScreen(storeId = LOCAL_STORE_ID, productId = null, initialBarcode = initialBarcode, autoIdentify = entry.arguments?.getBoolean("identify") ?: false, onBack = { navController.popBackStack() }, onSaved = if (returnToBilling) ({ savedProductId -> scope.launch { val product = database.productDao().getById(savedProductId, LOCAL_STORE_ID); if (product != null) addProductToCart(product) else cartError = "The new product was saved, but it could not be loaded back into the bill."; navController.popBackStack(Routes.POS, inclusive = false) } }) else null, onExistingProductSelected = { existingProductId -> scope.launch { val product = database.productDao().getById(existingProductId, LOCAL_STORE_ID); if (product != null && returnToBilling) { addProductToCart(product); navController.popBackStack(Routes.POS, inclusive = false) } else if (product != null) navController.navigate("products/edit/$existingProductId") } })
-        }
+        composable(Routes.ADD_PRODUCT, arguments = listOf(navArgument("barcode") { type = NavType.StringType; defaultValue = "" }, navArgument("identify") { type = NavType.BoolType; defaultValue = false }, navArgument("returnToBilling") { type = NavType.BoolType; defaultValue = false })) { entry -> val initialBarcode = entry.arguments?.getString("barcode").orEmpty(); val returnToBilling = entry.arguments?.getBoolean("returnToBilling") ?: false; ProductReviewScreen(storeId = LOCAL_STORE_ID, productId = null, initialBarcode = initialBarcode, autoIdentify = entry.arguments?.getBoolean("identify") ?: false, onBack = { navController.popBackStack() }, onSaved = if (returnToBilling) ({ savedProductId -> scope.launch { val product = database.productDao().getById(savedProductId, LOCAL_STORE_ID); if (product != null) addProductToCart(product) else cartError = "The new product was saved, but it could not be loaded back into the bill."; navController.popBackStack(Routes.POS, inclusive = false) } }) else null, onExistingProductSelected = { existingProductId -> scope.launch { val product = database.productDao().getById(existingProductId, LOCAL_STORE_ID); if (product != null && returnToBilling) { addProductToCart(product); navController.popBackStack(Routes.POS, inclusive = false) } else if (product != null) navController.navigate("products/edit/$existingProductId") } }) }
         composable(Routes.EDIT_PRODUCT, arguments = listOf(navArgument("productId") { type = NavType.StringType })) { entry -> ProductReviewScreen(storeId = LOCAL_STORE_ID, productId = entry.arguments?.getString("productId"), onBack = { navController.popBackStack() }) }
         composable(Routes.PRODUCT_DETAILS, arguments = listOf(navArgument("productId") { type = NavType.StringType })) { entry -> ProductMetadataScreen(storeId = LOCAL_STORE_ID, productId = entry.arguments?.getString("productId").orEmpty(), onBack = { navController.popBackStack() }) }
         composable(Routes.INVENTORY) { InventoryScreen(storeId = LOCAL_STORE_ID, repository = repository, inventoryMovements = { database.inventoryDao().getMovements(LOCAL_STORE_ID) }, onBack = { navController.popBackStack() }, onOpenProduct = { navController.navigate("inventory/detail/$it") }, onAdjustProduct = { navController.navigate("inventory/adjust/$it") }, onReceiveProduct = { navController.navigate("inventory/receive/$it") }) }
@@ -271,11 +251,7 @@ fun RetailPosApp(staffSession: StaffSession) {
         composable(Routes.INVENTORY_ADJUST, arguments = listOf(navArgument("productId") { type = NavType.StringType })) { entry -> InventoryAdjustmentScreen(productId = entry.arguments?.getString("productId").orEmpty(), onBack = { navController.popBackStack() }, error = inventoryAdjustmentError, onSubmit = { productId, delta, reason -> adjustInventory(productId, delta, reason) }) }
         composable(Routes.INVENTORY_RECEIVE, arguments = listOf(navArgument("productId") { type = NavType.StringType })) { entry -> InventoryReceiveScreen(productId = entry.arguments?.getString("productId").orEmpty(), onBack = { navController.popBackStack() }, error = inventoryReceiveError, onSubmit = { productId, quantity, batch, expiry, purchasePrice -> receiveInventory(productId, quantity, batch, expiry, purchasePrice) }) }
         composable(Routes.CUSTOMERS) { CustomersScreen(storeId = LOCAL_STORE_ID, dao = database.customerDao(), khataDao = database.khataDao(), onOpenCustomer = { navController.navigate("customers/khata/${it.id}") }, onBack = { navController.popBackStack() }) }
-        composable(Routes.CUSTOMER_KHATA, arguments = listOf(navArgument("customerId") { type = NavType.StringType })) { entry ->
-            val customerId = entry.arguments?.getString("customerId").orEmpty()
-            val customer by androidx.compose.runtime.produceState<CustomerEntity?>(initialValue = null, customerId) { value = database.customerDao().getById(customerId, LOCAL_STORE_ID) }
-            customer?.let { CustomerKhataScreen(storeId = LOCAL_STORE_ID, customer = it, dao = database.khataDao(), onBack = { navController.popBackStack() }) }
-        }
+        composable(Routes.CUSTOMER_KHATA, arguments = listOf(navArgument("customerId") { type = NavType.StringType })) { entry -> val customerId = entry.arguments?.getString("customerId").orEmpty(); val customer by androidx.compose.runtime.produceState<CustomerEntity?>(initialValue = null, customerId) { value = database.customerDao().getById(customerId, LOCAL_STORE_ID) }; customer?.let { CustomerKhataScreen(storeId = LOCAL_STORE_ID, customer = it, dao = database.khataDao(), onBack = { navController.popBackStack() }) } }
         composable(Routes.ANALYTICS) { AnalyticsScreen(storeId = LOCAL_STORE_ID, saleDao = database.saleDao(), inventoryDao = database.inventoryDao(), onBack = { navController.popBackStack() }) }
         composable(Routes.SETTINGS) { SettingsScreen(context, onBack = { navController.popBackStack() }) }
     }
