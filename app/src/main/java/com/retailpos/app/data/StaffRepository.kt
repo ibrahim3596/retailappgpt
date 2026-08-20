@@ -1,8 +1,8 @@
 package com.retailpos.app.data
 
+import com.retailpos.app.core.permissions.StaffRole
 import com.retailpos.app.core.staff.StaffPinHasher
 import com.retailpos.app.core.staff.StaffPinPolicy
-import com.retailpos.app.core.staff.StaffRole
 import com.retailpos.app.core.staff.StaffSession
 import java.util.UUID
 
