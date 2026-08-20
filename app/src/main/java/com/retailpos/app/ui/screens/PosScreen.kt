@@ -42,9 +42,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.retailpos.app.core.pos.QuickAddProduct
 import com.retailpos.app.data.CartLine
 import com.retailpos.app.data.HeldBillStore
 import com.retailpos.app.data.ProductEntity
+import com.retailpos.app.ui.components.PosQuickAddSection
 import com.retailpos.app.ui.components.VoiceBillingButton
 import java.util.Locale
 
@@ -53,8 +55,13 @@ import java.util.Locale
 fun PosScreen(
     cart: List<CartLine>,
     searchResults: List<ProductEntity>,
+    recentlySold: List<QuickAddProduct> = emptyList(),
+    favorites: List<QuickAddProduct> = emptyList(),
     onSearchQueryChanged: (String) -> Unit,
     onAddProduct: (ProductEntity) -> Unit,
+    onQuickAdd: (QuickAddProduct) -> Unit = {},
+    onToggleFavorite: (QuickAddProduct) -> Unit = {},
+    isFavorite: (QuickAddProduct) -> Boolean = { false },
     onVoiceInput: (String) -> Unit,
     onVoiceError: (String) -> Unit,
     onSetCartQuantity: (CartLine, Double) -> Unit,
@@ -101,6 +108,10 @@ fun PosScreen(
     ) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedTextField(value = query, onValueChange = { query = it; onSearchQueryChanged(it) }, modifier = Modifier.weight(1f), singleLine = true, leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) }, placeholder = { Text("Search products, barcode or SKU") }); IconButton(onClick = onOpenScanner, modifier = Modifier.height(56.dp)) { Icon(Icons.Default.CameraAlt, contentDescription = "Scan") } } }
+            if (!showingSearch) {
+                item { PosQuickAddSection(title = "RECENTLY SOLD", products = recentlySold, onAdd = onQuickAdd, onToggleFavorite = onToggleFavorite, isFavorite = isFavorite) }
+                item { PosQuickAddSection(title = "FAVORITES", products = favorites, onAdd = onQuickAdd, onToggleFavorite = onToggleFavorite, isFavorite = isFavorite) }
+            }
             if (showingSearch) {
                 item { Text("PRODUCTS", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold) }
                 if (searchResults.isEmpty()) item { Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(20.dp)) { Icon(Icons.Default.Search, contentDescription = null); Spacer(Modifier.height(8.dp)); Text("No products found", fontWeight = FontWeight.Bold); Spacer(Modifier.height(4.dp)); Text("Try a different name, SKU or barcode.", color = MaterialTheme.colorScheme.onSurfaceVariant) } } }
