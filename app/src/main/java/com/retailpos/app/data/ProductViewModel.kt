@@ -66,52 +66,6 @@ class ProductViewModel(application: Application, private val storeId: String) : 
 
     fun removeSecondaryBarcode(barcodeId: String) { viewModelScope.launch { repository.removeSecondaryBarcode(barcodeId, storeId) } }
 
-    fun saveProductMetadata(
-        productId: String,
-        category: String,
-        subcategory: String,
-        packSize: Double?,
-        packUnit: String,
-        description: String,
-        imageUri: String?,
-        onResult: (ProductMetadataSaveResult) -> Unit
-    ) {
-        val normalizedCategory = category.trim().take(100)
-        val normalizedSubcategory = subcategory.trim().take(100)
-        val normalizedPackUnit = packUnit.trim().take(32)
-        val normalizedDescription = description.trim().take(1000)
-        if (normalizedCategory.length > 100 || normalizedSubcategory.length > 100 || normalizedPackUnit.length > 32 || normalizedDescription.length > 1000) {
-            onResult(ProductMetadataSaveResult.InvalidInput)
-            return
-        }
-        if (packSize != null && (!packSize.isFinite() || packSize <= 0.0)) {
-            onResult(ProductMetadataSaveResult.InvalidInput)
-            return
-        }
-        viewModelScope.launch {
-            runCatching {
-                metadataRepository.save(
-                    ProductMetadataEntity(
-                        productId = productId,
-                        storeId = storeId,
-                        category = normalizedCategory,
-                        subcategory = normalizedSubcategory,
-                        packSize = packSize,
-                        packUnit = normalizedPackUnit,
-                        description = normalizedDescription,
-                        imageUri = imageUri?.takeIf { it.isNotBlank() },
-                        updatedAt = System.currentTimeMillis()
-                    )
-                )
-            }.onSuccess {
-                _metadata.value = metadataRepository.get(productId, storeId)
-                onResult(ProductMetadataSaveResult.Success)
-            }.onFailure {
-                onResult(ProductMetadataSaveResult.Error)
-            }
-        }
-    }
-
     fun saveProduct(
         productId: String?, name: String, brand: String, barcode: String, sku: String,
         mrp: Double, sellingPrice: Double, purchasePrice: Double, stock: Double,
@@ -154,7 +108,6 @@ class ProductViewModel(application: Application, private val storeId: String) : 
 }
 
 enum class SaveProductResult { Success, DuplicateSku, DuplicateBarcode, InvalidInput, Error }
-enum class ProductMetadataSaveResult { Success, InvalidInput, Error }
 
 class ProductViewModelFactory(private val storeId: String) : ViewModelProvider.Factory {
     override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {
