@@ -38,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.retailpos.app.PurchaseActivity
 import com.retailpos.app.StaffGateActivity
 import com.retailpos.app.core.staff.StaffSessionStore
 
@@ -62,6 +63,11 @@ fun HomeScreen(
         context.startActivity(Intent(context, StaffGateActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
         })
+    }
+
+    fun openQuickAction(route: String) {
+        if (route == "purchases") context.startActivity(Intent(context, PurchaseActivity::class.java))
+        else onNavigate(route)
     }
 
     Scaffold(
@@ -93,7 +99,7 @@ fun HomeScreen(
             item { Text("Quick access", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
             items(quickActions.size) { index ->
                 val (route, action) = quickActions[index]
-                OutlinedButton(onClick = { onNavigate(route) }, modifier = Modifier.fillMaxWidth().height(52.dp), contentPadding = PaddingValues(horizontal = 16.dp)) {
+                OutlinedButton(onClick = { openQuickAction(route) }, modifier = Modifier.fillMaxWidth().height(52.dp), contentPadding = PaddingValues(horizontal = 16.dp)) {
                     Icon(action.first, contentDescription = null)
                     Spacer(Modifier.width(12.dp))
                     Text(action.second, modifier = Modifier.fillMaxWidth(), fontWeight = FontWeight.Medium)
