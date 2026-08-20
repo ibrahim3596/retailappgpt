@@ -30,6 +30,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.retailpos.app.core.payment.PendingPaymentStore
 import com.retailpos.app.core.pos.CartLinePricingRules
 import com.retailpos.app.core.products.VoiceOrderParser
 import com.retailpos.app.core.products.VoiceSaleCommandParser
@@ -191,7 +192,7 @@ fun RetailPosApp(staffSession: StaffSession) {
         scope.launch {
             try {
                 heldBillRepository.hold(LOCAL_STORE_ID, cart)
-                cartManager.clear(); cart = emptyList(); posQuery = ""; cartError = "Bill held successfully."; refreshHeldBills()
+                cartManager.clear(); cart = emptyList(); posQuery = ""; PendingPaymentStore.clear(); checkoutIdempotencyKey = null; cartError = "Bill held successfully."; refreshHeldBills()
             } catch (error: Exception) { cartError = error.message ?: "Bill could not be held." }
         }
     }
@@ -206,6 +207,8 @@ fun RetailPosApp(staffSession: StaffSession) {
                     line.copy(unitPrice = current.sellingPrice)
                 }
                 replaceCart(restored)
+                checkoutIdempotencyKey = null
+                PendingPaymentStore.clear()
                 heldBillRepository.take(LOCAL_STORE_ID, snapshot.id) ?: error("Held bill is no longer available")
                 refreshHeldBills(); showHeldBills = false; cartError = "Held bill resumed."
             }.onFailure { cartError = it.message ?: "Held bill could not be resumed." }
@@ -226,11 +229,12 @@ fun RetailPosApp(staffSession: StaffSession) {
         if (checkoutProcessing || cart.isEmpty()) return
         checkoutProcessing = true; checkoutError = null
         val cartSnapshot = cart.toList()
-        val idempotencyKey = checkoutIdempotencyKey ?: UUID.randomUUID().toString().also { checkoutIdempotencyKey = it }
+        val idempotencyKey = checkoutIdempotencyKey
+            ?: PendingPaymentStore.getOrCreateIdempotencyKey { UUID.randomUUID().toString() }.also { checkoutIdempotencyKey = it }
         scope.launch {
             try {
                 val result = database.saleDao().checkout(LOCAL_STORE_ID, cartSnapshot, paymentMethod, idempotencyKey, customerId?.takeIf { it.isNotBlank() }, billDiscountAmount = billDiscountAmount, staffRole = staffSession.role)
-                cartManager.clear(); cart = emptyList(); posQuery = ""; checkoutIdempotencyKey = null; checkoutProcessing = false
+                cartManager.clear(); cart = emptyList(); posQuery = ""; checkoutIdempotencyKey = null; PendingPaymentStore.clear(); checkoutProcessing = false
                 navController.navigate(Routes.HOME) { popUpTo(Routes.POS) { inclusive = true } }
                 completedSale = result.saleId
             } catch (error: Exception) { checkoutProcessing = false; checkoutError = error.message ?: "Sale could not be completed. No stock was deducted." }
@@ -249,7 +253,7 @@ fun RetailPosApp(staffSession: StaffSession) {
 
     NavHost(navController = navController, startDestination = Routes.HOME) {
         composable(Routes.HOME) { HomeScreen(onNewBill = { navController.navigate(Routes.POS) }, onNavigate = navController::navigate) }
-        composable(Routes.POS) { PosScreen(cart = cart, searchResults = searchResults, onSearchQueryChanged = { posQuery = it }, onAddProduct = { addProductToCart(it) }, onVoiceInput = ::handleVoiceInput, onVoiceError = { cartError = it }, onSetCartQuantity = ::setCartQuantity, onRemoveFromCart = { productId -> cartManager.remove(productId).also { cart = cartManager.lines } }, onBack = { navController.popBackStack() }, onOpenScanner = { navController.navigate(Routes.BILLING_SCANNER) }, onCheckout = { if (cart.isNotEmpty()) { checkoutIdempotencyKey = checkoutIdempotencyKey ?: UUID.randomUUID().toString(); navController.navigate(Routes.CHECKOUT) } }, onHoldBill = ::holdCurrentBill, onOpenHeldBills = { refreshHeldBills(); showHeldBills = true }, onClearBill = { cartManager.clear(); cart = emptyList(); posQuery = ""; cartError = "Bill cleared." }) }
+        composable(Routes.POS) { PosScreen(cart = cart, searchResults = searchResults, onSearchQueryChanged = { posQuery = it }, onAddProduct = { addProductToCart(it) }, onVoiceInput = ::handleVoiceInput, onVoiceError = { cartError = it }, onSetCartQuantity = ::setCartQuantity, onRemoveFromCart = { productId -> cartManager.remove(productId).also { cart = cartManager.lines } }, onBack = { navController.popBackStack() }, onOpenScanner = { navController.navigate(Routes.BILLING_SCANNER) }, onCheckout = { if (cart.isNotEmpty()) { checkoutIdempotencyKey = PendingPaymentStore.getOrCreateIdempotencyKey { UUID.randomUUID().toString() }; navController.navigate(Routes.CHECKOUT) } }, onHoldBill = ::holdCurrentBill, onOpenHeldBills = { refreshHeldBills(); showHeldBills = true }, onClearBill = { cartManager.clear(); cart = emptyList(); posQuery = ""; PendingPaymentStore.clear(); checkoutIdempotencyKey = null; cartError = "Bill cleared." }) }
         composable(Routes.CHECKOUT) { CheckoutScreen(cart = cart, customers = customers, onBack = { navController.popBackStack() }, onComplete = ::completeSale, isProcessing = checkoutProcessing, error = checkoutError, staffRole = staffSession.role, onUpdateCartLine = ::updateCartLinePricing) }
         composable(Routes.RECEIPT) { receiptSale?.let { sale -> ReceiptScreen(sale = sale, lines = receiptLines, onBack = { receiptSale = null; receiptLines = emptyList(); navController.navigate(Routes.HOME) { popUpTo(Routes.RECEIPT) { inclusive = true } } }, onShare = ::shareReceipt) } }
         composable(Routes.BILLING_SCANNER) { BarcodeScannerScreen(title = "BILLING SCANNER", onBack = { navController.popBackStack() }) { raw, _ -> scope.launch { val barcode = repository.getByBarcode(LOCAL_STORE_ID, raw); val product = barcode?.let { repository.getById(it.productId, LOCAL_STORE_ID) }; if (product == null) unknownBarcode = raw else { addProductToCart(product); if (cartError == null) navController.popBackStack() } } } }
