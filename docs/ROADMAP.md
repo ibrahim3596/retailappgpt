@@ -6,7 +6,7 @@ RetailPOS V2 is being built as a **real shopkeeper-first retail POS**, not a dem
 
 ## Current build state
 
-**Active focus: Product Master → canonical SKU/barcode system → product list/search/filtering → product create/edit → intelligent identification.**
+**Product Master is functionally complete as a foundation:** canonical SKU/barcode identity, product create/edit, product list/search/filtering, alternate barcodes, product metadata, category/subcategory, pack data, description, product image, and a dedicated product-details screen are wired together. Intelligent Capture remains the next major feature to finish before moving to full POS hardening.
 
 ### Development rule
 
@@ -35,17 +35,18 @@ Build coherent vertical slices, validate logic locally, and reserve GitHub Actio
 
 ## Data integrity
 
-- [x] Stable IDs for product/barcode/cache foundations
+- [x] Stable IDs for product/barcode/cache/metadata foundations
 - [x] Database migration strategy foundation
 - [ ] Referential integrity across all entities
 - [ ] Transaction boundaries for sales/inventory/Khata
 - [x] Product + primary barcode save protected by Room transaction
+- [ ] Product + metadata saved in one atomic transaction
 - [ ] Money/quantity precision strategy
 - [ ] Date/time/timezone strategy
 
 ---
 
-# 2. Product master — current priority
+# 2. Product master — foundation complete
 
 ## Product identity
 
@@ -71,12 +72,13 @@ Build coherent vertical slices, validate logic locally, and reserve GitHub Actio
 
 - [x] Product name
 - [x] Brand
-- [ ] Category/subcategory
-- [ ] Unit of measure selector
-- [ ] Pack size / quantity per pack
+- [x] Category/subcategory persistence + editor
+- [x] Unit/pack unit editing
+- [x] Pack size / quantity per pack persistence + editor
 - [ ] Variant support
-- [ ] Product image
-- [ ] Description/notes
+- [x] Product image URI persistence
+- [x] Product image picker + preview + remove
+- [x] Description/notes
 - [x] Purchase price/cost foundation
 - [x] Selling price foundation
 - [x] MRP foundation
@@ -93,6 +95,7 @@ Build coherent vertical slices, validate logic locally, and reserve GitHub Actio
 - [x] Stock filter logic: All / Low stock / Out of stock
 - [x] Stock filter unit tests
 - [x] Product rows show selling price and stock state
+- [x] Product details entry point
 - [ ] Product list filter UI polish
 - [ ] Category filters
 - [ ] Sort options
@@ -102,10 +105,10 @@ Build coherent vertical slices, validate logic locally, and reserve GitHub Actio
 
 - [x] Add-product navigation foundation
 - [x] Edit-product navigation foundation
-- [ ] Complete create product workflow polish
-- [ ] Complete edit product workflow polish
-- [ ] Dedicated product detail view
-- [ ] Dedicated barcode management section
+- [x] Create product core flow
+- [x] Edit product core flow
+- [x] Dedicated product details view
+- [x] Dedicated barcode management section
 - [ ] Duplicate/copy product
 - [ ] Archive product
 - [ ] Restore product
@@ -126,7 +129,7 @@ Build coherent vertical slices, validate logic locally, and reserve GitHub Actio
 
 ---
 
-# 3. Intelligent Product Capture
+# 3. Intelligent Product Capture — next major focus
 
 ## Capture inputs
 
@@ -136,7 +139,7 @@ Build coherent vertical slices, validate logic locally, and reserve GitHub Actio
 - [x] Visual/image-label foundation
 - [x] Manual barcode entry fallback
 - [x] Manual product search fallback
-- [ ] Product image capture
+- [x] Product image selection/persistence
 - [ ] Multiple-frame capture
 
 ## Identification pipeline
@@ -194,7 +197,7 @@ Build coherent vertical slices, validate logic locally, and reserve GitHub Actio
 
 ---
 
-# 5. POS / billing
+# 5. POS / billing — after Intelligent Capture
 
 ## Product entry
 
@@ -429,7 +432,7 @@ Build coherent vertical slices, validate logic locally, and reserve GitHub Actio
 - [ ] Shared buttons/fields/cards
 - [ ] Shared dialogs/sheets
 - [ ] Scanner UI consistency
-- [ ] Product form consistency
+- [x] Product metadata editor consistency
 - [ ] Empty/loading/error states
 - [ ] Accessibility
 - [ ] Touch-target audit
@@ -469,6 +472,7 @@ Build coherent vertical slices, validate logic locally, and reserve GitHub Actio
 - [x] QR rejection rules
 - [x] Identification confidence
 - [x] Product list stock-filter rules
+- [x] Product metadata validation foundation
 - [ ] Money calculations
 - [ ] Quantity calculations
 - [ ] Tax/discount calculations
@@ -482,9 +486,11 @@ Build coherent vertical slices, validate logic locally, and reserve GitHub Actio
 
 - [ ] DAO CRUD
 - [ ] Constraints
-- [ ] Migrations
+- [x] Database migration 10 → 11
+- [ ] Full migration verification
 - [ ] Duplicate identifiers
 - [x] Product + primary barcode transaction path
+- [ ] Product + metadata atomic save
 - [ ] Full transactional audit
 - [x] Identification cache foundation
 - [ ] Full offline behavior
@@ -509,6 +515,7 @@ Build coherent vertical slices, validate logic locally, and reserve GitHub Actio
 - [ ] Different packaging/barcode sizes
 - [ ] Rapid scans
 - [ ] Offline billing
+- [ ] Product image picker/preview
 - [ ] Printer/receipt workflow
 
 ---
@@ -554,17 +561,16 @@ A feature is done when:
 
 # 21. Priority order
 
-1. **Product Master + canonical SKU/barcode system**
-2. **Intelligent Product Capture**
-3. **POS/billing**
-4. **Inventory**
-5. **Customers + Khata**
-6. **Suppliers/purchasing**
-7. **Reports + expenses**
-8. **Staff/permissions + settings**
-9. **Offline reliability**
-10. **Cloud backup/sync**
-11. **Testing, hardening and release**
+1. **Finish Intelligent Product Capture**
+2. **POS/billing end-to-end**
+3. **Inventory hardening**
+4. **Customers + Khata end-to-end**
+5. **Suppliers/purchasing**
+6. **Reports + expenses**
+7. **Staff/permissions + settings**
+8. **Offline reliability**
+9. **Cloud backup/sync**
+10. **Testing, hardening and release**
 
 Prefer completing an end-to-end workflow before jumping to unrelated UI.
 
