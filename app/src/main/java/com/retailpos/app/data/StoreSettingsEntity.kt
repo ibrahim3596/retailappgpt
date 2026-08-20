@@ -9,5 +9,6 @@ data class StoreSettingsEntity(
     val gstMode: String = "NO_GST",
     val defaultTaxRatePercent: Double = 0.0,
     val currency: String = "INR",
-    val updatedAt: Long
+    val updatedAt: Long,
+    val upiVpa: String = ""
 )
