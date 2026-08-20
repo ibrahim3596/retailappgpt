@@ -31,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.retailpos.app.core.payment.PaymentSettlementRules
+import com.retailpos.app.core.payment.PendingPaymentStore
 import com.retailpos.app.core.products.CheckoutPricingPreview
 import com.retailpos.app.core.products.CheckoutPricingPreviewCalculator
 import com.retailpos.app.core.products.StoreTaxMode
@@ -49,7 +50,7 @@ fun CheckoutScreen(
     cart: List<CartLine>,
     customers: List<CustomerEntity>,
     onBack: () -> Unit,
-    onComplete: (String, String?, Double, Double?) -> Unit,
+    onComplete: (String, String?, Double) -> Unit,
     isProcessing: Boolean,
     error: String?
 ) {
@@ -90,16 +91,13 @@ fun CheckoutScreen(
     val discount = pricingPreview?.discountAmount ?: 0.0
     val tax = pricingPreview?.taxAmount ?: 0.0
     val tendered = cashTenderedInput.replace(',', '.').toDoubleOrNull()
-    val previewPayment = runCatching { PaymentSettlementRules.settle(paymentMethod, total, if (paymentMethod == "CASH") tendered else null) }.getOrNull()
-    val change = previewPayment?.change ?: 0.0
+    val paymentPreview = runCatching { PaymentSettlementRules.settle(paymentMethod, total, if (paymentMethod == "CASH") tendered else null) }.getOrNull()
+    val change = paymentPreview?.change ?: 0.0
 
     LaunchedEffect(paymentMethod, cashTenderedInput, total) {
-        paymentError = when (paymentMethod) {
-            "CASH" -> runCatching { PaymentSettlementRules.settle("CASH", total, tendered) }.exceptionOrNull()?.message
-            "UPI", "CARD" -> if (paymentMethod == "UPI" || paymentMethod == "CARD") null else null
-            "CREDIT" -> null
-            else -> "Unsupported payment method"
-        }
+        paymentError = runCatching {
+            PaymentSettlementRules.settle(paymentMethod, total, if (paymentMethod == "CASH") tendered else null)
+        }.exceptionOrNull()?.message
     }
 
     Scaffold(topBar = { TopAppBar(title = { Text("CHECKOUT", fontWeight = FontWeight.Black) }) }) { padding ->
@@ -146,17 +144,17 @@ fun CheckoutScreen(
                         Text("PAYMENT", fontWeight = FontWeight.Bold)
                         PAYMENT_METHODS.forEach { method ->
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                RadioButton(selected = paymentMethod == method, onClick = { paymentMethod = method; paymentError = null }, enabled = !isProcessing)
+                                RadioButton(selected = paymentMethod == method, onClick = { paymentMethod = method; paymentError = null; if (method != "CASH") cashTenderedInput = "" }, enabled = !isProcessing)
                                 Text(method, modifier = Modifier.padding(top = 12.dp))
                             }
                         }
-                        if (paymentMethod == "CASH") {
-                            OutlinedTextField(cashTenderedInput, { cashTenderedInput = it.filter { c -> c.isDigit() || c == '.' || c == ',' }; paymentError = null }, enabled = !isProcessing, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Cash received") })
-                            if (change > 0.0) Text("Change: ${money(change)}", fontWeight = FontWeight.Bold)
-                        } else if (paymentMethod == "UPI" || paymentMethod == "CARD") {
-                            Text("Collect exactly ${money(total)} using $paymentMethod.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        } else {
-                            Text("Credit sale will be added to this customer's Khata.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        when (paymentMethod) {
+                            "CASH" -> {
+                                OutlinedTextField(cashTenderedInput, { cashTenderedInput = it.filter { c -> c.isDigit() || c == '.' || c == ',' }; paymentError = null }, enabled = !isProcessing, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Cash received") })
+                                if (change > 0.0) Text("Change: ${money(change)}", fontWeight = FontWeight.Bold)
+                            }
+                            "UPI", "CARD" -> Text("Collect exactly ${money(total)} using $paymentMethod.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            "CREDIT" -> Text("Credit sale will be added to this customer's Khata.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
@@ -179,7 +177,7 @@ fun CheckoutScreen(
             item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedButton(onClick = onBack, enabled = !isProcessing, modifier = Modifier.weight(1f).height(56.dp)) { Text("BACK") }
-                    Button(onClick = { onComplete(paymentMethod, selectedCustomer?.id, discount, if (paymentMethod == "CASH") tendered else if (paymentMethod == "UPI" || paymentMethod == "CARD") total else null) }, enabled = cart.isNotEmpty() && !isProcessing && !creditWithoutCustomer && pricingPreview != null && pricingError == null && paymentError == null, modifier = Modifier.weight(1.4f).height(56.dp)) { Text(if (isProcessing) "PROCESSING…" else "COMPLETE SALE", fontWeight = FontWeight.Bold) }
+                    Button(onClick = { PendingPaymentStore.set(if (paymentMethod == "CASH") tendered else null); onComplete(paymentMethod, selectedCustomer?.id, discount) }, enabled = cart.isNotEmpty() && !isProcessing && !creditWithoutCustomer && pricingPreview != null && pricingError == null && paymentError == null, modifier = Modifier.weight(1.4f).height(56.dp)) { Text(if (isProcessing) "PROCESSING…" else "COMPLETE SALE", fontWeight = FontWeight.Bold) }
                 }
             }
         }
