@@ -24,5 +24,6 @@
         </activity>
         <activity android:name=".MainActivity" android:exported="false" />
         <activity android:name=".PurchaseActivity" android:exported="false" />
+        <activity android:name=".ReturnActivity" android:exported="false" />
     </application>
 </manifest>
