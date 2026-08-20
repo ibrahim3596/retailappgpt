@@ -51,6 +51,7 @@ import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import com.retailpos.app.core.products.ProductCaptureConsensus
 import com.retailpos.app.core.products.ProductCaptureObservation
 import com.retailpos.app.core.products.ProductCaptureParser
+import com.retailpos.app.core.products.ProductCaptureStabilityRules
 import com.retailpos.app.core.products.ProductPackParser
 import java.util.concurrent.Executors
 
@@ -65,7 +66,8 @@ data class ProductCaptureResult(
     val detectedPackUnit: String?,
     val rawText: String,
     val labelConfidence: Float?,
-    val frameCount: Int
+    val frameCount: Int,
+    val stabilityExplanation: String
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -135,7 +137,6 @@ fun IntelligentProductCaptureScreen(
                                 imageProxy.close()
                                 return@setAnalyzer
                             }
-
                             val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
                             var barcode: String? = null
                             var text = ""
@@ -168,7 +169,7 @@ fun IntelligentProductCaptureScreen(
                                 val next = (observations + observation).takeLast(6)
                                 observations = next
                                 val consensus = ProductCaptureConsensus.merge(next) ?: observation
-                                val frameCount = consensus.frameCount
+                                val stability = ProductCaptureStabilityRules.evaluate(consensus)
                                 val current = resultPreview
                                 val fingerprint = listOf(
                                     consensus.barcode,
@@ -178,10 +179,11 @@ fun IntelligentProductCaptureScreen(
                                     consensus.mrp,
                                     consensus.pack?.size,
                                     consensus.pack?.unit,
-                                    frameCount
+                                    consensus.frameCount,
+                                    stability.stable
                                 ).joinToString("|")
                                 val currentFingerprint = current?.let {
-                                    listOf(it.barcode, it.detectedName, it.detectedBrand, it.categoryHint, it.detectedMrp, it.detectedPackSize, it.detectedPackUnit, it.frameCount).joinToString("|")
+                                    listOf(it.barcode, it.detectedName, it.detectedBrand, it.categoryHint, it.detectedMrp, it.detectedPackSize, it.detectedPackUnit, it.frameCount, it.stabilityExplanation).joinToString("|")
                                 }
                                 if (fingerprint != currentFingerprint) {
                                     resultPreview = ProductCaptureResult(
@@ -194,7 +196,8 @@ fun IntelligentProductCaptureScreen(
                                         detectedPackUnit = consensus.pack?.unit,
                                         rawText = text,
                                         labelConfidence = consensus.categoryConfidence,
-                                        frameCount = frameCount
+                                        frameCount = consensus.frameCount,
+                                        stabilityExplanation = stability.explanation
                                     )
                                 }
                                 closeOnce()
@@ -207,11 +210,9 @@ fun IntelligentProductCaptureScreen(
                                     }?.rawValue
                                 }
                                 .addOnCompleteListener { completed++; recordObservation() }
-
                             recognizer.process(image)
                                 .addOnSuccessListener { recognized -> text = recognized.text.orEmpty() }
                                 .addOnCompleteListener { completed++; recordObservation() }
-
                             labeler.process(image)
                                 .addOnSuccessListener { labels ->
                                     val top = labels.maxByOrNull { it.confidence }
@@ -221,7 +222,6 @@ fun IntelligentProductCaptureScreen(
                                 .addOnCompleteListener { completed++; recordObservation() }
                         }
                     }
-
                 try {
                     provider.unbindAll()
                     provider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
@@ -236,6 +236,7 @@ fun IntelligentProductCaptureScreen(
                 scanner.close()
                 recognizer.close()
                 labeler.close()
+                executor.shutdownNow()
             }
         }
 
@@ -260,8 +261,21 @@ fun IntelligentProductCaptureScreen(
                         }
                         result.categoryHint?.let { Text("Category hint: $it", style = MaterialTheme.typography.bodySmall) }
                         Text("Evidence frames: ${result.frameCount}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(result.stabilityExplanation, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(Modifier.height(8.dp))
-                        Button(onClick = { onResult(result) }, modifier = Modifier.fillMaxWidth()) { Text("USE DETECTED DETAILS") }
+                        Button(
+                            onClick = { onResult(result) },
+                            enabled = ProductCaptureStabilityRules.evaluate(
+                                ProductCaptureObservation(
+                                    barcode = result.barcode,
+                                    printedName = result.detectedName,
+                                    printedBrand = result.detectedBrand,
+                                    categoryHint = result.categoryHint,
+                                    frameCount = result.frameCount
+                                )
+                            ).stable,
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("USE DETECTED DETAILS") }
                     }
                 }
             }
