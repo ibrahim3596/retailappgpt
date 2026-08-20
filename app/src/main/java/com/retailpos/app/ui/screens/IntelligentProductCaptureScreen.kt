@@ -115,8 +115,8 @@ fun IntelligentProductCaptureScreen(
             return@Scaffold
         }
 
-        val previewView = remember { PreviewView(context) }
-        val executor = remember { Executors.newSingleThreadExecutor() }
+        val previewView = remember(lifecycleOwner) { PreviewView(context) }
+        val executor = remember(lifecycleOwner) { Executors.newSingleThreadExecutor() }
 
         DisposableEffect(lifecycleOwner, ready) {
             val providerFuture = ProcessCameraProvider.getInstance(context)
