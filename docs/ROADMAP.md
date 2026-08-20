@@ -6,7 +6,7 @@ RetailPOS V2 is being built as a **real shopkeeper-first retail POS**, not a dem
 
 ## Current build state
 
-**Product Master is functionally complete as a foundation:** canonical SKU/barcode identity, product create/edit, product list/search/filtering, alternate barcodes, product metadata, category/subcategory, pack data, description, product image, and a dedicated product-details screen are wired together. Intelligent Capture remains the next major feature to finish before moving to full POS hardening.
+**Product Master is functionally complete as a foundation:** canonical SKU/barcode identity, product create/edit, product list/search/filtering, alternate barcodes, product metadata, category/subcategory, pack data, description, product image, and a dedicated product-details screen are wired together. **Intelligent Capture now has a substantially complete local/offline evidence pipeline and unknown-product billing handoff; remaining work is device/release hardening plus advanced image-assisted recognition and offline dataset work.**
 
 ### Development rule
 
@@ -40,7 +40,7 @@ Build coherent vertical slices, validate logic locally, and reserve GitHub Actio
 - [ ] Referential integrity across all entities
 - [ ] Transaction boundaries for sales/inventory/Khata
 - [x] Product + primary barcode save protected by Room transaction
-- [ ] Product + metadata saved in one atomic transaction
+- [x] Product + metadata saved in one atomic transaction
 - [ ] Money/quantity precision strategy
 - [ ] Date/time/timezone strategy
 
@@ -124,7 +124,7 @@ Build coherent vertical slices, validate logic locally, and reserve GitHub Actio
 - [x] Store-specific override principle for retailer-controlled fields
 - [x] Persistent barcode-backed cache foundation
 - [ ] Offline/common built-in product dataset
-- [ ] Catalog source priority system
+- [x] Catalog source priority system foundation: local canonical lookup → persistent cache → public catalog
 - [ ] Catalog data freshness/versioning
 
 ---
@@ -140,7 +140,7 @@ Build coherent vertical slices, validate logic locally, and reserve GitHub Actio
 - [x] Manual barcode entry fallback
 - [x] Manual product search fallback
 - [x] Product image selection/persistence
-- [ ] Multiple-frame capture
+- [x] Multiple-frame capture
 
 ## Identification pipeline
 
@@ -153,16 +153,19 @@ Build coherent vertical slices, validate logic locally, and reserve GitHub Actio
 - [x] POS unknown-product identification flow foundation
 - [x] Return-to-POS flow foundation
 - [x] Persistent identification cache foundation
-- [ ] Complete live-cache integration audit
-- [ ] OCR-noise filtering integration
-- [ ] Candidate ranking
-- [ ] Pack-size extraction
-- [ ] Reliable MRP/price extraction
-- [ ] Category inference
-- [ ] Unit inference
-- [ ] Variant detection
+- [x] Complete live-cache integration audit: Room-backed cache is checked before network lookup
+- [x] OCR-noise filtering integration
+- [x] Candidate ranking
+- [x] Pack-size extraction
+- [x] Reliable MRP/price extraction foundation
+- [ ] Category inference as authoritative product data
+- [ ] Automatic selling-unit inference
+- [x] Variant detection/ranking by pack evidence
 - [ ] Dedicated image-assisted recognition service
-- [ ] Human correction/feedback loop
+- [x] Human correction/feedback loop with bounded offline persistence
+- [x] Local-vs-catalog conflict resolver
+- [x] Exact local barcode evidence before public catalog lookup
+- [x] Unknown barcode → review → save → return exact saved product to active bill
 
 ## Safety
 
@@ -172,6 +175,8 @@ Build coherent vertical slices, validate logic locally, and reserve GitHub Actio
 - [x] Camera/OCR result can be kept instead of catalog result
 - [x] Retailer price/stock fields preserved
 - [x] Low-confidence result requires review
+- [x] Package quantity never silently changes selling unit
+- [x] Conflicting local/catalog evidence does not auto-select a product
 
 ---
 
@@ -207,7 +212,7 @@ Build coherent vertical slices, validate logic locally, and reserve GitHub Actio
 - [ ] Fast canonical product lookup in POS
 - [ ] Barcode scan → cart
 - [ ] Search → cart
-- [ ] Unknown barcode → intelligent capture → create → return to bill complete integration
+- [x] Unknown barcode → intelligent capture → create → return to bill complete integration
 - [ ] Recently sold products
 - [ ] Favorites/quick add
 
@@ -449,7 +454,7 @@ Build coherent vertical slices, validate logic locally, and reserve GitHub Actio
 - [ ] Product specification
 - [ ] Data model
 - [ ] Barcode/identifier specification
-- [ ] Intelligent Capture specification
+- [x] Intelligent Capture specification/progress documentation
 - [ ] Offline/sync specification
 - [x] Initial unit-test structure
 - [ ] Testing guide
@@ -480,7 +485,10 @@ Build coherent vertical slices, validate logic locally, and reserve GitHub Actio
 - [ ] Inventory rules
 - [ ] Khata balance
 - [ ] Returns/refunds
-- [ ] Candidate ranking
+- [x] Candidate ranking
+- [x] Capture parser / pack extraction
+- [x] Capture local/catalog conflict resolver
+- [x] Identification feedback rules
 
 ## Repository/data
 
@@ -490,7 +498,7 @@ Build coherent vertical slices, validate logic locally, and reserve GitHub Actio
 - [ ] Full migration verification
 - [ ] Duplicate identifiers
 - [x] Product + primary barcode transaction path
-- [ ] Product + metadata atomic save
+- [x] Product + metadata atomic save
 - [ ] Full transactional audit
 - [x] Identification cache foundation
 - [ ] Full offline behavior
