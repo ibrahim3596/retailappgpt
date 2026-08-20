@@ -25,6 +25,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.retailpos.app.core.products.StoreTaxMode
 
 private const val PREFS = "retailpos_settings"
 
@@ -39,16 +40,7 @@ private object Keys {
     const val DENSITY = "density"
 }
 
-enum class GstMode(val storageValue: String, val label: String, val description: String) {
-    NO_GST("NO_GST", "I don't charge GST", "Use this when the store should not add GST to customer bills."),
-    REGULAR("REGULAR", "Regular GST taxpayer", "GST may be collected on taxable supplies; product rates still need to be configured."),
-    COMPOSITION("COMPOSITION", "Composition taxpayer", "Do not add GST as a separate customer charge."),
-    ;
-
-    companion object {
-        fun fromStorage(value: String): GstMode = entries.firstOrNull { it.storageValue == value } ?: NO_GST
-    }
-}
+typealias GstMode = StoreTaxMode
 
 data class LocalStoreSettings(
     val storeName: String,
@@ -68,7 +60,7 @@ private fun Context.loadStoreSettings(): LocalStoreSettings {
         storePhone = p.getString(Keys.STORE_PHONE, "") ?: "",
         currency = p.getString(Keys.CURRENCY, "INR") ?: "INR",
         taxRate = p.getString(Keys.TAX_RATE, "0") ?: "0",
-        gstMode = GstMode.fromStorage(p.getString(Keys.GST_MODE, GstMode.NO_GST.storageValue) ?: GstMode.NO_GST.storageValue),
+        gstMode = StoreTaxMode.fromStorage(p.getString(Keys.GST_MODE, StoreTaxMode.NO_GST.storageValue) ?: StoreTaxMode.NO_GST.storageValue),
         receiptHeader = p.getString(Keys.RECEIPT_HEADER, "") ?: "",
         receiptFooter = p.getString(Keys.RECEIPT_FOOTER, "Thank you for shopping with us") ?: "Thank you for shopping with us",
         density = p.getString(Keys.DENSITY, "Standard") ?: "Standard"
