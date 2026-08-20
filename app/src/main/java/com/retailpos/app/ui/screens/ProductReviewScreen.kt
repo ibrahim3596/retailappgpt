@@ -35,6 +35,7 @@ import com.retailpos.app.core.products.ParsedPack
 import com.retailpos.app.core.products.ProductCaptureObservation
 import com.retailpos.app.core.products.ProductIdentificationRanking
 import com.retailpos.app.core.products.ProductIdentificationSignals
+import com.retailpos.app.core.products.ProductLocalCandidate
 import com.retailpos.app.core.products.ProductPackCompatibility
 import com.retailpos.app.data.BarcodeMutationResult
 import com.retailpos.app.data.CatalogProduct
@@ -54,12 +55,14 @@ fun ProductReviewScreen(
     initialBarcode: String = "",
     autoIdentify: Boolean = false,
     onBack: () -> Unit,
-    onSaved: (() -> Unit)? = null
+    onSaved: (() -> Unit)? = null,
+    onExistingProductSelected: ((String) -> Unit)? = null
 ) {
     val factory = remember(storeId) { ProductViewModelFactory(storeId) }
     val viewModel: ProductViewModel = viewModel(factory = factory)
     val editingProduct by viewModel.editingProduct.collectAsState()
     val barcodes by viewModel.barcodes.collectAsState()
+    val localCandidates by viewModel.localCandidates.collectAsState()
     val scope = rememberCoroutineScope()
     var name by remember { mutableStateOf("") }
     var brand by remember { mutableStateOf("") }
@@ -76,6 +79,7 @@ fun ProductReviewScreen(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var captureHint by remember { mutableStateOf<String?>(null) }
     var catalogStatus by remember { mutableStateOf<String?>(null) }
+    var localCandidateStatus by remember { mutableStateOf<String?>(null) }
     var identificationStatus by remember { mutableStateOf<String?>(null) }
     var identificationExplanation by remember { mutableStateOf<String?>(null) }
     var catalogCandidate by remember { mutableStateOf<CatalogProduct?>(null) }
@@ -86,6 +90,7 @@ fun ProductReviewScreen(
 
     LaunchedEffect(productId, initialBarcode, autoIdentify) {
         viewModel.loadProduct(productId)
+        viewModel.clearLocalCaptureCandidates()
         if (productId == null && initialBarcode.isNotBlank()) barcode = initialBarcode.trim()
         if (productId == null && autoIdentify) showIntelligentCapture = true
     }
@@ -105,12 +110,21 @@ fun ProductReviewScreen(
             errorMessage = null
             catalogCandidate = null
             catalogStatus = null
+            localCandidateStatus = null
             identificationStatus = null
             identificationExplanation = null
             identificationConfidence = null
         }
     }
     val isEdit = productId != null
+
+    fun applyLocalCandidate(candidate: ProductLocalCandidate) {
+        if (onExistingProductSelected != null) {
+            onExistingProductSelected.invoke(candidate.product.id)
+        } else {
+            errorMessage = "This product already exists in your product master. Open it from Product Master instead of creating a duplicate."
+        }
+    }
 
     fun persistProduct() {
         val captured = captureObservation
@@ -187,7 +201,7 @@ fun ProductReviewScreen(
                             "${result.detectedPackSize} ${result.detectedPackUnit}"
                         )
                     } else null,
-                    frameCount = 1
+                    frameCount = result.frameCount
                 )
                 captureObservation = observation
                 val hasBarcode = !observation.barcode.isNullOrBlank()
@@ -222,7 +236,32 @@ fun ProductReviewScreen(
                     observation.pack?.let { pack ->
                         append("Observed pack: ${pack.sourceText}. Verify against selling unit.")
                     }
+                    if (observation.frameCount > 1) append(" Evidence across ${observation.frameCount} frames.")
                 }.ifBlank { null }
+
+                localCandidateStatus = "Checking your local product master…"
+                viewModel.findLocalCaptureCandidates(
+                    name = observation.printedName,
+                    brand = observation.printedBrand
+                ) { candidates ->
+                    if (candidates.isEmpty()) {
+                        localCandidateStatus = "No strong local product match found."
+                    } else {
+                        localCandidateStatus = "Local product matches found. Review before creating a new product."
+                        val top = candidates.first()
+                        val localScore = ProductIdentificationRanking.score(
+                            ProductIdentificationSignals(
+                                barcodeDetected = hasBarcode,
+                                printedTextDetected = hasText,
+                                textAgreesWithCandidate = top.score >= 80,
+                                multipleFrameAgreement = observation.frameCount >= 2,
+                                packCompatibleWithSellingUnit = packCompatible
+                            )
+                        )
+                        identificationConfidence = maxOf(identificationConfidence ?: 0, localScore.score)
+                        identificationExplanation = "${localScore.explanation} ${top.explanation}"
+                    }
+                }
 
                 val detectedBarcode = result.barcode
                 if (!detectedBarcode.isNullOrBlank()) {
@@ -238,10 +277,12 @@ fun ProductReviewScreen(
                                     barcodeDetected = true,
                                     catalogMatched = true,
                                     printedTextDetected = hasText,
+                                    textAgreesWithCandidate = hasText,
+                                    multipleFrameAgreement = observation.frameCount >= 2,
                                     packCompatibleWithSellingUnit = packCompatible
                                 )
                             )
-                            identificationConfidence = catalogScore.score
+                            identificationConfidence = maxOf(identificationConfidence ?: 0, catalogScore.score)
                             identificationExplanation = catalogScore.explanation
                         } else {
                             catalogStatus = "No public catalog match. Using camera/OCR detection only."
@@ -298,6 +339,17 @@ fun ProductReviewScreen(
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.Bold
                 )
+            }
+            localCandidateStatus?.let { Text(it, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall) }
+            localCandidates.take(3).forEach { candidate ->
+                Column(Modifier.fillMaxWidth().padding(4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("LOCAL PRODUCT MATCH", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                    Text(candidate.product.name, fontWeight = FontWeight.Bold)
+                    if (candidate.product.brand.isNotBlank()) Text("Brand: ${candidate.product.brand}", style = MaterialTheme.typography.bodyMedium)
+                    Text("Match: ${candidate.score}% • ${candidate.explanation}", style = MaterialTheme.typography.bodySmall)
+                    Text("This product already exists in this store. Opening it avoids creating a duplicate.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    OutlinedButton(onClick = { applyLocalCandidate(candidate) }, modifier = Modifier.fillMaxWidth()) { Text("OPEN EXISTING PRODUCT") }
+                }
             }
             catalogStatus?.let { Text(it, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall) }
             catalogCandidate?.let { catalog ->
