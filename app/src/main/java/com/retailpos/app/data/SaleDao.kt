@@ -4,6 +4,8 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Transaction
+import com.retailpos.app.core.permissions.StaffPermissionRules
+import com.retailpos.app.core.permissions.StaffRole
 import com.retailpos.app.core.products.PricingInput
 import com.retailpos.app.core.products.PricingRules
 import com.retailpos.app.core.products.StoreTaxMode
@@ -76,7 +78,8 @@ abstract class SaleDao {
         customerId: String? = null,
         now: Long = System.currentTimeMillis(),
         taxTreatment: TaxTreatment? = null,
-        billDiscountAmount: Double = 0.0
+        billDiscountAmount: Double = 0.0,
+        staffRole: StaffRole = StaffRole.OWNER
     ): CheckoutResult {
         require(CheckoutRules.validateCart(cart)) { "Invalid cart" }
         require(CheckoutRules.validatePaymentMethod(paymentMethod)) { "Unsupported payment method" }
@@ -84,8 +87,12 @@ abstract class SaleDao {
         require(paymentMethod != "CREDIT" || !customerId.isNullOrBlank()) { "Select a customer for credit sales" }
         findByIdempotencyKey(storeId, idempotencyKey)?.let { return CheckoutResult(it.id, it.total) }
 
-        val effectiveTaxTreatment = taxTreatment ?: StoreTaxMode.fromStorage(getStoreSettings(storeId)?.gstMode ?: StoreTaxMode.NO_GST.storageValue).toTaxTreatment()
         val subtotal = cart.sumOf { it.lineTotal }
+        StaffPermissionRules.validateBillDiscount(staffRole, subtotal, billDiscountAmount)?.let { error ->
+            throw IllegalArgumentException(error)
+        }
+
+        val effectiveTaxTreatment = taxTreatment ?: StoreTaxMode.fromStorage(getStoreSettings(storeId)?.gstMode ?: StoreTaxMode.NO_GST.storageValue).toTaxTreatment()
         val safeDiscount = PricingRules.calculate(
             PricingInput(subtotal = subtotal, discountAmount = billDiscountAmount, taxTreatment = TaxTreatment.NO_TAX)
         ).discountAmount
