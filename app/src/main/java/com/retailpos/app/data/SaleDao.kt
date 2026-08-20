@@ -55,6 +55,8 @@ abstract class SaleDao {
     abstract suspend fun getStoreSettings(storeId: String): StoreSettingsEntity?
     @Query("SELECT isArchived FROM products WHERE id = :productId AND storeId = :storeId LIMIT 1")
     abstract suspend fun isProductArchived(productId: String, storeId: String): Boolean?
+    @Query("SELECT * FROM products WHERE id = :productId AND storeId = :storeId LIMIT 1")
+    abstract suspend fun queryProduct(productId: String, storeId: String): ProductEntity?
     @Query("UPDATE products SET stock = stock - :quantity, updatedAt = :updatedAt WHERE id = :productId AND storeId = :storeId AND stock >= :quantity")
     abstract suspend fun decrementStock(productId: String, storeId: String, quantity: Double, updatedAt: Long): Int
     @Query("SELECT * FROM inventory_batches WHERE storeId = :storeId AND productId = :productId AND quantity > 0 AND (expiryDate IS NULL OR expiryDate > :now) ORDER BY CASE WHEN expiryDate IS NULL THEN 1 ELSE 0 END, expiryDate ASC, createdAt ASC")
@@ -106,9 +108,7 @@ abstract class SaleDao {
         findByIdempotencyKey(storeId, idempotencyKey)?.let { return CheckoutResult(it.id, it.total, it.changeAmount) }
 
         // Preflight the complete restored/active cart before any batch or stock mutation.
-        // This specifically protects process-death recovery from stale product state.
         cart.forEach { line ->
-            val current = getProductMetadata(line.productId, storeId)
             val product = queryProduct(line.productId, storeId)
                 ?: throw IllegalArgumentException("${line.name} is no longer in the product catalog.")
             if (product.isArchived) throw IllegalArgumentException("${product.name} is archived and cannot be sold.")
@@ -117,7 +117,6 @@ abstract class SaleDao {
             }
             CartLinePricingRules.validate(line, staffRole)?.let { throw IllegalArgumentException("${line.name}: $it") }
             require(line.lineTotal.isFinite() && line.lineTotal >= 0.0) { "${line.name} has invalid pricing in the saved bill." }
-            current
         }
 
         val subtotal = cart.sumOf { it.lineTotal }
@@ -165,9 +164,6 @@ abstract class SaleDao {
         PendingPaymentStore.clear()
         return CheckoutResult(saleId, saleTotal, payment.change)
     }
-
-    @Query("SELECT * FROM products WHERE id = :productId AND storeId = :storeId LIMIT 1")
-    private abstract suspend fun queryProduct(productId: String, storeId: String): ProductEntity?
 }
 
 private fun Double.clean(): String = if (this % 1.0 == 0.0) toInt().toString() else String.format(java.util.Locale.US, "%.2f", this)
