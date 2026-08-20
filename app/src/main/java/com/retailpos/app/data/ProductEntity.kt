@@ -24,5 +24,6 @@ data class ProductEntity(
     val stock: Double,
     val unit: String = "pcs",
     val lowStockThreshold: Double = 5.0,
-    val updatedAt: Long
+    val updatedAt: Long,
+    val isArchived: Boolean = false
 )
