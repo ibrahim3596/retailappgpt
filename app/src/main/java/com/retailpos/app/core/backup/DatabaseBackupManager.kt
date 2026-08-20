@@ -68,12 +68,12 @@ object DatabaseBackupManager {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getLong(LAST_BACKUP_AT, 0L)
 
     private fun createSqliteSnapshot(context: Context): ByteArray {
-        RetailDatabase.get(context)
+        val database = RetailDatabase.get(context)
         val temp = File(context.cacheDir, "retailpos-backup-${System.currentTimeMillis()}.db")
         temp.delete()
         val escapedPath = temp.absolutePath.replace("'", "''")
         try {
-            val sqlite = RetailDatabase.get(context).openHelper.writableDatabase
+            val sqlite = database.openHelper.writableDatabase
             sqlite.execSQL("PRAGMA wal_checkpoint(FULL)")
             sqlite.execSQL("VACUUM INTO '$escapedPath'")
             return temp.readBytes()
@@ -87,13 +87,30 @@ object DatabaseBackupManager {
         RetailDatabase.closeForRestore()
         val databaseFile = context.getDatabasePath(DATABASE_FILE)
         databaseFile.parentFile?.mkdirs()
-        val backupFile = File(databaseFile.parentFile, "$DATABASE_FILE.restore")
-        backupFile.writeBytes(bytes)
-        check(backupFile.length() == bytes.size.toLong()) { "Restore copy was incomplete" }
-        if (databaseFile.exists()) check(databaseFile.delete()) { "Could not replace the existing database" }
+        val restoreFile = File(databaseFile.parentFile, "$DATABASE_FILE.restore")
+        val previousFile = File(databaseFile.parentFile, "$DATABASE_FILE.pre-restore")
+        restoreFile.writeBytes(bytes)
+        check(restoreFile.length() == bytes.size.toLong()) { "Restore copy was incomplete" }
+        if (previousFile.exists()) previousFile.delete()
+
+        val hadExisting = databaseFile.exists()
+        if (hadExisting) {
+            check(databaseFile.renameTo(previousFile)) { "Could not protect the existing database before restore" }
+        }
         File(databaseFile.path + "-wal").delete()
         File(databaseFile.path + "-shm").delete()
-        check(backupFile.renameTo(databaseFile)) { "Could not activate restored database" }
+
+        try {
+            check(restoreFile.renameTo(databaseFile)) { "Could not activate restored database" }
+            previousFile.delete()
+        } catch (error: Exception) {
+            databaseFile.delete()
+            if (hadExisting && previousFile.exists()) previousFile.renameTo(databaseFile)
+            restoreFile.delete()
+            throw error
+        } finally {
+            restoreFile.delete()
+        }
     }
 
     private data class Unpacked(val manifest: BackupManifest, val checksum: String, val databaseBytes: ByteArray)
