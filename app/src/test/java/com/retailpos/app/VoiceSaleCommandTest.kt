@@ -27,11 +27,20 @@ class VoiceSaleCommandTest {
     }
 
     @Test
-    fun parsesNumericGramRequest() {
-        val command = VoiceSaleCommandParser.parse("500 gram sugar")
+    fun parsesQuarterKiloRequest() {
+        val command = VoiceSaleCommandParser.parse("quarter kilo sugar")
         assertNotNull(command)
         assertEquals("sugar", command!!.productQuery)
-        assertEquals(500.0, command.quantity, 0.0001)
+        assertEquals(0.25, command.quantity, 0.0001)
+        assertEquals(WeightUnit.KG, command.unit)
+    }
+
+    @Test
+    fun parsesNumericGramRequest() {
+        val command = VoiceSaleCommandParser.parse("750 gram sugar")
+        assertNotNull(command)
+        assertEquals("sugar", command!!.productQuery)
+        assertEquals(750.0, command.quantity, 0.0001)
         assertEquals(WeightUnit.G, command.unit)
     }
 
@@ -45,9 +54,42 @@ class VoiceSaleCommandTest {
     }
 
     @Test
+    fun stripsPacketUnitForPackagedGoods() {
+        val command = VoiceSaleCommandParser.parse("2 packets biscuits")
+        assertNotNull(command)
+        assertEquals("biscuits", command!!.productQuery)
+        assertEquals(2.0, command.quantity, 0.0001)
+        assertEquals(WeightUnit.PIECE, command.unit)
+    }
+
+    @Test
+    fun stripsBottleUnitForCountBasedProducts() {
+        val command = VoiceSaleCommandParser.parse("3 bottles water")
+        assertNotNull(command)
+        assertEquals("water", command!!.productQuery)
+        assertEquals(3.0, command.quantity, 0.0001)
+        assertEquals(WeightUnit.PIECE, command.unit)
+    }
+
+    @Test
+    fun parsesTeluguSugarAlias() {
+        val command = VoiceSaleCommandParser.parse("సగం కిలో పంచదార")
+        assertNotNull(command)
+        assertEquals("sugar", command!!.productQuery)
+        assertEquals(0.5, command.quantity, 0.0001)
+        assertEquals(WeightUnit.KG, command.unit)
+    }
+
+    @Test
     fun normalizesGramsToKgProduct() {
         val quantity = VoiceSaleCommandParser.toBaseQuantity(500.0, WeightUnit.G, "kg")
         assertEquals(0.5, quantity!!, 0.0001)
+    }
+
+    @Test
+    fun normalizesPacketProductToPieceQuantity() {
+        val quantity = VoiceSaleCommandParser.toBaseQuantity(2.0, WeightUnit.PIECE, "packet")
+        assertEquals(2.0, quantity!!, 0.0001)
     }
 
     @Test
