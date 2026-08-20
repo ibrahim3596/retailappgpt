@@ -13,9 +13,15 @@ object PaymentSettlementRules {
     private val supportedMethods = setOf("CASH", "UPI", "CARD", "CREDIT")
 
     fun settle(method: String, total: Double, amountTendered: Double? = null): PaymentSettlement {
-        require(method in supportedMethods) { "Unsupported payment method" }
         require(total.isFinite() && total >= 0.0) { "Invalid payable amount" }
 
+        if (method.startsWith("SPLIT:")) {
+            val parts = SplitPaymentRules.decode(method)
+            SplitPaymentRules.validate(total, parts)?.let { throw IllegalArgumentException(it) }
+            return PaymentSettlement(method, total, total, 0.0)
+        }
+
+        require(method in supportedMethods) { "Unsupported payment method" }
         return when (method) {
             "CASH" -> {
                 val tendered = amountTendered ?: 0.0
