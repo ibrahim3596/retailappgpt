@@ -18,7 +18,9 @@ data class CatalogProduct(
 object ProductCatalogLookup {
     private const val USER_AGENT = "RetailPOS/0.1 (product-catalog-enrichment)"
     private const val CACHE_LIMIT = 256
-    private val cache = ConcurrentHashMap<String, CatalogProduct?>()
+    // ConcurrentHashMap does not permit null values. Keep only successful responses here;
+    // persistent Room data remains the offline cache of successful catalog lookups.
+    private val cache = ConcurrentHashMap<String, CatalogProduct>()
     @Volatile private var persistentDao: ProductIdentificationCacheDao? = null
     @Volatile private var persistentStoreId: String? = null
 
@@ -37,7 +39,7 @@ object ProductCatalogLookup {
             val persisted = dao.get(storeId, clean)
             if (persisted != null) return persisted.toCatalogProduct()
         }
-        if (cache.containsKey(clean)) return cache[clean]
+        cache[clean]?.let { return it }
 
         val encoded = URLEncoder.encode(clean, Charsets.UTF_8.name())
         val url = URL(
@@ -53,44 +55,33 @@ object ProductCatalogLookup {
         }
         return try {
             if (connection.responseCode !in 200..299) {
-                remember(clean, null)
                 null
             } else {
                 val body = connection.inputStream.bufferedReader().use { it.readText() }
                 val root = JSONObject(body)
-                if (root.optInt("status", 0) != 1) {
-                    remember(clean, null)
-                    null
-                } else {
-                    val product = root.optJSONObject("product")
-                    if (product == null) {
-                        remember(clean, null)
-                        null
-                    } else {
-                        CatalogProduct(
-                            name = product.optString("product_name", "").trim().ifBlank { null },
-                            brand = product.optString("brands", "").substringBefore(',').trim().ifBlank { null },
-                            category = product.optString("categories", "").split(',').firstOrNull()?.trim().orEmpty().ifBlank { null },
-                            quantity = product.optString("quantity", "").trim().ifBlank { null },
-                            imageUrl = product.optString("image_front_url", "").trim().ifBlank { null }
-                        ).also {
-                            remember(clean, it)
-                            if (dao != null && !storeId.isNullOrBlank()) {
-                                dao.upsert(it.toCacheEntity(storeId, clean, "PUBLIC_CATALOG", 98))
-                            }
-                        }
+                if (root.optInt("status", 0) != 1) return null
+                val product = root.optJSONObject("product") ?: return null
+                CatalogProduct(
+                    name = product.optString("product_name", "").trim().ifBlank { null },
+                    brand = product.optString("brands", "").substringBefore(',').trim().ifBlank { null },
+                    category = product.optString("categories", "").split(',').firstOrNull()?.trim().orEmpty().ifBlank { null },
+                    quantity = product.optString("quantity", "").trim().ifBlank { null },
+                    imageUrl = product.optString("image_front_url", "").trim().ifBlank { null }
+                ).also {
+                    remember(clean, it)
+                    if (dao != null && !storeId.isNullOrBlank()) {
+                        dao.upsert(it.toCacheEntity(storeId, clean, "PUBLIC_CATALOG", 98))
                     }
                 }
             }
         } catch (_: Exception) {
-            remember(clean, null)
             null
         } finally {
             connection.disconnect()
         }
     }
 
-    private fun remember(barcode: String, value: CatalogProduct?) {
+    private fun remember(barcode: String, value: CatalogProduct) {
         if (cache.size >= CACHE_LIMIT && !cache.containsKey(barcode)) cache.keys.firstOrNull()?.let(cache::remove)
         cache[barcode] = value
     }
