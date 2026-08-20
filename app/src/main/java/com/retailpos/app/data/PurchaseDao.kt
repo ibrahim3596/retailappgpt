@@ -50,6 +50,9 @@ interface SupplierLedgerDao {
     @Query("SELECT COALESCE(SUM(amount), 0.0) FROM supplier_ledger WHERE storeId = :storeId AND supplierId = :supplierId")
     suspend fun balance(storeId: String, supplierId: String): Double
 
+    @Query("SELECT COALESCE(SUM(amount), 0.0) FROM supplier_ledger WHERE storeId = :storeId")
+    suspend fun totalPayables(storeId: String): Double
+
     @Query("SELECT * FROM supplier_ledger WHERE storeId = :storeId AND supplierId = :supplierId ORDER BY createdAt DESC")
     suspend fun entries(storeId: String, supplierId: String): List<SupplierLedgerEntry>
 
