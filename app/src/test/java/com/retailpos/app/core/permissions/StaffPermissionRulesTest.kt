@@ -1,7 +1,9 @@
 package com.retailpos.app.core.permissions
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class StaffPermissionRulesTest {
@@ -38,5 +40,18 @@ class StaffPermissionRulesTest {
             "Discount cannot exceed the bill subtotal.",
             StaffPermissionRules.validateBillDiscount(StaffRole.OWNER, 100.0, 100.01)
         )
+    }
+
+    @Test
+    fun onlyOwnerAndManagerCanManageExpenses() {
+        assertTrue(StaffPermissionRules.hasPermission(StaffRole.OWNER, StaffPermission.MANAGE_EXPENSES))
+        assertTrue(StaffPermissionRules.hasPermission(StaffRole.MANAGER, StaffPermission.MANAGE_EXPENSES))
+        assertFalse(StaffPermissionRules.hasPermission(StaffRole.CASHIER, StaffPermission.MANAGE_EXPENSES))
+    }
+
+    @Test
+    fun cashierCannotProcessReturns() {
+        assertFalse(StaffPermissionRules.hasPermission(StaffRole.CASHIER, StaffPermission.PROCESS_RETURN))
+        assertTrue(StaffPermissionRules.hasPermission(StaffRole.MANAGER, StaffPermission.PROCESS_RETURN))
     }
 }
