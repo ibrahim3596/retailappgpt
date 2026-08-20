@@ -10,7 +10,13 @@ object ActiveCartStore {
     private const val PREFS = "retailpos_active_cart"
     private const val KEY_LINES = "lines"
 
-    fun save(context: Context, lines: List<CartLine>) {
+    @Volatile private var prefs: android.content.SharedPreferences? = null
+
+    fun configure(context: Context) {
+        prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    }
+
+    fun save(lines: List<CartLine>) {
         val json = JSONArray()
         lines.forEach { line ->
             json.put(JSONObject().apply {
@@ -24,18 +30,11 @@ object ActiveCartStore {
                 put("itemDiscountAmount", line.itemDiscountAmount)
             })
         }
-        context.applicationContext
-            .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .edit()
-            .putString(KEY_LINES, json.toString())
-            .apply()
+        prefs?.edit()?.putString(KEY_LINES, json.toString())?.apply()
     }
 
-    fun load(context: Context): List<CartLine> {
-        val raw = context.applicationContext
-            .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getString(KEY_LINES, null)
-            ?: return emptyList()
+    fun load(): List<CartLine> {
+        val raw = prefs?.getString(KEY_LINES, null) ?: return emptyList()
         return runCatching {
             val json = JSONArray(raw)
             buildList {
@@ -48,29 +47,14 @@ object ActiveCartStore {
                     if (quantity.isFinite() && quantity > 0.0 && unitPrice.isFinite() && unitPrice >= 0.0 &&
                         (override == null || (override.isFinite() && override >= 0.0)) && discount.isFinite() && discount >= 0.0
                     ) {
-                        add(
-                            CartLine(
-                                productId = item.getString("productId"),
-                                name = item.getString("name"),
-                                sku = if (item.isNull("sku")) null else item.getString("sku"),
-                                unit = item.getString("unit"),
-                                unitPrice = unitPrice,
-                                quantity = quantity,
-                                overrideUnitPrice = override,
-                                itemDiscountAmount = discount
-                            )
-                        )
+                        add(CartLine(item.getString("productId"), item.getString("name"), if (item.isNull("sku")) null else item.getString("sku"), item.getString("unit"), unitPrice, quantity, override, discount))
                     }
                 }
             }
         }.getOrDefault(emptyList())
     }
 
-    fun clear(context: Context) {
-        context.applicationContext
-            .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .edit()
-            .remove(KEY_LINES)
-            .apply()
+    fun clear() {
+        prefs?.edit()?.remove(KEY_LINES)?.apply()
     }
 }
