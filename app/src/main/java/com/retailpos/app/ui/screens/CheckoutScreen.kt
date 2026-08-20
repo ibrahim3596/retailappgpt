@@ -36,6 +36,10 @@ import com.retailpos.app.core.payment.PendingPaymentStore
 import com.retailpos.app.core.payment.SplitPaymentPart
 import com.retailpos.app.core.payment.SplitPaymentRules
 import com.retailpos.app.core.payment.UpiPaymentIntent
+import com.retailpos.app.core.permissions.StaffPermission
+import com.retailpos.app.core.permissions.StaffPermissionRules
+import com.retailpos.app.core.pos.CartLinePricingRules
+import com.retailpos.app.core.staff.StaffRole
 import com.retailpos.app.core.products.CheckoutPricingPreview
 import com.retailpos.app.core.products.CheckoutPricingPreviewCalculator
 import com.retailpos.app.core.products.StoreTaxMode
@@ -57,7 +61,9 @@ fun CheckoutScreen(
     onBack: () -> Unit,
     onComplete: (String, String?, Double) -> Unit,
     isProcessing: Boolean,
-    error: String?
+    error: String?,
+    staffRole: StaffRole = StaffRole.CASHIER,
+    onUpdateCartLine: (CartLine) -> Unit = {}
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var paymentMethod by remember { mutableStateOf(PAYMENT_METHODS.first()) }
@@ -73,7 +79,10 @@ fun CheckoutScreen(
     var pricingError by remember { mutableStateOf<String?>(null) }
     var paymentError by remember { mutableStateOf<String?>(null) }
     var upiError by remember { mutableStateOf<String?>(null) }
+    var editingLine by remember { mutableStateOf<CartLine?>(null) }
     val creditWithoutCustomer = paymentMethod == "CREDIT" && selectedCustomer == null
+    val canItemDiscount = StaffPermissionRules.hasPermission(staffRole, StaffPermission.APPLY_ITEM_DISCOUNT)
+    val canPriceOverride = StaffPermissionRules.hasPermission(staffRole, StaffPermission.OVERRIDE_SELLING_PRICE)
 
     LaunchedEffect(cart, discountMode, discountInput) {
         if (cart.isEmpty()) { pricingPreview = null; return@LaunchedEffect }
@@ -144,10 +153,18 @@ fun CheckoutScreen(
             items(cart, key = { it.productId }) { line ->
                 val previewLine = pricingPreview?.lines?.firstOrNull { it.productId == line.productId }
                 Card(Modifier.fillMaxWidth()) {
-                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Column(Modifier.weight(1f)) { Text(line.name, fontWeight = FontWeight.Bold); Text("${line.quantity.clean()} ${line.unit} × ${money(line.unitPrice)}") }
-                            Text(money(previewLine?.total ?: line.lineTotal), fontWeight = FontWeight.Bold)
+                            Column(Modifier.weight(1f)) {
+                                Text(line.name, fontWeight = FontWeight.Bold)
+                                Text("${line.quantity.clean()} ${line.unit} × ${money(line.effectiveUnitPrice)}")
+                                if (line.overrideUnitPrice != null) Text("Base price ${money(line.unitPrice)}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                if (line.itemDiscountAmount > 0.0) Text("Item discount −${money(line.itemDiscountAmount)}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Column(horizontalAlignment = androidx.compose.ui.Alignment.End) {
+                                Text(money(previewLine?.total ?: line.lineTotal), fontWeight = FontWeight.Bold)
+                                if (canItemDiscount || canPriceOverride) TextButton(onClick = { editingLine = line }, enabled = !isProcessing) { Text("EDIT") }
+                            }
                         }
                         if (previewLine != null && previewLine.taxAmount > 0.0) Text("GST ${cleanRate(previewLine.taxRatePercent)}% • ${money(previewLine.taxAmount)}", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
@@ -238,6 +255,58 @@ fun CheckoutScreen(
         }
     }
     if (showCustomerPicker) CustomerPickerDialog(customers, selectedCustomer?.id, { selectedCustomer = it; showCustomerPicker = false }, { selectedCustomer = null; showCustomerPicker = false }, { showCustomerPicker = false })
+    editingLine?.let { line ->
+        ItemPricingDialog(
+            line = line,
+            allowDiscount = canItemDiscount,
+            allowPriceOverride = canPriceOverride,
+            staffRole = staffRole,
+            onDismiss = { editingLine = null },
+            onSave = { updated -> onUpdateCartLine(updated); editingLine = null }
+        )
+    }
+}
+
+@Composable
+private fun ItemPricingDialog(
+    line: CartLine,
+    allowDiscount: Boolean,
+    allowPriceOverride: Boolean,
+    staffRole: StaffRole,
+    onDismiss: () -> Unit,
+    onSave: (CartLine) -> Unit
+) {
+    var overrideInput by remember(line.productId, line.overrideUnitPrice) { mutableStateOf(line.overrideUnitPrice?.let { moneyValue(it) } ?: "") }
+    var discountInput by remember(line.productId, line.itemDiscountAmount) { mutableStateOf(if (line.itemDiscountAmount == 0.0) "" else moneyValue(line.itemDiscountAmount)) }
+    var error by remember { mutableStateOf<String?>(null) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("EDIT ${line.name}") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Base selling price: ${money(line.unitPrice)}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (allowPriceOverride) {
+                    OutlinedTextField(overrideInput, { overrideInput = it.filter { c -> c.isDigit() || c == '.' || c == ',' } }, singleLine = true, modifier = Modifier.fillMaxWidth(), label = { Text("Override unit price (blank = base)") })
+                }
+                if (allowDiscount) {
+                    OutlinedTextField(discountInput, { discountInput = it.filter { c -> c.isDigit() || c == ',' || c == '.' } }, singleLine = true, modifier = Modifier.fillMaxWidth(), label = { Text("Item discount amount") })
+                }
+                Text("Role: ${staffRole.name}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                error?.let { Text(it, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold) }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                try {
+                    val override = if (allowPriceOverride && overrideInput.isNotBlank()) overrideInput.replace(',', '.').toDoubleOrNull() else null
+                    val discount = if (allowDiscount) discountInput.replace(',', '.').toDoubleOrNull() ?: 0.0 else 0.0
+                    val updated = CartLinePricingRules.apply(line, override, discount, staffRole)
+                    onSave(updated)
+                } catch (e: Exception) { error = e.message ?: "Pricing change is invalid." }
+            }) { Text("SAVE") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("CANCEL") } }
+    )
 }
 
 @Composable
@@ -248,5 +317,6 @@ private fun CustomerPickerDialog(customers: List<CustomerEntity>, selectedId: St
 }
 
 private fun money(value: Double): String = String.format(Locale.US, "₹%.2f", value)
+private fun moneyValue(value: Double): String = String.format(Locale.US, "%.2f", value)
 private fun cleanRate(value: Double): String = if (value % 1.0 == 0.0) value.toInt().toString() else String.format(Locale.US, "%.2f", value)
 private fun Double.clean(): String = if (this % 1.0 == 0.0) toInt().toString() else String.format(Locale.US, "%.2f", this)
