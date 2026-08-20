@@ -17,4 +17,13 @@ abstract class ReturnDao {
 
     @Query("SELECT * FROM return_lines WHERE returnId = :returnId")
     abstract suspend fun getLines(returnId: String): List<ReturnLineEntity>
+
+    @Query("SELECT COALESCE(SUM(refundTotal), 0.0) FROM returns WHERE storeId = :storeId AND createdAt >= :start AND createdAt < :end")
+    abstract suspend fun getRefundTotal(storeId: String, start: Long, end: Long): Double
+
+    @Query("SELECT COALESCE(SUM(rl.quantity), 0.0) FROM return_lines rl INNER JOIN returns r ON r.id = rl.returnId WHERE r.storeId = :storeId AND r.createdAt >= :start AND r.createdAt < :end")
+    abstract suspend fun getReturnedItemsTotal(storeId: String, start: Long, end: Long): Double
+
+    @Query("SELECT COALESCE(SUM(rl.restoredCost), 0.0) FROM return_lines rl INNER JOIN returns r ON r.id = rl.returnId WHERE r.storeId = :storeId AND r.createdAt >= :start AND r.createdAt < :end")
+    abstract suspend fun getRestoredCostTotal(storeId: String, start: Long, end: Long): Double
 }
