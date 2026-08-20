@@ -11,7 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.retailpos.app.core.products.ProductMetadataFormState
 
-/** Thin UI adapter for the metadata form state; persistence remains in the ViewModel. */
+/** UI-only adapter; persistence and validation stay in ProductMetadataViewModel. */
 @Composable
 fun ProductMetadataEditor(
     form: ProductMetadataFormState,
