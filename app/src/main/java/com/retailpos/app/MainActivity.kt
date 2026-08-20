@@ -55,6 +55,7 @@ import com.retailpos.app.ui.screens.InventoryReceiveScreen
 import com.retailpos.app.ui.screens.InventoryScreen
 import com.retailpos.app.ui.screens.PosScreen
 import com.retailpos.app.ui.screens.ProductListScreen
+import com.retailpos.app.ui.screens.ProductMetadataScreen
 import com.retailpos.app.ui.screens.ProductReviewScreen
 import com.retailpos.app.ui.screens.ReceiptScreen
 import com.retailpos.app.ui.screens.SettingsScreen
@@ -70,6 +71,7 @@ private object Routes {
     const val PRODUCTS = "products"
     const val ADD_PRODUCT = "products/add?barcode={barcode}&identify={identify}&returnToBilling={returnToBilling}"
     const val EDIT_PRODUCT = "products/edit/{productId}"
+    const val PRODUCT_DETAILS = "products/details/{productId}"
     const val BILLING_SCANNER = "scanner/billing"
     const val INVENTORY = "inventory"
     const val INVENTORY_DETAIL = "inventory/detail/{productId}"
@@ -96,7 +98,7 @@ private fun RetailPosApp() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val database = remember(context) { RetailDatabase.get(context) }
-    val repository = remember(database) { ProductRepository(database.productDao(), database.productBarcodeDao()) }
+    val repository = remember(database) { ProductRepository(database.productDao(), database.productBarcodeDao(), database) }
     val cartManager = remember { CartManager() }
     var cart by remember { mutableStateOf(cartManager.lines) }
     var posQuery by remember { mutableStateOf("") }
@@ -270,7 +272,11 @@ private fun RetailPosApp() {
             )
         }
         composable(Routes.EDIT_PRODUCT, arguments = listOf(navArgument("productId") { type = NavType.StringType })) { entry ->
-            ProductReviewScreen(storeId = LOCAL_STORE_ID, productId = entry.arguments?.getString("productId"), initialBarcode = "", autoIdentify = false, onBack = { navController.popBackStack() })
+            val productId = entry.arguments?.getString("productId").orEmpty()
+            ProductReviewScreen(storeId = LOCAL_STORE_ID, productId = productId, initialBarcode = "", autoIdentify = false, onBack = { navController.popBackStack() })
+        }
+        composable(Routes.PRODUCT_DETAILS, arguments = listOf(navArgument("productId") { type = NavType.StringType })) { entry ->
+            ProductMetadataScreen(storeId = LOCAL_STORE_ID, productId = entry.arguments?.getString("productId").orEmpty(), onBack = { navController.popBackStack() })
         }
         composable(Routes.INVENTORY) { InventoryScreen(storeId = LOCAL_STORE_ID, repository = repository, inventoryMovements = { database.inventoryDao().getMovements(LOCAL_STORE_ID) }, onBack = { navController.popBackStack() }, onOpenProduct = { navController.navigate("inventory/detail/$it") }, onAdjustProduct = { navController.navigate("inventory/adjust/$it") }, onReceiveProduct = { navController.navigate("inventory/receive/$it") }) }
         composable(Routes.INVENTORY_DETAIL, arguments = listOf(navArgument("productId") { type = NavType.StringType })) { entry ->
