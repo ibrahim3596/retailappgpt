@@ -130,4 +130,21 @@ object DatabaseMigrations {
             db.execSQL("CREATE INDEX IF NOT EXISTS index_held_bill_lines_heldBillId ON held_bill_lines(heldBillId)")
         }
     }
+    val MIGRATION_18_19 = object : Migration(18, 19) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS suppliers (id TEXT NOT NULL, storeId TEXT NOT NULL, name TEXT NOT NULL, phone TEXT NOT NULL, address TEXT NOT NULL, notes TEXT NOT NULL, createdAt INTEGER NOT NULL, updatedAt INTEGER NOT NULL, PRIMARY KEY(id))")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_suppliers_storeId_name ON suppliers(storeId, name)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_suppliers_storeId_phone ON suppliers(storeId, phone)")
+            db.execSQL("CREATE TABLE IF NOT EXISTS purchases (id TEXT NOT NULL, storeId TEXT NOT NULL, supplierId TEXT NOT NULL, invoiceNumber TEXT, grossAmount REAL NOT NULL, schemeDiscount REAL NOT NULL, netAmount REAL NOT NULL, paidAmount REAL NOT NULL, outstandingAmount REAL NOT NULL, createdAt INTEGER NOT NULL, PRIMARY KEY(id))")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_purchases_storeId_createdAt ON purchases(storeId, createdAt)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_purchases_storeId_supplierId_createdAt ON purchases(storeId, supplierId, createdAt)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_purchases_storeId_invoiceNumber ON purchases(storeId, invoiceNumber)")
+            db.execSQL("CREATE TABLE IF NOT EXISTS purchase_lines (purchaseId TEXT NOT NULL, storeId TEXT NOT NULL, productId TEXT NOT NULL, orderedQuantity REAL NOT NULL, freeQuantity REAL NOT NULL, purchaseRate REAL NOT NULL, schemeDiscount REAL NOT NULL, netCost REAL NOT NULL, effectiveCost REAL NOT NULL, batchNumber TEXT, expiryDate INTEGER, createdAt INTEGER NOT NULL, PRIMARY KEY(purchaseId, productId))")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_purchase_lines_purchaseId ON purchase_lines(purchaseId)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_purchase_lines_storeId_productId_createdAt ON purchase_lines(storeId, productId, createdAt)")
+            db.execSQL("CREATE TABLE IF NOT EXISTS supplier_ledger (id TEXT NOT NULL, storeId TEXT NOT NULL, supplierId TEXT NOT NULL, amount REAL NOT NULL, type TEXT NOT NULL, note TEXT NOT NULL, referenceType TEXT, referenceId TEXT, createdAt INTEGER NOT NULL, PRIMARY KEY(id))")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_supplier_ledger_storeId_supplierId_createdAt ON supplier_ledger(storeId, supplierId, createdAt)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_supplier_ledger_storeId_referenceType_referenceId ON supplier_ledger(storeId, referenceType, referenceId)")
+        }
+    }
 }
