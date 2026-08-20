@@ -10,6 +10,9 @@ interface KhataDao {
     @Query("SELECT COALESCE(SUM(amount), 0.0) FROM customer_ledger WHERE storeId = :storeId AND customerId = :customerId")
     fun observeBalance(storeId: String, customerId: String): Flow<Double>
 
+    @Query("SELECT COALESCE(SUM(amount), 0.0) FROM customer_ledger WHERE storeId = :storeId")
+    suspend fun totalReceivables(storeId: String): Double
+
     @Query("SELECT * FROM customer_ledger WHERE storeId = :storeId AND customerId = :customerId ORDER BY createdAt DESC")
     fun observeEntries(storeId: String, customerId: String): Flow<List<CustomerLedgerEntry>>
 
