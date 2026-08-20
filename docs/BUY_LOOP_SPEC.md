@@ -34,12 +34,10 @@ Required concepts:
 - store ID
 - supplier ID
 - supplier invoice number when available
-- created/received timestamps
-- purchase status later if draft/posted is needed
+- created/received timestamp
 - gross/net total
 - paid amount
 - outstanding payable
-- notes
 
 ## Purchase line
 
@@ -72,9 +70,9 @@ Free units increase stock but do not increase paid cost.
 
 ## Expiry/batch rule
 
-Expiry should require a batch/lot identifier in the purchase workflow so batch-level stock remains traceable.
+Expiry requires a batch/lot identifier in the purchase workflow so batch-level stock remains traceable.
 
-Products without meaningful batch/expiry information must still be receivable without inventing one.
+Products without meaningful batch/expiry information can still be received without inventing one.
 
 ## Supplier payable
 
@@ -86,27 +84,52 @@ Allowed states:
 - SETTLED
 - INVALID
 
-Overpayment should be rejected until a deliberate supplier-credit/refund model exists.
+Overpayment is rejected until a deliberate supplier-credit/refund model exists.
 
-## Relationship to existing inventory
+## Persistence
 
-Posting a purchase must eventually create:
+Room now contains the supplier/purchase domain at database version 19:
 
-1. product stock increase
-2. inventory batch when applicable
-3. inventory movement with reason RECEIVE/PURCHASE
-4. supplier payable transaction
+- `suppliers`
+- `purchases`
+- `purchase_lines`
+- `supplier_ledger`
 
-These changes should be one Room transaction.
+Migrations `17 → 18 → 19` are registered. Held bills are persistent at 17→18; purchasing tables are introduced by 18→19.
+
+## Atomic purchase posting
+
+`PurchaseRepository.recordPurchase()` posts purchase, lines, stock, batches, inventory movement and supplier-ledger entries inside one Room transaction.
+
+## UI
+
+`PurchaseActivity` + `PurchaseEntryScreen` now provide:
+
+- supplier selection
+- add supplier
+- invoice number
+- multiple purchase lines
+- paid/free quantity
+- purchase rate
+- scheme discount
+- batch/expiry
+- supplier payment
+- live gross/net/outstanding totals
+- atomic receive/post action
+
+The current UI intentionally avoids a separate ERP-style purchase-order workflow.
 
 ## Relationship to COGS
 
-The effective purchase cost becomes the cost basis for inventory valuation and, later, COGS calculations.
+The effective purchase cost is the future cost basis for inventory valuation and COGS. Free quantities therefore matter to profit reporting even though they are not separately paid for.
 
-Free quantities therefore matter to profit reporting even though they are not separately paid for.
+## Remaining work
 
-## Current implementation boundary
-
-The domain models and deterministic rules exist now without persistence. Room entities/migrations are intentionally deferred until the database registration path can be changed safely.
-
-Do not create a UI-only supplier database or process-local purchase history and call it complete.
+- supplier list/history UI
+- supplier payment/statement UI
+- purchase history/details UI
+- purchase edit/correction policy
+- COGS and inventory valuation integration
+- return-to-supplier workflow
+- purchase import/scan automation
+- supplier/product association shortcuts
