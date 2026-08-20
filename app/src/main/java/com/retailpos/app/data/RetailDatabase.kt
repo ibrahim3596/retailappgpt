@@ -32,7 +32,7 @@ import androidx.room.RoomDatabase
         FavoriteProductEntity::class,
         ExpenseEntity::class
     ],
-    version = 23,
+    version = 24,
     exportSchema = false
 )
 abstract class RetailDatabase : RoomDatabase() {
@@ -86,7 +86,8 @@ abstract class RetailDatabase : RoomDatabase() {
                     DatabaseMigrationsV20.MIGRATION_19_20,
                     DatabaseMigrationsV21.MIGRATION_20_21,
                     DatabaseMigrationsV22.MIGRATION_21_22,
-                    DatabaseMigrationsV23.MIGRATION_22_23
+                    DatabaseMigrationsV23.MIGRATION_22_23,
+                    DatabaseMigrationsV24.MIGRATION_23_24
                 )
                 .build()
                 .also {
