@@ -25,6 +25,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.retailpos.app.core.inventory.InventoryValuationRules
 import com.retailpos.app.data.InventoryBatchEntity
 import com.retailpos.app.data.InventoryMovementEntity
 import com.retailpos.app.data.ProductEntity
@@ -54,6 +55,7 @@ fun InventoryDetailScreen(
 
     val activeBatches = batches.filter { it.quantity > 0 }
     val totalBatchUnits = activeBatches.sumOf { it.quantity }
+    val valuation = InventoryValuationRules.summarize(activeBatches, System.currentTimeMillis())
 
     Scaffold(
         topBar = { TopAppBar(title = { Text("INVENTORY DETAIL", fontWeight = FontWeight.Black) }) }
@@ -70,6 +72,22 @@ fun InventoryDetailScreen(
                         if (product.brand.isNotBlank()) Text(product.brand, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text("Current stock: ${"%.2f".format(Locale.getDefault(), product.stock)} ${product.unit}", fontWeight = FontWeight.Bold)
                         Text("Batch stock: ${"%.2f".format(Locale.getDefault(), totalBatchUnits)} ${product.unit}")
+                        Text("Batch cost value: ₹${money(valuation.totalCostValue)}", fontWeight = FontWeight.Bold)
+                        Text("Sellable batch value: ₹${money(valuation.sellableCostValue)}")
+                        if (valuation.nearExpiryQuantity > 0.0) {
+                            Text(
+                                "Near expiry: ${fmt(valuation.nearExpiryQuantity)} ${product.unit} • ₹${money(valuation.nearExpiryCostValue)}",
+                                color = MaterialTheme.colorScheme.error,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        if (valuation.expiredQuantity > 0.0) {
+                            Text(
+                                "Expired: ${fmt(valuation.expiredQuantity)} ${product.unit} • ₹${money(valuation.expiredCostValue)}",
+                                color = MaterialTheme.colorScheme.error,
+                                fontWeight = FontWeight.Black
+                            )
+                        }
                         product.sku?.takeIf { it.isNotBlank() }?.let { Text("SKU $it") }
                     }
                 }
@@ -80,19 +98,27 @@ fun InventoryDetailScreen(
                 item { Text("No active batches recorded.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
             } else {
                 items(activeBatches, key = { it.id }) { batch ->
-                    val expired = batch.expiryDate?.let { it < System.currentTimeMillis() } == true
+                    val now = System.currentTimeMillis()
+                    val expired = batch.expiryDate?.let { it <= now } == true
+                    val nearExpiry = !expired && batch.expiryDate?.let { it <= now + 30L * 24L * 60L * 60L * 1000L } == true
                     Card(Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 Text(batch.batchNumber?.takeIf { it.isNotBlank() } ?: "UNBATCHED", fontWeight = FontWeight.Bold)
+                                val status = when {
+                                    expired -> "EXPIRED"
+                                    nearExpiry -> "NEAR EXPIRY"
+                                    else -> "AVAILABLE"
+                                }
                                 Text(
-                                    if (expired) "EXPIRED" else "AVAILABLE",
-                                    color = if (expired) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                                    status,
+                                    color = if (expired || nearExpiry) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
                             Text("Quantity: ${"%.2f".format(Locale.getDefault(), batch.quantity)} ${product.unit}")
                             Text("Purchase price: ${"%.2f".format(Locale.getDefault(), batch.purchasePrice)} / ${product.unit}")
+                            Text("Batch value: ₹${money(batch.quantity * batch.purchasePrice)}")
                             Text("Expiry: ${batch.expiryDate?.let { dateFormatter.format(Date(it)) } ?: "No expiry"}")
                             Text("Received: ${formatter.format(Date(batch.createdAt))}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
@@ -128,3 +154,6 @@ fun InventoryDetailScreen(
         }
     }
 }
+
+private fun money(value: Double): String = String.format(Locale.US, "%.2f", value)
+private fun fmt(value: Double): String = if (value % 1.0 == 0.0) value.toInt().toString() else String.format(Locale.US, "%.2f", value)
