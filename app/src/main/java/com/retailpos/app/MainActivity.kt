@@ -129,12 +129,14 @@ private fun RetailPosApp() {
     }
 
     fun setCartQuantity(line: com.retailpos.app.data.CartLine, quantity: Double) {
-        val availableStock = database.productDao().getById(line.productId, LOCAL_STORE_ID)?.stock ?: 0.0
-        when (cartManager.setQuantity(line.productId, quantity, availableStock)) {
-            AddToCartResult.Added -> { cart = cartManager.lines; cartError = null }
-            AddToCartResult.OutOfStock -> cartError = "${line.name} is out of stock."
-            AddToCartResult.InsufficientStock -> cartError = "Only ${availableStock.clean()} ${line.unit} of ${line.name} is available."
-            AddToCartResult.InvalidQuantity -> cartError = "Enter a quantity greater than zero."
+        scope.launch {
+            val availableStock = database.productDao().getById(line.productId, LOCAL_STORE_ID)?.stock ?: 0.0
+            when (cartManager.setQuantity(line.productId, quantity, availableStock)) {
+                AddToCartResult.Added -> { cart = cartManager.lines; cartError = null }
+                AddToCartResult.OutOfStock -> cartError = "${line.name} is out of stock."
+                AddToCartResult.InsufficientStock -> cartError = "Only ${availableStock.clean()} ${line.unit} of ${line.name} is available."
+                AddToCartResult.InvalidQuantity -> cartError = "Enter a quantity greater than zero."
+            }
         }
     }
 
