@@ -11,6 +11,7 @@ import com.retailpos.app.core.products.PricingRules
 import com.retailpos.app.core.products.StoreTaxMode
 import com.retailpos.app.core.products.TaxTreatment
 import com.retailpos.app.core.products.toTaxTreatment
+import com.retailpos.app.core.staff.StaffSessionStore
 import java.util.UUID
 
 @Dao
@@ -79,7 +80,7 @@ abstract class SaleDao {
         now: Long = System.currentTimeMillis(),
         taxTreatment: TaxTreatment? = null,
         billDiscountAmount: Double = 0.0,
-        staffRole: StaffRole = StaffRole.OWNER
+        staffRole: StaffRole = StaffSessionStore.current()?.role ?: StaffRole.CASHIER
     ): CheckoutResult {
         require(CheckoutRules.validateCart(cart)) { "Invalid cart" }
         require(CheckoutRules.validatePaymentMethod(paymentMethod)) { "Unsupported payment method" }
