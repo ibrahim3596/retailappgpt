@@ -3,6 +3,7 @@ package com.retailpos.app.ui.screens
 import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -10,6 +11,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -31,9 +33,21 @@ private object Keys {
     const val STORE_PHONE = "store_phone"
     const val CURRENCY = "currency"
     const val TAX_RATE = "tax_rate"
+    const val GST_MODE = "gst_mode"
     const val RECEIPT_HEADER = "receipt_header"
     const val RECEIPT_FOOTER = "receipt_footer"
     const val DENSITY = "density"
+}
+
+enum class GstMode(val storageValue: String, val label: String, val description: String) {
+    NO_GST("NO_GST", "I don't charge GST", "Use this when the store should not add GST to customer bills."),
+    REGULAR("REGULAR", "Regular GST taxpayer", "GST may be collected on taxable supplies; product rates still need to be configured."),
+    COMPOSITION("COMPOSITION", "Composition taxpayer", "Do not add GST as a separate customer charge."),
+    ;
+
+    companion object {
+        fun fromStorage(value: String): GstMode = entries.firstOrNull { it.storageValue == value } ?: NO_GST
+    }
 }
 
 data class LocalStoreSettings(
@@ -41,6 +55,7 @@ data class LocalStoreSettings(
     val storePhone: String,
     val currency: String,
     val taxRate: String,
+    val gstMode: GstMode,
     val receiptHeader: String,
     val receiptFooter: String,
     val density: String
@@ -53,6 +68,7 @@ private fun Context.loadStoreSettings(): LocalStoreSettings {
         storePhone = p.getString(Keys.STORE_PHONE, "") ?: "",
         currency = p.getString(Keys.CURRENCY, "INR") ?: "INR",
         taxRate = p.getString(Keys.TAX_RATE, "0") ?: "0",
+        gstMode = GstMode.fromStorage(p.getString(Keys.GST_MODE, GstMode.NO_GST.storageValue) ?: GstMode.NO_GST.storageValue),
         receiptHeader = p.getString(Keys.RECEIPT_HEADER, "") ?: "",
         receiptFooter = p.getString(Keys.RECEIPT_FOOTER, "Thank you for shopping with us") ?: "Thank you for shopping with us",
         density = p.getString(Keys.DENSITY, "Standard") ?: "Standard"
@@ -65,6 +81,7 @@ private fun Context.saveStoreSettings(settings: LocalStoreSettings) {
         .putString(Keys.STORE_PHONE, settings.storePhone.trim())
         .putString(Keys.CURRENCY, settings.currency.trim().uppercase())
         .putString(Keys.TAX_RATE, settings.taxRate.trim())
+        .putString(Keys.GST_MODE, settings.gstMode.storageValue)
         .putString(Keys.RECEIPT_HEADER, settings.receiptHeader.trim())
         .putString(Keys.RECEIPT_FOOTER, settings.receiptFooter.trim())
         .putString(Keys.DENSITY, settings.density)
@@ -74,14 +91,17 @@ private fun Context.saveStoreSettings(settings: LocalStoreSettings) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(context: Context, onBack: () -> Unit) {
-    var storeName by remember { mutableStateOf(context.loadStoreSettings().storeName) }
-    var storePhone by remember { mutableStateOf(context.loadStoreSettings().storePhone) }
-    var currency by remember { mutableStateOf(context.loadStoreSettings().currency) }
-    var taxRate by remember { mutableStateOf(context.loadStoreSettings().taxRate) }
-    var receiptHeader by remember { mutableStateOf(context.loadStoreSettings().receiptHeader) }
-    var receiptFooter by remember { mutableStateOf(context.loadStoreSettings().receiptFooter) }
-    var density by remember { mutableStateOf(context.loadStoreSettings().density) }
+    val initial = remember(context) { context.loadStoreSettings() }
+    var storeName by remember { mutableStateOf(initial.storeName) }
+    var storePhone by remember { mutableStateOf(initial.storePhone) }
+    var currency by remember { mutableStateOf(initial.currency) }
+    var taxRate by remember { mutableStateOf(initial.taxRate) }
+    var gstMode by remember { mutableStateOf(initial.gstMode) }
+    var receiptHeader by remember { mutableStateOf(initial.receiptHeader) }
+    var receiptFooter by remember { mutableStateOf(initial.receiptFooter) }
+    var density by remember { mutableStateOf(initial.density) }
     var saved by remember { mutableStateOf(false) }
+    var validationError by remember { mutableStateOf<String?>(null) }
 
     Scaffold(topBar = { TopAppBar(title = { Text("SETTINGS", fontWeight = FontWeight.Black) }) }) { padding ->
         Column(
@@ -94,7 +114,24 @@ fun SettingsScreen(context: Context, onBack: () -> Unit) {
 
             Text("Billing", fontWeight = FontWeight.Bold)
             OutlinedTextField(currency, { currency = it; saved = false }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Currency code") })
-            OutlinedTextField(taxRate, { taxRate = it; saved = false }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Default tax rate (%)") })
+            Text("GST status", fontWeight = FontWeight.Bold)
+            GstMode.entries.forEach { mode ->
+                OutlinedButton(
+                    onClick = { gstMode = mode; saved = false; validationError = null },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(if (gstMode == mode) "✓ ${mode.label}" else mode.label)
+                }
+            }
+            Text(gstMode.description, color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+            OutlinedTextField(
+                taxRate,
+                { value -> taxRate = value.filter { it.isDigit() || it == '.' || it == ',' }; saved = false; validationError = null },
+                Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { Text("Default tax rate (%)") },
+                enabled = gstMode == GstMode.REGULAR
+            )
 
             Text("Receipt", fontWeight = FontWeight.Bold)
             OutlinedTextField(receiptHeader, { receiptHeader = it; saved = false }, Modifier.fillMaxWidth(), label = { Text("Receipt header") })
@@ -105,12 +142,31 @@ fun SettingsScreen(context: Context, onBack: () -> Unit) {
 
             Button(
                 onClick = {
-                    context.saveStoreSettings(LocalStoreSettings(storeName, storePhone, currency.ifBlank { "INR" }, taxRate.ifBlank { "0" }, receiptHeader, receiptFooter, density.ifBlank { "Standard" }))
-                    saved = true
+                    val parsedRate = taxRate.replace(',', '.').toDoubleOrNull() ?: 0.0
+                    if (!parsedRate.isFinite() || parsedRate !in 0.0..100.0) {
+                        validationError = "Tax rate must be between 0 and 100."
+                        saved = false
+                    } else {
+                        context.saveStoreSettings(
+                            LocalStoreSettings(
+                                storeName = storeName,
+                                storePhone = storePhone,
+                                currency = currency.ifBlank { "INR" },
+                                taxRate = if (gstMode == GstMode.REGULAR) parsedRate.toString() else "0",
+                                gstMode = gstMode,
+                                receiptHeader = receiptHeader,
+                                receiptFooter = receiptFooter,
+                                density = density.ifBlank { "Standard" }
+                            )
+                        )
+                        validationError = null
+                        saved = true
+                    }
                 },
                 modifier = Modifier.fillMaxWidth()
             ) { Text("SAVE SETTINGS") }
 
+            validationError?.let { Text(it, color = androidx.compose.material3.MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold) }
             if (saved) Text("Saved locally on this device.")
             TextButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text("BACK") }
         }
