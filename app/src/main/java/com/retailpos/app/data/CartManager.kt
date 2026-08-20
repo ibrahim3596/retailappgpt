@@ -31,6 +31,18 @@ class CartManager {
         return AddToCartResult.Added
     }
 
+    fun setQuantity(productId: String, requestedQuantity: Double, availableStock: Double): AddToCartResult {
+        if (requestedQuantity <= 0.0 || !requestedQuantity.isFinite()) return AddToCartResult.InvalidQuantity
+        if (availableStock <= 0.0) return AddToCartResult.OutOfStock
+        if (requestedQuantity > availableStock + 1e-9) return AddToCartResult.InsufficientStock
+
+        val index = _lines.indexOfFirst { it.productId == productId }
+        if (index < 0) return AddToCartResult.InvalidQuantity
+
+        _lines[index] = _lines[index].copy(quantity = requestedQuantity)
+        return AddToCartResult.Added
+    }
+
     fun remove(productId: String): Boolean = _lines.removeIf { it.productId == productId }
 
     fun clear() = _lines.clear()
