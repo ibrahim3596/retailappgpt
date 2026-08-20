@@ -13,6 +13,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -20,13 +21,18 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.retailpos.app.data.BarcodeMutationResult
 import com.retailpos.app.data.ProductMetadataSaveResult
 import com.retailpos.app.data.ProductMetadataViewModel
 import com.retailpos.app.data.ProductMetadataViewModelFactory
+import com.retailpos.app.data.ProductViewModel
+import com.retailpos.app.data.ProductViewModelFactory
 import com.retailpos.app.ui.components.ProductMetadataEditor
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -36,16 +42,24 @@ fun ProductMetadataScreen(
     productId: String,
     onBack: () -> Unit
 ) {
-    val factory = remember(storeId) { ProductMetadataViewModelFactory(storeId) }
-    val viewModel: ProductMetadataViewModel = viewModel(factory = factory)
-    val form by viewModel.form.collectAsState()
-    val error by viewModel.error.collectAsState()
+    val metadataFactory = remember(storeId) { ProductMetadataViewModelFactory(storeId) }
+    val metadataViewModel: ProductMetadataViewModel = viewModel(factory = metadataFactory)
+    val productFactory = remember(storeId) { ProductViewModelFactory(storeId) }
+    val productViewModel: ProductViewModel = viewModel(key = "product-$productId", factory = productFactory)
+    val form by metadataViewModel.form.collectAsState()
+    val error by metadataViewModel.error.collectAsState()
+    val barcodes by productViewModel.barcodes.collectAsState()
+    var secondaryBarcode by remember { mutableStateOf("") }
+    var barcodeMessage by remember { mutableStateOf<String?>(null) }
 
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        uri?.let { viewModel.setImageUri(it.toString()) }
+        uri?.let { metadataViewModel.setImageUri(it.toString()) }
     }
 
-    LaunchedEffect(productId) { viewModel.load(productId) }
+    LaunchedEffect(productId) {
+        metadataViewModel.load(productId)
+        productViewModel.loadProduct(productId)
+    }
 
     Scaffold(topBar = { TopAppBar(title = { Text("PRODUCT DETAILS") }) }) { padding ->
         Column(
@@ -57,36 +71,61 @@ fun ProductMetadataScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text("PRODUCT IMAGE")
-            if (form.imageUri.isNullOrBlank()) {
-                Text("No product image selected.")
-            } else {
-                Text("Image selected")
-                Text(form.imageUri!!)
-            }
+            if (form.imageUri.isNullOrBlank()) Text("No product image selected.")
+            else Text("Image selected: ${form.imageUri}")
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 Button(onClick = { imagePicker.launch("image/*") }, modifier = Modifier.weight(1f)) {
                     Text(if (form.imageUri.isNullOrBlank()) "ADD IMAGE" else "CHANGE IMAGE")
                 }
                 if (!form.imageUri.isNullOrBlank()) {
-                    OutlinedButton(onClick = { viewModel.setImageUri(null) }, modifier = Modifier.weight(1f)) {
+                    OutlinedButton(onClick = { metadataViewModel.setImageUri(null) }, modifier = Modifier.weight(1f)) {
                         Text("REMOVE")
                     }
                 }
             }
 
-            ProductMetadataEditor(form = form, onChange = viewModel::update)
+            Text("BARCODES")
+            if (barcodes.isEmpty()) Text("No barcode records yet.")
+            barcodes.forEach { code ->
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.weight(1f)) {
+                        Text(code.value)
+                        Text(if (code.isPrimary) "PRIMARY • ${code.type}" else "ALTERNATE • ${code.type}")
+                    }
+                    if (!code.isPrimary) {
+                        OutlinedButton(onClick = { productViewModel.removeSecondaryBarcode(code.id) }) { Text("REMOVE") }
+                    }
+                }
+            }
+            OutlinedTextField(
+                value = secondaryBarcode,
+                onValueChange = { secondaryBarcode = it; barcodeMessage = null },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Add alternate barcode") },
+                singleLine = true
+            )
+            Button(onClick = {
+                productViewModel.addSecondaryBarcode(productId, secondaryBarcode, "UNKNOWN") { result ->
+                    barcodeMessage = when (result) {
+                        BarcodeMutationResult.Success -> { secondaryBarcode = ""; "Alternate barcode added." }
+                        BarcodeMutationResult.Duplicate -> "That barcode is already assigned."
+                        BarcodeMutationResult.Invalid -> "Enter a valid retail barcode."
+                    }
+                }
+            }, enabled = secondaryBarcode.isNotBlank()) { Text("ADD BARCODE") }
+            barcodeMessage?.let { Text(it) }
+
+            ProductMetadataEditor(form = form, onChange = metadataViewModel::update)
             error?.let { Text(it) }
             Button(onClick = {
-                viewModel.save(productId) { result ->
+                metadataViewModel.save(productId) { result ->
                     when (result) {
                         ProductMetadataSaveResult.Success -> onBack()
                         is ProductMetadataSaveResult.Invalid -> Unit
                         ProductMetadataSaveResult.Error -> Unit
                     }
                 }
-            }) {
-                Text("SAVE PRODUCT DETAILS")
-            }
+            }) { Text("SAVE PRODUCT DETAILS") }
         }
     }
 }
