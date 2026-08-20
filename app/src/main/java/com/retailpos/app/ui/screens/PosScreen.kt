@@ -35,20 +35,31 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.retailpos.app.core.pos.QuickAddProduct
+import com.retailpos.app.core.pos.QuickAddRules
+import com.retailpos.app.core.pos.RecentProductRules
 import com.retailpos.app.data.CartLine
+import com.retailpos.app.data.FavoriteProductEntity
 import com.retailpos.app.data.HeldBillStore
 import com.retailpos.app.data.ProductEntity
+import com.retailpos.app.data.RetailDatabase
 import com.retailpos.app.ui.components.PosQuickAddSection
 import com.retailpos.app.ui.components.VoiceBillingButton
+import kotlinx.coroutines.launch
 import java.util.Locale
+
+private const val LOCAL_STORE_ID = "local-store"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -73,6 +84,47 @@ fun PosScreen(
     onOpenHeldBills: () -> Unit = {},
     onClearBill: () -> Unit = {}
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val database = remember(context) { RetailDatabase.get(context) }
+    val favoriteIds by database.favoriteProductDao().observeIds(LOCAL_STORE_ID).collectAsState(initial = emptyList())
+    var persistedFavorites by remember { mutableStateOf<List<QuickAddProduct>>(emptyList()) }
+    var persistedRecentlySold by remember { mutableStateOf<List<QuickAddProduct>>(emptyList()) }
+
+    LaunchedEffect(favoriteIds) {
+        persistedFavorites = QuickAddRules.filterAddable(
+            favoriteIds.mapNotNull { id -> database.productDao().getById(id, LOCAL_STORE_ID)?.toQuickAddProduct() }
+        )
+    }
+
+    LaunchedEffect(Unit) {
+        val recentSales = database.saleDao().getRecentSales(LOCAL_STORE_ID, 12)
+        val recentLines = recentSales.map { sale ->
+            database.saleDao().getSaleLines(sale.id).mapNotNull { line ->
+                database.productDao().getById(line.productId, LOCAL_STORE_ID)?.toQuickAddProduct()
+            }
+        }
+        persistedRecentlySold = QuickAddRules.filterAddable(
+            RecentProductRules.fromSaleLines(recentLines)
+        )
+    }
+
+    fun togglePersistentFavorite(product: QuickAddProduct) {
+        scope.launch {
+            if (database.favoriteProductDao().isFavorite(LOCAL_STORE_ID, product.productId)) {
+                database.favoriteProductDao().remove(LOCAL_STORE_ID, product.productId)
+            } else {
+                database.favoriteProductDao().add(
+                    FavoriteProductEntity(LOCAL_STORE_ID, product.productId, System.currentTimeMillis())
+                )
+            }
+            onToggleFavorite(product)
+        }
+    }
+
+    val visibleFavorites = if (persistedFavorites.isNotEmpty()) persistedFavorites else favorites
+    val visibleRecentlySold = if (persistedRecentlySold.isNotEmpty()) persistedRecentlySold else recentlySold
+
     var query by remember { mutableStateOf("") }
     var showClearConfirmation by remember { mutableStateOf(false) }
     val total = cart.sumOf { it.lineTotal }
@@ -109,8 +161,8 @@ fun PosScreen(
         LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedTextField(value = query, onValueChange = { query = it; onSearchQueryChanged(it) }, modifier = Modifier.weight(1f), singleLine = true, leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) }, placeholder = { Text("Search products, barcode or SKU") }); IconButton(onClick = onOpenScanner, modifier = Modifier.height(56.dp)) { Icon(Icons.Default.CameraAlt, contentDescription = "Scan") } } }
             if (!showingSearch) {
-                item { PosQuickAddSection(title = "RECENTLY SOLD", products = recentlySold, onAdd = onQuickAdd, onToggleFavorite = onToggleFavorite, isFavorite = isFavorite) }
-                item { PosQuickAddSection(title = "FAVORITES", products = favorites, onAdd = onQuickAdd, onToggleFavorite = onToggleFavorite, isFavorite = isFavorite) }
+                item { PosQuickAddSection(title = "RECENTLY SOLD", products = visibleRecentlySold, onAdd = onQuickAdd, onToggleFavorite = ::togglePersistentFavorite, isFavorite = { favoriteIds.contains(it.productId) }) }
+                item { PosQuickAddSection(title = "FAVORITES", products = visibleFavorites, onAdd = onQuickAdd, onToggleFavorite = ::togglePersistentFavorite, isFavorite = { favoriteIds.contains(it.productId) }) }
             }
             if (showingSearch) {
                 item { Text("PRODUCTS", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold) }
@@ -133,6 +185,10 @@ fun PosScreen(
         AlertDialog(onDismissRequest = { showClearConfirmation = false }, title = { Text("CLEAR BILL?") }, text = { Text("Remove all ${cart.size} product line(s) from the current bill? This cannot be undone unless the bill is held first.") }, confirmButton = { TextButton(onClick = { showClearConfirmation = false; onClearBill() }) { Text("CLEAR BILL") } }, dismissButton = { TextButton(onClick = { showClearConfirmation = false }) { Text("CANCEL") } })
     }
 }
+
+private suspend fun ProductEntity.toQuickAddProduct(database: RetailDatabase): QuickAddProduct = QuickAddProduct(id, name, brand, unit, sellingPrice, stock)
+
+private fun ProductEntity.toQuickAddProduct(): QuickAddProduct = QuickAddProduct(id, name, brand, unit, sellingPrice, stock)
 
 private fun quantityStep(unit: String): Double = when (unit.trim().lowercase()) { "kg", "kilo", "kilogram", "kilograms" -> 0.05; "l", "lt", "ltr", "litre", "liter", "litres", "liters" -> 0.05; "g", "gm", "gram", "grams" -> 50.0; "ml", "millilitre", "milliliter" -> 50.0; else -> 1.0 }
 private fun displayQuantity(value: Double): String = if (value % 1.0 == 0.0) value.toInt().toString() else String.format(Locale.US, "%.3f", value).trimEnd('0').trimEnd('.')
