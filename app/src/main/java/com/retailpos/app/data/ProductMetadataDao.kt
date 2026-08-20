@@ -10,6 +10,9 @@ interface ProductMetadataDao {
     @Query("SELECT * FROM product_metadata WHERE productId = :productId AND storeId = :storeId LIMIT 1")
     suspend fun get(productId: String, storeId: String): ProductMetadataEntity?
 
+    @Query("SELECT * FROM product_metadata WHERE storeId = :storeId AND productId IN (:productIds)")
+    suspend fun getForProducts(storeId: String, productIds: List<String>): List<ProductMetadataEntity>
+
     @Query("SELECT * FROM product_metadata WHERE productId = :productId AND storeId = :storeId LIMIT 1")
     fun observe(productId: String, storeId: String): Flow<ProductMetadataEntity?>
 
