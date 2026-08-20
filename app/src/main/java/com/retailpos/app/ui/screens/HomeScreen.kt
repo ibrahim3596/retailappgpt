@@ -46,6 +46,7 @@ import com.retailpos.app.ExpenseActivity
 import com.retailpos.app.PurchaseActivity
 import com.retailpos.app.ReturnActivity
 import com.retailpos.app.StaffGateActivity
+import com.retailpos.app.core.payment.PaymentSummaryRules
 import com.retailpos.app.core.permissions.NavigationPermissionRules
 import com.retailpos.app.core.reconciliation.DayEndReconciliationRules
 import com.retailpos.app.core.staff.StaffRole
@@ -79,7 +80,7 @@ fun HomeScreen(
     val start = today.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
     val end = today.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
     val metricsState by produceState<TodayMetrics?>(initialValue = null, actualSaleDao, database, start, end) {
-        val payments = actualSaleDao.getPaymentSummary(storeId, start, end).associateBy { it.paymentMethod.uppercase() }
+        val payments = PaymentSummaryRules.normalize(actualSaleDao.getPaymentSummary(storeId, start, end)).associateBy { it.paymentMethod.uppercase() }
         val total = actualSaleDao.getSalesTotal(storeId, start, end)
         value = TodayMetrics(
             totalSales = total,
