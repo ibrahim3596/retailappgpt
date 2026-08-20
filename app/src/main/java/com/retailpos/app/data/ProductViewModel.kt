@@ -50,11 +50,7 @@ class ProductViewModel(application: Application, private val storeId: String) : 
     fun setQuery(value: String) { _query.value = value }
     fun setFilter(value: ProductListFilter) { _filter.value = value }
 
-    fun findLocalCaptureCandidates(
-        name: String?,
-        brand: String?,
-        onComplete: ((List<ProductLocalCandidate>) -> Unit)? = null
-    ) {
+    fun findLocalCaptureCandidates(name: String?, brand: String?, onComplete: ((List<ProductLocalCandidate>) -> Unit)? = null) {
         viewModelScope.launch {
             val candidates = repository.findLocalCandidates(storeId, name, brand)
             _localCandidates.value = candidates
@@ -90,7 +86,8 @@ class ProductViewModel(application: Application, private val storeId: String) : 
         mrp: Double, sellingPrice: Double, purchasePrice: Double, stock: Double,
         unit: String, lowStockThreshold: Double,
         captureObservation: ProductCaptureObservation? = null,
-        onResult: (SaveProductResult) -> Unit
+        onResult: (SaveProductResult) -> Unit,
+        onProductSaved: (String) -> Unit = {}
     ) {
         val normalizedSku = ProductIdentityRules.normalizeSku(sku).ifBlank { null }
         val normalizedBarcode = ProductIdentityRules.normalizeBarcode(barcode)
@@ -121,12 +118,7 @@ class ProductViewModel(application: Application, private val storeId: String) : 
                 )
                 val saved = if (captureObservation != null) {
                     val existingMetadata = productId?.let { metadataRepository.get(it, storeId) }
-                    val metadata = ProductCaptureMetadataMapper.map(
-                        productId = product.id,
-                        storeId = storeId,
-                        observation = captureObservation,
-                        existing = existingMetadata
-                    )
+                    val metadata = ProductCaptureMetadataMapper.map(product.id, storeId, captureObservation, existingMetadata)
                     repository.saveProductWithMetadata(product, metadata)
                 } else {
                     repository.saveProductWithPrimaryBarcode(product)
@@ -135,6 +127,7 @@ class ProductViewModel(application: Application, private val storeId: String) : 
                     onResult(SaveProductResult.DuplicateBarcode); return@launch
                 }
                 onResult(SaveProductResult.Success)
+                onProductSaved(product.id)
             } catch (_: Exception) { onResult(SaveProductResult.Error) }
         }
     }
