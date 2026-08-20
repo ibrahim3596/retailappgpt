@@ -77,10 +77,21 @@ fun AnalyticsScreen(
         val start = calendar.timeInMillis
         calendar.add(Calendar.DAY_OF_YEAR, 1)
         val end = calendar.timeInMillis
-        salesTotal = saleDao.getSalesTotal(storeId, start, end)
+
+        val grossSales = saleDao.getSalesTotal(storeId, start, end)
+        val returnedRevenue = database.returnDao().getRefundTotal(storeId, start, end)
+        salesTotal = (grossSales - returnedRevenue).coerceAtLeast(0.0)
+
         salesCount = saleDao.getSalesCount(storeId, start, end)
-        itemsSold = saleDao.getItemsSold(storeId, start, end)
-        cogs = saleDao.getCogsTotal(storeId, start, end)
+
+        val grossItems = saleDao.getItemsSold(storeId, start, end)
+        val returnedItems = database.returnDao().getReturnedItemsTotal(storeId, start, end)
+        itemsSold = (grossItems - returnedItems).coerceAtLeast(0.0)
+
+        val grossCogs = saleDao.getCogsTotal(storeId, start, end)
+        val restoredCost = database.returnDao().getRestoredCostTotal(storeId, start, end)
+        cogs = (grossCogs - restoredCost).coerceAtLeast(0.0)
+
         expenses = database.expenseDao().totalBetween(storeId, start, end)
         receivables = database.khataDao().totalReceivables(storeId).coerceAtLeast(0.0)
         payables = database.supplierLedgerDao().totalPayables(storeId).coerceAtLeast(0.0)
@@ -116,9 +127,9 @@ fun AnalyticsScreen(
             item { Text("Today", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black) }
             item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    AnalyticsStat("SALES", currency.format(salesTotal), Modifier.weight(1f))
+                    AnalyticsStat("NET SALES", currency.format(salesTotal), Modifier.weight(1f))
                     AnalyticsStat("BILLS", salesCount.toString(), Modifier.weight(1f))
-                    AnalyticsStat("ITEMS", String.format(Locale.getDefault(), "%.0f", itemsSold), Modifier.weight(1f))
+                    AnalyticsStat("NET ITEMS", String.format(Locale.getDefault(), "%.2f", itemsSold), Modifier.weight(1f))
                 }
             }
             item {
