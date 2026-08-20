@@ -26,6 +26,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Spacer
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -52,10 +53,11 @@ import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import com.retailpos.app.core.products.ProductCaptureConsensus
 import com.retailpos.app.core.products.ProductCaptureObservation
-import com.retailpos.app.core.products.ProductCaptureStabilityRules
 import com.retailpos.app.core.products.ProductCaptureParser
+import com.retailpos.app.core.products.ProductCaptureStabilityRules
 import com.retailpos.app.core.products.ProductPackParser
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 
 
@@ -134,31 +136,30 @@ fun IntelligentProductCaptureScreen(
                                 imageProxy.close()
                                 return@setAnalyzer
                             }
+
                             val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
-                            var barcode: String? = null
-                            var text = ""
-                            var bestLabel: String? = null
-                            var bestConfidence: Float? = null
-                            var completed = 0
-                            var closed = false
+                            val barcodeRef = AtomicReference<String?>(null)
+                            val textRef = AtomicReference("")
+                            val labelRef = AtomicReference<String?>(null)
+                            val labelConfidenceRef = AtomicReference<Float?>(null)
+                            val completed = AtomicInteger(0)
+                            val closed = AtomicReference(false)
 
                             fun closeOnce() {
-                                if (!closed) {
-                                    closed = true
-                                    imageProxy.close()
-                                }
+                                if (closed.compareAndSet(false, true)) imageProxy.close()
                             }
 
                             fun recordObservation() {
-                                if (completed < 3) return
+                                if (completed.get() != 3) return
+                                val text = textRef.get()
                                 val parsed = ProductCaptureParser.parse(text)
                                 val observation = ProductCaptureObservation(
-                                    barcode = barcode,
+                                    barcode = barcodeRef.get(),
                                     printedName = parsed.name,
                                     printedBrand = parsed.brand,
                                     mrp = parsed.mrp,
-                                    categoryHint = bestLabel,
-                                    categoryConfidence = bestConfidence,
+                                    categoryHint = labelRef.get(),
+                                    categoryConfidence = labelConfidenceRef.get(),
                                     pack = ProductPackParser.parse(text),
                                     frameCount = 1
                                 )
@@ -197,21 +198,28 @@ fun IntelligentProductCaptureScreen(
                                 closeOnce()
                             }
 
+                            fun markComplete() {
+                                completed.incrementAndGet()
+                                recordObservation()
+                            }
+
                             scanner.process(image)
                                 .addOnSuccessListener { codes ->
-                                    barcode = codes.firstOrNull { it.format != Barcode.FORMAT_QR_CODE && !it.rawValue.isNullOrBlank() }?.rawValue
+                                    barcodeRef.set(codes.firstOrNull { it.format != Barcode.FORMAT_QR_CODE && !it.rawValue.isNullOrBlank() }?.rawValue)
                                 }
-                                .addOnCompleteListener { completed++; recordObservation() }
+                                .addOnCompleteListener { markComplete() }
+
                             recognizer.process(image)
-                                .addOnSuccessListener { recognized -> text = recognized.text.orEmpty() }
-                                .addOnCompleteListener { completed++; recordObservation() }
+                                .addOnSuccessListener { recognized -> textRef.set(recognized.text.orEmpty()) }
+                                .addOnCompleteListener { markComplete() }
+
                             labeler.process(image)
                                 .addOnSuccessListener { labels ->
                                     val top = labels.maxByOrNull { it.confidence }
-                                    bestLabel = top?.text
-                                    bestConfidence = top?.confidence
+                                    labelRef.set(top?.text)
+                                    labelConfidenceRef.set(top?.confidence)
                                 }
-                                .addOnCompleteListener { completed++; recordObservation() }
+                                .addOnCompleteListener { markComplete() }
                         }
                     }
                 try {
