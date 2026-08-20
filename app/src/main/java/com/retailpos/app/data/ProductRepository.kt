@@ -20,18 +20,29 @@ class ProductRepository(
     suspend fun getById(productId: String, storeId: String): ProductEntity? = dao.getById(productId, storeId)
     suspend fun getBySku(storeId: String, sku: String): ProductEntity? = dao.getBySku(storeId, ProductIdentityRules.normalizeSku(sku))
     suspend fun getByBarcode(storeId: String, value: String): ProductBarcodeEntity? = barcodeDao.getByValue(storeId, ProductIdentifierValidator.normalize(value))
-    suspend fun getProductByBarcode(storeId: String, value: String): ProductEntity? =
-        barcodeDao.getProductByBarcode(storeId, ProductIdentifierValidator.normalize(value))
+    suspend fun getProductByBarcode(storeId: String, value: String): ProductEntity? = barcodeDao.getProductByBarcode(storeId, ProductIdentifierValidator.normalize(value))
 
-    suspend fun findLocalCandidates(storeId: String, name: String?, brand: String?, limit: Int = 30): List<ProductLocalCandidate> {
+    suspend fun findLocalCandidates(
+        storeId: String,
+        name: String?,
+        brand: String?,
+        observedPackSize: Double? = null,
+        observedPackUnit: String? = null,
+        limit: Int = 30
+    ): List<ProductLocalCandidate> {
         val queries = listOf(name, brand)
             .filter { !it.isNullOrBlank() }
             .map { ProductCaptureParser.normalizeForMatching(it.orEmpty()) }
             .filter { it.isNotBlank() }
             .distinct()
-        val candidates = queries.flatMap { dao.findLocalCandidates(storeId, it, limit) }
-            .distinctBy { it.id }
-        return ProductLocalCandidateRanking.rank(name, brand, candidates)
+        val candidates = queries.flatMap { dao.findLocalCandidates(storeId, it, limit) }.distinctBy { it.id }
+        val metadata = if (database != null && candidates.isNotEmpty()) {
+            database.productMetadataDao().getForProducts(storeId, candidates.map { it.id }).associateBy { it.productId }
+        } else emptyMap()
+        val feedback = if (database != null && candidates.isNotEmpty()) {
+            candidates.associate { product -> product.id to database.productIdentificationFeedbackDao().rankingBoostForCandidate(storeId, product.id).coerceIn(-8, 8) }
+        } else emptyMap()
+        return ProductLocalCandidateRanking.rank(name, brand, candidates, observedPackSize, observedPackUnit, metadata, feedback)
     }
 
     suspend fun save(product: ProductEntity) = dao.upsert(product)
@@ -50,11 +61,7 @@ class ProductRepository(
         return if (database != null) database.withTransaction { operation() } else operation()
     }
 
-    suspend fun saveProductWithMetadata(
-        product: ProductEntity,
-        metadata: ProductMetadataEntity,
-        barcodeType: String = "UNKNOWN"
-    ): Boolean {
+    suspend fun saveProductWithMetadata(product: ProductEntity, metadata: ProductMetadataEntity, barcodeType: String = "UNKNOWN"): Boolean {
         val db = database ?: return false
         return db.withTransaction {
             val normalized = ProductIdentityRules.normalizeBarcode(product.barcode.orEmpty())
@@ -93,7 +100,7 @@ class ProductRepository(
         return BarcodeMutationResult.Success
     }
 
-    suspend fun removeSecondaryBarcode(barcodeId: String, storeId: String) { barcodeDao.delete(barcodeId, storeId) }
+    suspend fun removeSecondaryBarcode(barcodeId: String, storeId: String) { barcodeDao.remove(barcodeId, storeId) }
     suspend fun delete(productId: String, storeId: String) { barcodeDao.deleteForProduct(productId, storeId); dao.delete(productId, storeId) }
 }
 
