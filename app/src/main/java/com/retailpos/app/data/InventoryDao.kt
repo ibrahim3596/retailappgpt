@@ -25,7 +25,7 @@ abstract class InventoryDao {
 
     @Transaction
     open suspend fun adjustStock(storeId: String, productId: String, quantityDelta: Double, reason: InventoryMovementReason = InventoryMovementReason.ADJUSTMENT, referenceType: String? = null, referenceId: String? = null, now: Long = System.currentTimeMillis()) {
-        InventoryRules.validateAdjustment(quantityDelta)?.let(::error)
+        InventoryRules.validateAdjustment(quantityDelta)?.let { throw IllegalArgumentException(it) }
         require(reason != InventoryMovementReason.SALE) { "Sale stock changes must use checkout" }
         check(updateProductStock(storeId, productId, quantityDelta, now) == 1) { "Stock cannot become negative" }
         insertMovement(InventoryMovementEntity(UUID.randomUUID().toString(), storeId, productId, null, quantityDelta, reason.name, referenceType, referenceId, now))
@@ -33,7 +33,7 @@ abstract class InventoryDao {
 
     @Transaction
     open suspend fun adjustBatchStock(storeId: String, productId: String, batchId: String, quantityDelta: Double, reason: InventoryMovementReason = InventoryMovementReason.ADJUSTMENT, now: Long = System.currentTimeMillis()) {
-        InventoryRules.validateAdjustment(quantityDelta)?.let(::error)
+        InventoryRules.validateAdjustment(quantityDelta)?.let { throw IllegalArgumentException(it) }
         require(reason != InventoryMovementReason.SALE) { "Sale stock changes must use checkout" }
         check(updateProductStock(storeId, productId, quantityDelta, now) == 1) { "Product stock cannot become negative" }
         check(updateBatchQuantity(storeId, productId, batchId, quantityDelta) == 1) { "Batch stock cannot become negative" }
@@ -42,7 +42,7 @@ abstract class InventoryDao {
 
     @Transaction
     open suspend fun receiveStock(storeId: String, productId: String, quantity: Double, batchNumber: String?, expiryDate: Long?, purchasePrice: Double, now: Long = System.currentTimeMillis()) {
-        InventoryRules.validateReceive(quantity, purchasePrice, expiryDate, now)?.let(::error)
+        InventoryRules.validateReceive(quantity, purchasePrice, expiryDate, now)?.let { throw IllegalArgumentException(it) }
         check(updateProductStock(storeId, productId, quantity, now) == 1) { "Product could not be updated" }
         insertBatch(InventoryBatchEntity(UUID.randomUUID().toString(), storeId, productId, batchNumber?.trim()?.ifBlank { null }, expiryDate, quantity, purchasePrice, now))
         insertMovement(InventoryMovementEntity(UUID.randomUUID().toString(), storeId, productId, null, quantity, InventoryMovementReason.RECEIVE.name, "RECEIVING", null, now))
