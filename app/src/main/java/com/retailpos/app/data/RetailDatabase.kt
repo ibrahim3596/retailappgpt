@@ -101,5 +101,12 @@ abstract class RetailDatabase : RoomDatabase() {
                     ProductCatalogLookup.configurePersistentCache(LOCAL_STORE_ID, it.productIdentificationCacheDao())
                 }
         }
+
+        fun closeForRestore() {
+            synchronized(this) {
+                INSTANCE?.close()
+                INSTANCE = null
+            }
+        }
     }
 }
