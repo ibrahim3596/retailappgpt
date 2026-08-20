@@ -40,6 +40,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.retailpos.app.data.CartLine
 import com.retailpos.app.data.ProductEntity
+import com.retailpos.app.ui.components.VoiceBillingButton
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -49,6 +50,8 @@ fun PosScreen(
     searchResults: List<ProductEntity>,
     onSearchQueryChanged: (String) -> Unit,
     onAddProduct: (ProductEntity) -> Unit,
+    onVoiceInput: (String) -> Unit,
+    onVoiceError: (String) -> Unit,
     onRemoveFromCart: (String) -> Unit,
     onBack: () -> Unit,
     onOpenScanner: () -> Unit,
@@ -64,7 +67,10 @@ fun PosScreen(
             TopAppBar(
                 title = { Text("BILLING", fontWeight = FontWeight.Black) },
                 navigationIcon = { IconButton(onClick = onBack) { Text("‹", style = MaterialTheme.typography.headlineMedium) } },
-                actions = { IconButton(onClick = onOpenScanner) { Icon(Icons.Default.CameraAlt, contentDescription = "Scan barcode") } }
+                actions = {
+                    VoiceBillingButton(onTranscript = onVoiceInput, onError = onVoiceError)
+                    IconButton(onClick = onOpenScanner) { Icon(Icons.Default.CameraAlt, contentDescription = "Scan barcode") }
+                }
             )
         },
         bottomBar = {
@@ -134,7 +140,7 @@ fun PosScreen(
                             Spacer(Modifier.height(12.dp))
                             Text("Your bill is empty", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                             Spacer(Modifier.height(4.dp))
-                            Text("Search for a product or scan its barcode to add it.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("Search, scan, or say something like ‘aadha kilo shakkar’.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
