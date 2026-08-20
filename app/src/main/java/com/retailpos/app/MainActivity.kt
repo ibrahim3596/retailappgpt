@@ -37,6 +37,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.retailpos.app.core.products.VoiceOrderParser
 import com.retailpos.app.core.products.VoiceSaleCommandParser
+import com.retailpos.app.core.staff.StaffSession
 import com.retailpos.app.data.AddToCartResult
 import com.retailpos.app.data.CartManager
 import com.retailpos.app.data.CustomerEntity
@@ -91,13 +92,13 @@ private const val LOCAL_STORE_ID = "local-store"
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { RetailPosTheme { RetailPosApp() } }
+        setContent { RetailPosTheme { StaffGatedRetailPosApp() } }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun RetailPosApp() {
+fun RetailPosApp(staffSession: StaffSession) {
     val navController = rememberNavController()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -213,7 +214,8 @@ private fun RetailPosApp() {
                     paymentMethod,
                     idempotencyKey,
                     customerId?.takeIf { it.isNotBlank() },
-                    billDiscountAmount = billDiscountAmount
+                    billDiscountAmount = billDiscountAmount,
+                    staffRole = staffSession.role
                 )
                 cartManager.clear()
                 cart = emptyList()
