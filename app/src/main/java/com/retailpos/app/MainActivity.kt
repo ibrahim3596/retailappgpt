@@ -156,11 +156,21 @@ private fun RetailPosApp() {
                     cartError = "‘${command.unit}’ does not match ${product.name}'s selling unit ‘${product.unit}’. Nothing was added to the cart."
                     return@launch
                 }
-                if (normalizedQuantity <= 0.0 || normalizedQuantity > product.stock) {
-                    cartError = "Requested ${normalizedQuantity.clean()} ${product.unit} of ${product.name}, but only ${product.stock.clean()} ${product.unit} is available. Nothing was added to the cart."
+                if (normalizedQuantity <= 0.0) {
+                    cartError = "The requested quantity for ${product.name} is invalid. Nothing was added to the cart."
                     return@launch
                 }
                 resolved += product to normalizedQuantity
+            }
+
+            val requestedByProduct = resolved.groupBy { it.first.id }
+                .mapValues { (_, entries) -> entries.sumOf { it.second } }
+            for ((productId, requestedQuantity) in requestedByProduct) {
+                val product = resolved.first { it.first.id == productId }.first
+                if (requestedQuantity > product.stock) {
+                    cartError = "Requested ${requestedQuantity.clean()} ${product.unit} of ${product.name}, but only ${product.stock.clean()} ${product.unit} is available. Nothing was added to the cart."
+                    return@launch
+                }
             }
 
             // Validate the complete utterance before mutating the cart, so a later failure cannot leave a partial voice order.
