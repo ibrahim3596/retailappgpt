@@ -30,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.retailpos.app.core.payment.PaymentSummaryRules
 import com.retailpos.app.data.PaymentSummary
 import com.retailpos.app.data.ReceiptFormatter
 import com.retailpos.app.data.RetailDatabase
@@ -83,7 +84,7 @@ fun AnalyticsScreen(
         expenses = database.expenseDao().totalBetween(storeId, start, end)
         receivables = database.khataDao().totalReceivables(storeId).coerceAtLeast(0.0)
         payables = database.supplierLedgerDao().totalPayables(storeId).coerceAtLeast(0.0)
-        paymentSummary = saleDao.getPaymentSummary(storeId, start, end)
+        paymentSummary = PaymentSummaryRules.normalize(saleDao.getPaymentSummary(storeId, start, end))
         topProducts = saleDao.getTopProducts(storeId, start, end, 10)
         recentSales = saleDao.getRecentSales(storeId, 10)
     }
@@ -181,7 +182,7 @@ fun AnalyticsScreen(
                         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                    Text(sale.paymentMethod, fontWeight = FontWeight.Bold)
+                                    Text(if (sale.paymentMethod.startsWith("SPLIT:")) "SPLIT PAYMENT" else sale.paymentMethod, fontWeight = FontWeight.Bold)
                                     Text(timeFormatter.format(sale.createdAt), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                                 Text(currency.format(sale.total), fontWeight = FontWeight.Black)
