@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -21,9 +22,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
-import com.retailpos.app.core.permissions.StaffRole
+import com.retailpos.app.core.staff.StaffRole
 import com.retailpos.app.data.StaffRepository
 import com.retailpos.app.data.StaffSignInResult
 
@@ -75,7 +75,7 @@ fun StaffAccessScreen(
     }
 
     if (busy) {
-        androidx.compose.runtime.LaunchedEffect(mode, username, pin, confirmPin, name) {
+        LaunchedEffect(mode, username, pin, confirmPin, name) {
             runCatching {
                 if (mode == AccessMode.SETUP) {
                     require(pin == confirmPin) { "PINs do not match." }
