@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import com.retailpos.app.core.payment.PendingPaymentStore
 
 @Database(
     entities = [
@@ -92,6 +93,7 @@ abstract class RetailDatabase : RoomDatabase() {
                 .build()
                 .also {
                     INSTANCE = it
+                    PendingPaymentStore.configure(context.applicationContext)
                     ProductCatalogLookup.configurePersistentCache(LOCAL_STORE_ID, it.productIdentificationCacheDao())
                 }
         }
