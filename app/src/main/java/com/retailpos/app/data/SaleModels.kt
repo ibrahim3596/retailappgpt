@@ -17,6 +17,8 @@ data class SaleEntity(
     val storeId: String,
     val customerId: String?,
     val subtotal: Double,
+    val discountAmount: Double,
+    val taxAmount: Double,
     val total: Double,
     val paymentMethod: String,
     val idempotencyKey: String,
@@ -36,6 +38,10 @@ data class SaleLineEntity(
     val quantity: Double,
     val unit: String,
     val unitPrice: Double,
+    val taxableAmount: Double,
+    val discountAmount: Double,
+    val taxRatePercent: Double,
+    val taxAmount: Double,
     val lineTotal: Double
 )
 
