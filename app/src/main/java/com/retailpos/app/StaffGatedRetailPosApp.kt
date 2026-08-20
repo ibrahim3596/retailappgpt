@@ -8,6 +8,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import com.retailpos.app.core.staff.StaffSession
+import com.retailpos.app.core.staff.StaffSessionStore
 import com.retailpos.app.data.RetailDatabase
 import com.retailpos.app.data.StaffRepository
 import com.retailpos.app.ui.screens.StaffAccessScreen
@@ -19,11 +20,17 @@ fun StaffGatedRetailPosApp() {
     val context = LocalContext.current
     val database = remember(context) { RetailDatabase.get(context) }
     val repository = remember(database) { StaffRepository(database.staffDao()) }
-    var session by remember { mutableStateOf<StaffSession?>(null) }
+    var session by remember { mutableStateOf(StaffSessionStore.current()) }
     var hasStaff by remember { mutableStateOf<Boolean?>(null) }
 
     LaunchedEffect(database) {
-        hasStaff = database.staffDao().list(LOCAL_STORE_ID).isNotEmpty()
+        val existing = StaffSessionStore.current()
+        if (existing != null) {
+            session = existing
+            hasStaff = true
+        } else {
+            hasStaff = database.staffDao().list(LOCAL_STORE_ID).isNotEmpty()
+        }
     }
 
     when (val current = session) {
@@ -33,7 +40,10 @@ fun StaffGatedRetailPosApp() {
             StaffAccessScreen(
                 repository = repository,
                 hasStaff = hasStaff == true,
-                onAuthenticated = { authenticated -> session = authenticated }
+                onAuthenticated = { authenticated ->
+                    StaffSessionStore.set(authenticated)
+                    session = authenticated
+                }
             )
         }
         else -> RetailPosApp(staffSession = current)
