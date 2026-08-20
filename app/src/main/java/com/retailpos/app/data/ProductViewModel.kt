@@ -7,6 +7,8 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import com.retailpos.app.core.identifiers.ProductIdentityRules
 import com.retailpos.app.core.identifiers.ProductIdentifierValidator
+import com.retailpos.app.core.products.ProductCaptureMetadataMapper
+import com.retailpos.app.core.products.ProductCaptureObservation
 import com.retailpos.app.core.products.ProductListFilter
 import com.retailpos.app.core.products.matches
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -69,7 +71,9 @@ class ProductViewModel(application: Application, private val storeId: String) : 
     fun saveProduct(
         productId: String?, name: String, brand: String, barcode: String, sku: String,
         mrp: Double, sellingPrice: Double, purchasePrice: Double, stock: Double,
-        unit: String, lowStockThreshold: Double, onResult: (SaveProductResult) -> Unit
+        unit: String, lowStockThreshold: Double,
+        captureObservation: ProductCaptureObservation? = null,
+        onResult: (SaveProductResult) -> Unit
     ) {
         val normalizedSku = ProductIdentityRules.normalizeSku(sku).ifBlank { null }
         val normalizedBarcode = ProductIdentityRules.normalizeBarcode(barcode)
@@ -98,7 +102,19 @@ class ProductViewModel(application: Application, private val storeId: String) : 
                     unit = unit.trim().ifBlank { "pcs" }, lowStockThreshold = lowStockThreshold,
                     updatedAt = System.currentTimeMillis()
                 )
-                if (!repository.saveProductWithPrimaryBarcode(product)) {
+                val saved = if (captureObservation != null) {
+                    val existingMetadata = productId?.let { metadataRepository.get(it, storeId) }
+                    val metadata = ProductCaptureMetadataMapper.map(
+                        productId = product.id,
+                        storeId = storeId,
+                        observation = captureObservation,
+                        existing = existingMetadata
+                    )
+                    repository.saveProductWithMetadata(product, metadata)
+                } else {
+                    repository.saveProductWithPrimaryBarcode(product)
+                }
+                if (!saved) {
                     onResult(SaveProductResult.DuplicateBarcode); return@launch
                 }
                 onResult(SaveProductResult.Success)
