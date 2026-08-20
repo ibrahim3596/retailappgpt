@@ -22,6 +22,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -29,26 +30,84 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
+import com.retailpos.app.core.products.CheckoutPricingPreview
+import com.retailpos.app.core.products.CheckoutPricingPreviewCalculator
+import com.retailpos.app.core.products.StoreTaxMode
+import com.retailpos.app.core.products.toTaxTreatment
 import com.retailpos.app.data.CartLine
 import com.retailpos.app.data.CustomerEntity
+import com.retailpos.app.data.RetailDatabase
 import java.util.Locale
 
 private val PAYMENT_METHODS = listOf("CASH", "UPI", "CARD", "CREDIT")
+private const val LOCAL_STORE_ID = "local-store"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CheckoutScreen(cart: List<CartLine>, customers: List<CustomerEntity>, onBack: () -> Unit, onComplete: (String, String?) -> Unit, isProcessing: Boolean, error: String?) {
+    val context = LocalContext.current
     var paymentMethod by remember { mutableStateOf(PAYMENT_METHODS.first()) }
     var selectedCustomer by remember { mutableStateOf<CustomerEntity?>(null) }
     var showCustomerPicker by remember { mutableStateOf(false) }
-    val total = cart.sumOf { it.lineTotal }
+    var pricingPreview by remember { mutableStateOf<CheckoutPricingPreview?>(null) }
+    var pricingError by remember { mutableStateOf<String?>(null) }
     val creditWithoutCustomer = paymentMethod == "CREDIT" && selectedCustomer == null
+
+    LaunchedEffect(cart) {
+        if (cart.isEmpty()) {
+            pricingPreview = null
+            return@LaunchedEffect
+        }
+        pricingError = null
+        pricingPreview = null
+        runCatching {
+            val database = RetailDatabase.get(context)
+            val settings = database.storeSettingsDao().get(LOCAL_STORE_ID)
+            val taxMode = StoreTaxMode.fromStorage(settings?.gstMode ?: StoreTaxMode.NO_GST.storageValue)
+            val rates = cart.associate { line ->
+                line.productId to (database.productMetadataDao().get(line.productId, LOCAL_STORE_ID)?.taxRatePercent ?: 0.0)
+            }
+            CheckoutPricingPreviewCalculator.calculate(cart, taxMode.toTaxTreatment(), rates)
+        }.onSuccess { pricingPreview = it }
+            .onFailure { pricingError = "Unable to calculate checkout pricing. The sale cannot be completed until pricing is available." }
+    }
+
+    val total = pricingPreview?.total ?: cart.sumOf { it.lineTotal }
+    val subtotal = pricingPreview?.subtotal ?: cart.sumOf { it.lineTotal }
+    val discount = pricingPreview?.discountAmount ?: 0.0
+    val tax = pricingPreview?.taxAmount ?: 0.0
 
     Scaffold(topBar = { TopAppBar(title = { Text("CHECKOUT", fontWeight = FontWeight.Black) }) }) { padding ->
         LazyColumn(modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item { Text("BILL SUMMARY", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold) }
             items(cart, key = { it.productId }) { line ->
-                Card(Modifier.fillMaxWidth()) { Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) { Column(Modifier.weight(1f)) { Text(line.name, fontWeight = FontWeight.Bold); Text("${line.quantity.clean()} ${line.unit} × ${money(line.unitPrice)}") }; Text(money(line.lineTotal), fontWeight = FontWeight.Bold) } }
+                val previewLine = pricingPreview?.lines?.firstOrNull { it.productId == line.productId }
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Column(Modifier.weight(1f)) {
+                                Text(line.name, fontWeight = FontWeight.Bold)
+                                Text("${line.quantity.clean()} ${line.unit} × ${money(line.unitPrice)}")
+                            }
+                            Text(money(previewLine?.total ?: line.lineTotal), fontWeight = FontWeight.Bold)
+                        }
+                        if (previewLine != null && previewLine.taxAmount > 0.0) {
+                            Text("GST ${cleanRate(previewLine.taxRatePercent)}% • ${money(previewLine.taxAmount)}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+            item {
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("TOTALS", fontWeight = FontWeight.Bold)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("Subtotal"); Text(money(subtotal)) }
+                        if (discount > 0.0) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("Discount"); Text("−${money(discount)}") }
+                        if (tax > 0.0) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("GST"); Text(money(tax)) }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("Payable", fontWeight = FontWeight.Black); Text(money(total), fontWeight = FontWeight.Black) }
+                    }
+                }
             }
             item {
                 Card(Modifier.fillMaxWidth()) {
@@ -63,15 +122,27 @@ fun CheckoutScreen(cart: List<CartLine>, customers: List<CustomerEntity>, onBack
                 }
             }
             item {
-                Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp)) { Text("PAYMENT METHOD", fontWeight = FontWeight.Bold); PAYMENT_METHODS.forEach { method -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) { RadioButton(selected = paymentMethod == method, onClick = { paymentMethod = method }); Text(method, modifier = Modifier.padding(top = 12.dp)) } } } }
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp)) {
+                        Text("PAYMENT METHOD", fontWeight = FontWeight.Bold)
+                        PAYMENT_METHODS.forEach { method ->
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                RadioButton(selected = paymentMethod == method, onClick = { paymentMethod = method }, enabled = !isProcessing)
+                                Text(method, modifier = Modifier.padding(top = 12.dp))
+                            }
+                        }
+                    }
+                }
             }
             item { if (paymentMethod == "CREDIT") Text("Credit sale will be added to this customer's Khata.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
-            item { Text("TOTAL  ${money(total)}", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black) }
+            pricingError?.let { message -> item { Text(message, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold) } }
             if (error != null) item { Text(error, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold) }
             item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedButton(onClick = onBack, enabled = !isProcessing, modifier = Modifier.weight(1f).height(56.dp)) { Text("BACK") }
-                    Button(onClick = { onComplete(paymentMethod, selectedCustomer?.id) }, enabled = cart.isNotEmpty() && !isProcessing && !creditWithoutCustomer, modifier = Modifier.weight(1.4f).height(56.dp)) { Text(if (isProcessing) "PROCESSING…" else "COMPLETE SALE", fontWeight = FontWeight.Bold) }
+                    Button(onClick = { onComplete(paymentMethod, selectedCustomer?.id) }, enabled = cart.isNotEmpty() && !isProcessing && !creditWithoutCustomer && pricingPreview != null && pricingError == null, modifier = Modifier.weight(1.4f).height(56.dp)) {
+                        Text(if (isProcessing) "PROCESSING…" else "COMPLETE SALE", fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }
@@ -94,4 +165,5 @@ private fun CustomerPickerDialog(customers: List<CustomerEntity>, selectedId: St
 }
 
 private fun money(value: Double): String = String.format(Locale.US, "₹%.2f", value)
+private fun cleanRate(value: Double): String = if (value % 1.0 == 0.0) value.toInt().toString() else String.format(Locale.US, "%.2f", value)
 private fun Double.clean(): String = if (this % 1.0 == 0.0) toInt().toString() else String.format(Locale.US, "%.2f", this)
