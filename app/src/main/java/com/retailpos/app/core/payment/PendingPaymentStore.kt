@@ -4,57 +4,59 @@ import android.content.Context
 
 /**
  * Persists transient checkout state so process recreation does not silently
- * forget a cash amount or generate a new idempotency key for a different bill.
- * Every value is tied to the exact recovered-cart fingerprint.
+ * forget a cash amount or reuse an idempotency key for different transaction inputs.
  */
 object PendingPaymentStore {
     private const val PREFS = "retailpos_pending_payment"
     private const val KEY_AMOUNT_TENDERED = "amount_tendered"
+    private const val KEY_AMOUNT_CART_FINGERPRINT = "amount_cart_fingerprint"
     private const val KEY_IDEMPOTENCY = "checkout_idempotency"
-    private const val KEY_CART_FINGERPRINT = "cart_fingerprint"
+    private const val KEY_IDEMPOTENCY_FINGERPRINT = "idempotency_fingerprint"
 
     @Volatile private var prefs: android.content.SharedPreferences? = null
     @Volatile private var amountTendered: Double? = null
+    @Volatile private var amountCartFingerprint: String? = null
     @Volatile private var idempotencyKey: String? = null
-    @Volatile private var cartFingerprint: String? = null
+    @Volatile private var idempotencyFingerprint: String? = null
 
     fun configure(context: Context) {
         prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         amountTendered = prefs?.getString(KEY_AMOUNT_TENDERED, null)?.toDoubleOrNull()
+        amountCartFingerprint = prefs?.getString(KEY_AMOUNT_CART_FINGERPRINT, null)?.takeIf { it.isNotBlank() }
         idempotencyKey = prefs?.getString(KEY_IDEMPOTENCY, null)?.takeIf { it.isNotBlank() }
-        cartFingerprint = prefs?.getString(KEY_CART_FINGERPRINT, null)?.takeIf { it.isNotBlank() }
+        idempotencyFingerprint = prefs?.getString(KEY_IDEMPOTENCY_FINGERPRINT, null)?.takeIf { it.isNotBlank() }
     }
 
-    /** Backward-compatible setter; automatically binds the value to the current active cart. */
+    /** Backward-compatible setter; binds cash state to the current cart only. */
     fun set(amount: Double?) {
         val fingerprint = ActiveCartStore.load().takeIf { it.isNotEmpty() }?.let(CheckoutRecoveryFingerprint::of)
         set(amount, fingerprint)
     }
 
-    fun set(amount: Double?, fingerprint: String?) {
+    fun set(amount: Double?, cartFingerprint: String?) {
         amountTendered = amount
-        cartFingerprint = fingerprint?.takeIf { it.isNotBlank() }
+        amountCartFingerprint = cartFingerprint?.takeIf { it.isNotBlank() }
         prefs?.edit()?.apply {
             if (amount == null) remove(KEY_AMOUNT_TENDERED) else putString(KEY_AMOUNT_TENDERED, amount.toString())
-            if (cartFingerprint == null) remove(KEY_CART_FINGERPRINT) else putString(KEY_CART_FINGERPRINT, cartFingerprint)
+            if (amountCartFingerprint == null) remove(KEY_AMOUNT_CART_FINGERPRINT) else putString(KEY_AMOUNT_CART_FINGERPRINT, amountCartFingerprint)
         }?.apply()
     }
 
     fun get(): Double? {
         val fingerprint = ActiveCartStore.load().takeIf { it.isNotEmpty() }?.let(CheckoutRecoveryFingerprint::of) ?: return null
-        return getAmountTendered(fingerprint)
+        return getAmountTenderedForCart(fingerprint)
     }
 
-    fun getAmountTendered(fingerprint: String): Double? =
-        if (cartFingerprint == fingerprint) amountTendered else null
+    fun getAmountTenderedForCart(cartFingerprint: String): Double? =
+        if (amountCartFingerprint == cartFingerprint) amountTendered else null
 
     fun getOrCreateIdempotencyKey(fingerprint: String, create: () -> String): String {
         val existing = idempotencyKey
-        if (!existing.isNullOrBlank() && cartFingerprint == fingerprint) return existing
+        if (!existing.isNullOrBlank() && idempotencyFingerprint == fingerprint) return existing
         val created = create().takeIf { it.isNotBlank() } ?: error("Invalid checkout idempotency key")
         idempotencyKey = created
-        cartFingerprint = fingerprint
-        prefs?.edit()?.putString(KEY_IDEMPOTENCY, created)?.putString(KEY_CART_FINGERPRINT, fingerprint)?.apply()
+        idempotencyFingerprint = fingerprint
+        prefs?.edit()?.putString(KEY_IDEMPOTENCY, created)?.putString(KEY_IDEMPOTENCY_FINGERPRINT, fingerprint)?.apply()
         return created
     }
 
@@ -67,13 +69,20 @@ object PendingPaymentStore {
 
     fun clearIdempotencyKey() {
         idempotencyKey = null
-        prefs?.edit()?.remove(KEY_IDEMPOTENCY)?.apply()
+        idempotencyFingerprint = null
+        prefs?.edit()?.remove(KEY_IDEMPOTENCY)?.remove(KEY_IDEMPOTENCY_FINGERPRINT)?.apply()
     }
 
     fun clear() {
         amountTendered = null
+        amountCartFingerprint = null
         idempotencyKey = null
-        cartFingerprint = null
-        prefs?.edit()?.remove(KEY_AMOUNT_TENDERED)?.remove(KEY_IDEMPOTENCY)?.remove(KEY_CART_FINGERPRINT)?.apply()
+        idempotencyFingerprint = null
+        prefs?.edit()
+            ?.remove(KEY_AMOUNT_TENDERED)
+            ?.remove(KEY_AMOUNT_CART_FINGERPRINT)
+            ?.remove(KEY_IDEMPOTENCY)
+            ?.remove(KEY_IDEMPOTENCY_FINGERPRINT)
+            ?.apply()
     }
 }
