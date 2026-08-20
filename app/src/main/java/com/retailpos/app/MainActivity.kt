@@ -35,10 +35,12 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.retailpos.app.core.products.VoiceSaleCommandParser
 import com.retailpos.app.data.AddToCartResult
 import com.retailpos.app.data.CartManager
 import com.retailpos.app.data.CustomerEntity
 import com.retailpos.app.data.InventoryMovementReason
+import com.retailpos.app.data.ProductEntity
 import com.retailpos.app.data.ProductRepository
 import com.retailpos.app.data.RetailDatabase
 import com.retailpos.app.data.SaleEntity
@@ -60,6 +62,7 @@ import com.retailpos.app.ui.screens.ProductReviewScreen
 import com.retailpos.app.ui.screens.ReceiptScreen
 import com.retailpos.app.ui.screens.SettingsScreen
 import com.retailpos.app.ui.theme.RetailPosTheme
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.util.UUID
 
@@ -115,11 +118,42 @@ private fun RetailPosApp() {
     val searchResults by repository.searchProducts(LOCAL_STORE_ID, posQuery).collectAsState(initial = emptyList())
     val customers by database.customerDao().observeAll(LOCAL_STORE_ID).collectAsState(initial = emptyList())
 
-    fun addProductToCart(product: com.retailpos.app.data.ProductEntity) {
-        when (cartManager.add(product)) {
+    fun addProductToCart(product: ProductEntity, quantity: Double = 1.0) {
+        when (cartManager.addQuantity(product, quantity)) {
             AddToCartResult.Added -> { cart = cartManager.lines; posQuery = ""; cartError = null }
             AddToCartResult.OutOfStock -> cartError = "${product.name} is out of stock."
             AddToCartResult.InsufficientStock -> cartError = "Only ${product.stock} ${product.unit} of ${product.name} is available."
+            AddToCartResult.InvalidQuantity -> cartError = "The requested quantity is not valid."
+        }
+    }
+
+    fun handleVoiceInput(spoken: String) {
+        scope.launch {
+            val command = VoiceSaleCommandParser.parse(spoken)
+            if (command == null) {
+                cartError = "I heard ‘$spoken’, but could not find a quantity and unit. Try ‘aadha kilo shakkar’."
+                return@launch
+            }
+
+            val matches = repository.searchProducts(LOCAL_STORE_ID, command.productQuery).first()
+            if (matches.isEmpty()) {
+                posQuery = command.productQuery
+                cartError = "No product matched ‘${command.productQuery}’. Add the product to the catalog first."
+                return@launch
+            }
+            if (matches.size > 1) {
+                posQuery = command.productQuery
+                cartError = "Multiple products matched ‘${command.productQuery}’. Select the exact product from the search results before using voice quantity."
+                return@launch
+            }
+
+            val product = matches.first()
+            val normalizedQuantity = VoiceSaleCommandParser.toBaseQuantity(command.quantity, command.unit, product.unit)
+            if (normalizedQuantity == null) {
+                cartError = "‘${command.unit}’ does not match ${product.name}'s selling unit ‘${product.unit}’. Keep loose-item products configured with their price basis, such as kg, g, litre or ml."
+                return@launch
+            }
+            addProductToCart(product, normalizedQuantity)
         }
     }
 
@@ -184,10 +218,18 @@ private fun RetailPosApp() {
     NavHost(navController = navController, startDestination = Routes.HOME) {
         composable(Routes.HOME) { HomeScreen(onNewBill = { navController.navigate(Routes.POS) }, onNavigate = navController::navigate) }
         composable(Routes.POS) {
-            PosScreen(cart = cart, searchResults = searchResults, onSearchQueryChanged = { posQuery = it }, onAddProduct = ::addProductToCart,
-                onRemoveFromCart = { productId -> cartManager.remove(productId).also { cart = cartManager.lines } }, onBack = { navController.popBackStack() },
+            PosScreen(
+                cart = cart,
+                searchResults = searchResults,
+                onSearchQueryChanged = { posQuery = it },
+                onAddProduct = { product -> addProductToCart(product) },
+                onVoiceInput = ::handleVoiceInput,
+                onVoiceError = { cartError = it },
+                onRemoveFromCart = { productId -> cartManager.remove(productId).also { cart = cartManager.lines } },
+                onBack = { navController.popBackStack() },
                 onOpenScanner = { navController.navigate(Routes.BILLING_SCANNER) },
-                onCheckout = { if (cart.isNotEmpty()) { checkoutIdempotencyKey = checkoutIdempotencyKey ?: UUID.randomUUID().toString(); navController.navigate(Routes.CHECKOUT) } })
+                onCheckout = { if (cart.isNotEmpty()) { checkoutIdempotencyKey = checkoutIdempotencyKey ?: UUID.randomUUID().toString(); navController.navigate(Routes.CHECKOUT) } }
+            )
         }
         composable(Routes.CHECKOUT) { CheckoutScreen(cart = cart, customers = customers, onBack = { navController.popBackStack() }, onComplete = ::completeSale, isProcessing = checkoutProcessing, error = checkoutError) }
         composable(Routes.RECEIPT) { receiptSale?.let { sale -> ReceiptScreen(sale = sale, lines = receiptLines, onBack = { receiptSale = null; receiptLines = emptyList(); navController.navigate(Routes.HOME) { popUpTo(Routes.RECEIPT) { inclusive = true } } }, onShare = ::shareReceipt) } }
@@ -224,19 +266,19 @@ private fun RetailPosApp() {
         composable(Routes.INVENTORY) { InventoryScreen(storeId = LOCAL_STORE_ID, repository = repository, inventoryMovements = { database.inventoryDao().getMovements(LOCAL_STORE_ID) }, onBack = { navController.popBackStack() }, onOpenProduct = { navController.navigate("inventory/detail/$it") }, onAdjustProduct = { navController.navigate("inventory/adjust/$it") }, onReceiveProduct = { navController.navigate("inventory/receive/$it") }) }
         composable(Routes.INVENTORY_DETAIL, arguments = listOf(navArgument("productId") { type = NavType.StringType })) { entry ->
             val id = entry.arguments?.getString("productId")
-            val product by if (id == null) remember { mutableStateOf(null) } else androidx.compose.runtime.produceState<com.retailpos.app.data.ProductEntity?>(initialValue = null, id) { value = database.productDao().getById(id, LOCAL_STORE_ID) }
+            val product by if (id == null) remember { mutableStateOf(null) } else androidx.compose.runtime.produceState<ProductEntity?>(initialValue = null, id) { value = database.productDao().getById(id, LOCAL_STORE_ID) }
             val p = product
             if (p == null) FoundationPlaceholder("Product", "Product could not be loaded") else InventoryDetailScreen(product = p, batchesLoader = { database.inventoryDao().getAvailableBatchesFefo(LOCAL_STORE_ID, p.id) }, movementsLoader = { database.inventoryDao().getProductMovements(LOCAL_STORE_ID, p.id) }, onBack = { navController.popBackStack() }, onAdjust = { navController.navigate("inventory/adjust/${p.id}") }, onReceive = { navController.navigate("inventory/receive/${p.id}") })
         }
         composable(Routes.INVENTORY_ADJUST, arguments = listOf(navArgument("productId") { type = NavType.StringType })) { entry ->
             val id = entry.arguments?.getString("productId")
-            val product by if (id == null) remember { mutableStateOf(null) } else androidx.compose.runtime.produceState<com.retailpos.app.data.ProductEntity?>(initialValue = null, id) { value = database.productDao().getById(id, LOCAL_STORE_ID) }
+            val product by if (id == null) remember { mutableStateOf(null) } else androidx.compose.runtime.produceState<ProductEntity?>(initialValue = null, id) { value = database.productDao().getById(id, LOCAL_STORE_ID) }
             val p = product
             if (p == null) FoundationPlaceholder("Product", "Product could not be loaded") else InventoryAdjustmentScreen(product = p, onBack = { navController.popBackStack() }, onAdjust = { q, r -> adjustInventory(p.id, q, r) }, error = inventoryAdjustmentError)
         }
         composable(Routes.INVENTORY_RECEIVE, arguments = listOf(navArgument("productId") { type = NavType.StringType })) { entry ->
             val id = entry.arguments?.getString("productId")
-            val product by if (id == null) remember { mutableStateOf(null) } else androidx.compose.runtime.produceState<com.retailpos.app.data.ProductEntity?>(initialValue = null, id) { value = database.productDao().getById(id, LOCAL_STORE_ID) }
+            val product by if (id == null) remember { mutableStateOf(null) } else androidx.compose.runtime.produceState<ProductEntity?>(initialValue = null, id) { value = database.productDao().getById(id, LOCAL_STORE_ID) }
             val p = product
             if (p == null) FoundationPlaceholder("Product", "Product could not be loaded") else InventoryReceiveScreen(product = p, onBack = { navController.popBackStack() }, onReceive = { q, b, e, pp -> receiveInventory(p.id, q, b, e, pp) }, error = inventoryReceiveError)
         }
