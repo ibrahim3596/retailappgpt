@@ -168,9 +168,7 @@ fun BarcodeScannerScreen(
                             }, ContextCompat.getMainExecutor(context))
                         }
                     )
-                    Box(
-                        modifier = Modifier.align(Alignment.Center).size(280.dp, 180.dp).border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(20.dp))
-                    )
+                    Box(Modifier.align(Alignment.Center).size(280.dp, 180.dp).border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(20.dp)))
                     Surface(
                         modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(20.dp),
                         shape = RoundedCornerShape(20.dp), tonalElevation = 6.dp
