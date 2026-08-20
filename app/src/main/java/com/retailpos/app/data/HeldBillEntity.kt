@@ -26,5 +26,7 @@ data class HeldBillLineEntity(
     val sku: String?,
     val unit: String,
     val unitPrice: Double,
-    val quantity: Double
+    val quantity: Double,
+    val overrideUnitPrice: Double? = null,
+    val itemDiscountAmount: Double = 0.0
 )
