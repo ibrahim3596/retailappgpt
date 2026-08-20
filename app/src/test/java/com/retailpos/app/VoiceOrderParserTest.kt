@@ -21,6 +21,19 @@ class VoiceOrderParserTest {
     }
 
     @Test
+    fun parsesPackagedAndLooseItemsTogether() {
+        val commands = VoiceOrderParser.parse("2 packets biscuits and 250 gram rice")
+        assertNotNull(commands)
+        assertEquals(2, commands!!.size)
+        assertEquals("biscuits", commands[0].productQuery)
+        assertEquals(2.0, commands[0].quantity, 0.0001)
+        assertEquals(WeightUnit.PIECE, commands[0].unit)
+        assertEquals("rice", commands[1].productQuery)
+        assertEquals(250.0, commands[1].quantity, 0.0001)
+        assertEquals(WeightUnit.G, commands[1].unit)
+    }
+
+    @Test
     fun parsesCommaSeparatedOrder() {
         val commands = VoiceOrderParser.parse("500 gram sugar, 250 gram rice")
         assertEquals(2, commands!!.size)
