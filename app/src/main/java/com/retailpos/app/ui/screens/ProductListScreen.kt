@@ -24,6 +24,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -58,9 +59,7 @@ fun ProductListScreen(
     Scaffold(
         topBar = { TopAppBar(title = { Text("PRODUCTS", fontWeight = FontWeight.Black) }) },
         floatingActionButton = {
-            FloatingActionButton(onClick = onAddProduct) {
-                Icon(Icons.Default.Add, contentDescription = "Add product")
-            }
+            FloatingActionButton(onClick = onAddProduct) { Icon(Icons.Default.Add, contentDescription = "Add product") }
         }
     ) { padding ->
         Column(
@@ -88,7 +87,13 @@ fun ProductListScreen(
                 Text(message, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
             } else {
                 LazyColumn(contentPadding = PaddingValues(bottom = 96.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(products, key = { it.id }) { product -> ProductRow(product, onClick = { onEditProduct(product.id) }, onEditDetails = { onEditDetails(product.id) }) }
+                    items(products, key = { it.id }) { product ->
+                        ProductRow(
+                            product = product,
+                            onClick = { onEditProduct(product.id) },
+                            onEditDetails = { onEditDetails(product.id) }
+                        )
+                    }
                 }
             }
         }
@@ -122,12 +127,7 @@ private fun ProductRow(product: ProductEntity, onClick: () -> Unit, onEditDetail
             }
             product.sku?.takeIf { it.isNotBlank() }?.let { Text("SKU $it", style = MaterialTheme.typography.labelMedium) }
             product.barcode?.takeIf { it.isNotBlank() }?.let { Text("Barcode $it", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-            TextButtonLike(onClick = onEditDetails)
+            TextButton(onClick = onEditDetails, modifier = Modifier.fillMaxWidth()) { Text("PRODUCT DETAILS") }
         }
     }
-}
-
-@Composable
-private fun TextButtonLike(onClick: () -> Unit) {
-    OutlinedButton(onClick = onClick, modifier = Modifier.fillMaxWidth()) { Text("EDIT PRODUCT DETAILS") }
 }
