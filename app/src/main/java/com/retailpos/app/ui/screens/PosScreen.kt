@@ -46,6 +46,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.retailpos.app.core.payment.ActiveCartRecovery
 import com.retailpos.app.core.pos.QuickAddProduct
 import com.retailpos.app.core.pos.QuickAddRules
 import com.retailpos.app.core.pos.RecentProductRules
@@ -90,6 +91,7 @@ fun PosScreen(
     val favoriteIds by database.favoriteProductDao().observeIds(LOCAL_STORE_ID).collectAsState(initial = emptyList())
     var persistedFavorites by remember { mutableStateOf<List<QuickAddProduct>>(emptyList()) }
     var persistedRecentlySold by remember { mutableStateOf<List<QuickAddProduct>>(emptyList()) }
+    var recoveryIssues by remember { mutableStateOf(emptyList<com.retailpos.app.core.payment.ActiveCartRecoveryIssue>()) }
 
     LaunchedEffect(favoriteIds) {
         persistedFavorites = QuickAddRules.filterAddable(
@@ -104,9 +106,16 @@ fun PosScreen(
                 database.productDao().getById(line.productId, LOCAL_STORE_ID)?.toQuickAddProduct()
             }
         }
-        persistedRecentlySold = QuickAddRules.filterAddable(
-            RecentProductRules.fromSaleLines(recentLines)
-        )
+        persistedRecentlySold = QuickAddRules.filterAddable(RecentProductRules.fromSaleLines(recentLines))
+    }
+
+    LaunchedEffect(cart) {
+        if (cart.isEmpty()) {
+            recoveryIssues = emptyList()
+        } else {
+            val products = cart.mapNotNull { line -> database.productDao().getById(line.productId, LOCAL_STORE_ID)?.let { line.productId to it } }.toMap()
+            recoveryIssues = ActiveCartRecovery.validate(cart, products)
+        }
     }
 
     fun togglePersistentFavorite(product: QuickAddProduct) {
@@ -114,9 +123,7 @@ fun PosScreen(
             if (database.favoriteProductDao().isFavorite(LOCAL_STORE_ID, product.productId)) {
                 database.favoriteProductDao().remove(LOCAL_STORE_ID, product.productId)
             } else {
-                database.favoriteProductDao().add(
-                    FavoriteProductEntity(LOCAL_STORE_ID, product.productId, System.currentTimeMillis())
-                )
+                database.favoriteProductDao().add(FavoriteProductEntity(LOCAL_STORE_ID, product.productId, System.currentTimeMillis()))
             }
             onToggleFavorite(product)
         }
@@ -152,13 +159,27 @@ fun PosScreen(
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text("${itemCount.clean()} items", modifier = Modifier.weight(1f).padding(top = 18.dp), fontWeight = FontWeight.Bold)
-                        Button(onClick = onCheckout, modifier = Modifier.weight(1.5f).height(56.dp), enabled = cart.isNotEmpty()) { Text("CHECKOUT ${money(total)}", fontWeight = FontWeight.Bold) }
+                        Button(onClick = onCheckout, modifier = Modifier.weight(1.5f).height(56.dp), enabled = cart.isNotEmpty() && recoveryIssues.isEmpty()) { Text("CHECKOUT ${money(total)}", fontWeight = FontWeight.Bold) }
                     }
                 }
             }
         }
     ) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (recoveryIssues.isNotEmpty()) {
+                item {
+                    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
+                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("BILL NEEDS ATTENTION", fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onErrorContainer)
+                            recoveryIssues.forEach { issue ->
+                                Text("• ${ActiveCartRecovery.message(issue)}", color = MaterialTheme.colorScheme.onErrorContainer)
+                            }
+                            Text("Checkout is disabled until the affected line(s) are removed or corrected.", color = MaterialTheme.colorScheme.onErrorContainer)
+                            OutlinedButton(onClick = onClearBill) { Text("CLEAR AFFECTED BILL") }
+                        }
+                    }
+                }
+            }
             item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedTextField(value = query, onValueChange = { query = it; onSearchQueryChanged(it) }, modifier = Modifier.weight(1f), singleLine = true, leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) }, placeholder = { Text("Search products, barcode or SKU") }); IconButton(onClick = onOpenScanner, modifier = Modifier.height(56.dp)) { Icon(Icons.Default.CameraAlt, contentDescription = "Scan") } } }
             if (!showingSearch) {
                 item { PosQuickAddSection(title = "RECENTLY SOLD", products = visibleRecentlySold, onAdd = onQuickAdd, onToggleFavorite = ::togglePersistentFavorite, isFavorite = { favoriteIds.contains(it.productId) }) }
@@ -166,8 +187,13 @@ fun PosScreen(
             }
             if (showingSearch) {
                 item { Text("PRODUCTS", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold) }
-                if (searchResults.isEmpty()) item { Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(20.dp)) { Icon(Icons.Default.Search, contentDescription = null); Spacer(Modifier.height(8.dp)); Text("No products found", fontWeight = FontWeight.Bold); Spacer(Modifier.height(4.dp)); Text("Try a different name, SKU or barcode.", color = MaterialTheme.colorScheme.onSurfaceVariant) } } }
-                else items(searchResults, key = { it.id }) { product -> Card(Modifier.fillMaxWidth()) { Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) { Column(Modifier.weight(1f)) { Text(product.name, fontWeight = FontWeight.Bold); if (product.brand.isNotBlank()) Text(product.brand, color = MaterialTheme.colorScheme.onSurfaceVariant); Text("${product.stock.clean()} ${product.unit} available • ${money(product.sellingPrice)}", color = MaterialTheme.colorScheme.onSurfaceVariant) }; IconButton(onClick = { onAddProduct(product) }, enabled = product.stock > 0.0) { Icon(Icons.Default.AddShoppingCart, contentDescription = "Add ${product.name}") } } } }
+                if (searchResults.isEmpty()) {
+                    item { Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(20.dp)) { Icon(Icons.Default.Search, contentDescription = null); Spacer(Modifier.height(8.dp)); Text("No products found", fontWeight = FontWeight.Bold); Spacer(Modifier.height(4.dp)); Text("Try a different name, SKU or barcode.", color = MaterialTheme.colorScheme.onSurfaceVariant) } } }
+                } else {
+                    items(searchResults, key = { it.id }) { product ->
+                        Card(Modifier.fillMaxWidth()) { Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) { Column(Modifier.weight(1f)) { Text(product.name, fontWeight = FontWeight.Bold); if (product.brand.isNotBlank()) Text(product.brand, color = MaterialTheme.colorScheme.onSurfaceVariant); Text("${product.stock.clean()} ${product.unit} available • ${money(product.sellingPrice)}", color = MaterialTheme.colorScheme.onSurfaceVariant) }; IconButton(onClick = { onAddProduct(product) }, enabled = product.stock > 0.0) { Icon(Icons.Default.AddShoppingCart, contentDescription = "Add ${product.name}") } } }
+                    }
+                }
             } else if (cart.isEmpty()) {
                 item { Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) { Column(Modifier.padding(20.dp)) { Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { Icon(Icons.Default.ShoppingCart, contentDescription = null); Text("CART", fontWeight = FontWeight.Bold) }; Spacer(Modifier.height(12.dp)); Text("Your bill is empty", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold); Spacer(Modifier.height(4.dp)); Text("Search, scan, or say something like ‘aadha kilo shakkar’.", color = MaterialTheme.colorScheme.onSurfaceVariant) } } }
             } else {
@@ -186,10 +212,7 @@ fun PosScreen(
     }
 }
 
-private suspend fun ProductEntity.toQuickAddProduct(database: RetailDatabase): QuickAddProduct = QuickAddProduct(id, name, brand, unit, sellingPrice, stock)
-
 private fun ProductEntity.toQuickAddProduct(): QuickAddProduct = QuickAddProduct(id, name, brand, unit, sellingPrice, stock)
-
 private fun quantityStep(unit: String): Double = when (unit.trim().lowercase()) { "kg", "kilo", "kilogram", "kilograms" -> 0.05; "l", "lt", "ltr", "litre", "liter", "litres", "liters" -> 0.05; "g", "gm", "gram", "grams" -> 50.0; "ml", "millilitre", "milliliter" -> 50.0; else -> 1.0 }
 private fun displayQuantity(value: Double): String = if (value % 1.0 == 0.0) value.toInt().toString() else String.format(Locale.US, "%.3f", value).trimEnd('0').trimEnd('.')
 private fun money(value: Double): String = String.format(Locale.US, "₹%.2f", value)
