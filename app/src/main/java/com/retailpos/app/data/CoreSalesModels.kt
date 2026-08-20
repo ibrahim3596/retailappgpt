@@ -7,6 +7,14 @@ data class PaymentSummary(
     val total: Double
 )
 
+/** Owner analytics projection for the highest-volume sale products. */
+data class TopProductSales(
+    val productId: String,
+    val name: String,
+    val quantity: Double,
+    val revenue: Double
+)
+
 /** Result returned after an atomic checkout transaction completes. */
 data class CheckoutResult(
     val saleId: String,
