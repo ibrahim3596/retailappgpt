@@ -34,7 +34,6 @@ import androidx.compose.ui.platform.LocalContext
 import com.retailpos.app.core.products.CheckoutPricingPreview
 import com.retailpos.app.core.products.CheckoutPricingPreviewCalculator
 import com.retailpos.app.core.products.StoreTaxMode
-import com.retailpos.app.core.products.toTaxTreatment
 import com.retailpos.app.data.CartLine
 import com.retailpos.app.data.CustomerEntity
 import com.retailpos.app.data.RetailDatabase
@@ -43,18 +42,29 @@ import java.util.Locale
 private val PAYMENT_METHODS = listOf("CASH", "UPI", "CARD", "CREDIT")
 private const val LOCAL_STORE_ID = "local-store"
 
+private enum class DiscountMode { AMOUNT, PERCENT }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CheckoutScreen(cart: List<CartLine>, customers: List<CustomerEntity>, onBack: () -> Unit, onComplete: (String, String?) -> Unit, isProcessing: Boolean, error: String?) {
+fun CheckoutScreen(
+    cart: List<CartLine>,
+    customers: List<CustomerEntity>,
+    onBack: () -> Unit,
+    onComplete: (String, String?, Double) -> Unit,
+    isProcessing: Boolean,
+    error: String?
+) {
     val context = LocalContext.current
     var paymentMethod by remember { mutableStateOf(PAYMENT_METHODS.first()) }
     var selectedCustomer by remember { mutableStateOf<CustomerEntity?>(null) }
     var showCustomerPicker by remember { mutableStateOf(false) }
+    var discountMode by remember { mutableStateOf(DiscountMode.AMOUNT) }
+    var discountInput by remember { mutableStateOf("") }
     var pricingPreview by remember { mutableStateOf<CheckoutPricingPreview?>(null) }
     var pricingError by remember { mutableStateOf<String?>(null) }
     val creditWithoutCustomer = paymentMethod == "CREDIT" && selectedCustomer == null
 
-    LaunchedEffect(cart) {
+    LaunchedEffect(cart, discountMode, discountInput) {
         if (cart.isEmpty()) {
             pricingPreview = null
             return@LaunchedEffect
@@ -68,9 +78,19 @@ fun CheckoutScreen(cart: List<CartLine>, customers: List<CustomerEntity>, onBack
             val rates = cart.associate { line ->
                 line.productId to (database.productMetadataDao().get(line.productId, LOCAL_STORE_ID)?.taxRatePercent ?: 0.0)
             }
-            CheckoutPricingPreviewCalculator.calculate(cart, taxMode.toTaxTreatment(), rates)
+            val subtotal = cart.sumOf { it.lineTotal }
+            val raw = discountInput.replace(',', '.').toDoubleOrNull() ?: 0.0
+            require(raw.isFinite() && raw >= 0.0) { "Discount must be a non-negative number." }
+            val discountAmount = when (discountMode) {
+                DiscountMode.AMOUNT -> raw
+                DiscountMode.PERCENT -> {
+                    require(raw <= 100.0) { "Discount percentage cannot exceed 100%." }
+                    subtotal * raw / 100.0
+                }
+            }
+            CheckoutPricingPreviewCalculator.calculate(cart, taxMode.toTaxTreatment(), rates, discountAmount)
         }.onSuccess { pricingPreview = it }
-            .onFailure { pricingError = "Unable to calculate checkout pricing. The sale cannot be completed until pricing is available." }
+            .onFailure { pricingError = it.message ?: "Unable to calculate checkout pricing. The sale cannot be completed until pricing is available." }
     }
 
     val total = pricingPreview?.total ?: cart.sumOf { it.lineTotal }
@@ -95,6 +115,28 @@ fun CheckoutScreen(cart: List<CartLine>, customers: List<CustomerEntity>, onBack
                         if (previewLine != null && previewLine.taxAmount > 0.0) {
                             Text("GST ${cleanRate(previewLine.taxRatePercent)}% • ${money(previewLine.taxAmount)}", color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
+                    }
+                }
+            }
+            item {
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("DISCOUNT", fontWeight = FontWeight.Bold)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = { discountMode = DiscountMode.AMOUNT }, enabled = !isProcessing) { Text(if (discountMode == DiscountMode.AMOUNT) "✓ ₹ Amount" else "₹ Amount") }
+                            OutlinedButton(onClick = { discountMode = DiscountMode.PERCENT }, enabled = !isProcessing) { Text(if (discountMode == DiscountMode.PERCENT) "✓ % Percent" else "% Percent") }
+                        }
+                        OutlinedTextField(
+                            value = discountInput,
+                            onValueChange = { value ->
+                                discountInput = value.filter { it.isDigit() || it == '.' || it == ',' }
+                            },
+                            enabled = !isProcessing,
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            label = { Text(if (discountMode == DiscountMode.AMOUNT) "Discount amount" else "Discount percentage") },
+                            supportingText = { Text(if (discountMode == DiscountMode.AMOUNT) "Maximum: ${money(subtotal)}" else "Maximum: 100%") }
+                        )
                     }
                 }
             }
@@ -140,9 +182,11 @@ fun CheckoutScreen(cart: List<CartLine>, customers: List<CustomerEntity>, onBack
             item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedButton(onClick = onBack, enabled = !isProcessing, modifier = Modifier.weight(1f).height(56.dp)) { Text("BACK") }
-                    Button(onClick = { onComplete(paymentMethod, selectedCustomer?.id) }, enabled = cart.isNotEmpty() && !isProcessing && !creditWithoutCustomer && pricingPreview != null && pricingError == null, modifier = Modifier.weight(1.4f).height(56.dp)) {
-                        Text(if (isProcessing) "PROCESSING…" else "COMPLETE SALE", fontWeight = FontWeight.Bold)
-                    }
+                    Button(
+                        onClick = { onComplete(paymentMethod, selectedCustomer?.id, discount) },
+                        enabled = cart.isNotEmpty() && !isProcessing && !creditWithoutCustomer && pricingPreview != null && pricingError == null,
+                        modifier = Modifier.weight(1.4f).height(56.dp)
+                    ) { Text(if (isProcessing) "PROCESSING…" else "COMPLETE SALE", fontWeight = FontWeight.Bold) }
                 }
             }
         }
