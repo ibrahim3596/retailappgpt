@@ -29,9 +29,10 @@ import androidx.room.RoomDatabase
         SaleCostAllocationEntity::class,
         ReturnEntity::class,
         ReturnLineEntity::class,
-        FavoriteProductEntity::class
+        FavoriteProductEntity::class,
+        ExpenseEntity::class
     ],
-    version = 22,
+    version = 23,
     exportSchema = false
 )
 abstract class RetailDatabase : RoomDatabase() {
@@ -51,6 +52,7 @@ abstract class RetailDatabase : RoomDatabase() {
     abstract fun purchaseDao(): PurchaseDao
     abstract fun supplierLedgerDao(): SupplierLedgerDao
     abstract fun returnDao(): ReturnDao
+    abstract fun expenseDao(): ExpenseDao
 
     companion object {
         private const val LOCAL_STORE_ID = "local-store"
@@ -83,7 +85,8 @@ abstract class RetailDatabase : RoomDatabase() {
                     DatabaseMigrations.MIGRATION_18_19,
                     DatabaseMigrationsV20.MIGRATION_19_20,
                     DatabaseMigrationsV21.MIGRATION_20_21,
-                    DatabaseMigrationsV22.MIGRATION_21_22
+                    DatabaseMigrationsV22.MIGRATION_21_22,
+                    DatabaseMigrationsV23.MIGRATION_22_23
                 )
                 .build()
                 .also {
