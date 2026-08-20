@@ -2,6 +2,8 @@ package com.retailpos.app.ui.screens
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.os.Handler
+import android.os.Looper
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
@@ -50,10 +52,11 @@ import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import com.retailpos.app.core.products.ProductCaptureConsensus
 import com.retailpos.app.core.products.ProductCaptureObservation
-import com.retailpos.app.core.products.ProductCaptureParser
 import com.retailpos.app.core.products.ProductCaptureStabilityRules
+import com.retailpos.app.core.products.ProductCaptureParser
 import com.retailpos.app.core.products.ProductPackParser
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicReference
 
 
 data class ProductCaptureResult(
@@ -79,12 +82,9 @@ fun IntelligentProductCaptureScreen(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     var ready by remember {
-        mutableStateOf(
-            ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
-        )
+        mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
     }
     var resultPreview by remember { mutableStateOf<ProductCaptureResult?>(null) }
-    var observations by remember { mutableStateOf<List<ProductCaptureObservation>>(emptyList()) }
 
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> ready = granted }
 
@@ -96,18 +96,12 @@ fun IntelligentProductCaptureScreen(
         topBar = {
             TopAppBar(
                 title = { Text("INTELLIGENT PRODUCT CAPTURE") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = "Back") }
-                }
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = "Back") } }
             )
         }
     ) { padding ->
         if (!ready) {
-            Column(
-                modifier = Modifier.fillMaxSize().padding(padding).padding(24.dp),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
+            Column(Modifier.fillMaxSize().padding(padding).padding(24.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("Camera permission is required.", style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(12.dp))
                 Button(onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) }) { Text("ALLOW CAMERA") }
@@ -123,6 +117,9 @@ fun IntelligentProductCaptureScreen(
             val scanner = BarcodeScanning.getClient()
             val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
             val labeler = ImageLabeling.getClient(ImageLabelerOptions.DEFAULT_OPTIONS)
+            val mainHandler = Handler(Looper.getMainLooper())
+            val observationRef = AtomicReference<List<ProductCaptureObservation>>(emptyList())
+            val resultFingerprintRef = AtomicReference<String?>(null)
 
             val listener = Runnable {
                 val provider = providerFuture.get()
@@ -155,7 +152,6 @@ fun IntelligentProductCaptureScreen(
                             fun recordObservation() {
                                 if (completed < 3) return
                                 val parsed = ProductCaptureParser.parse(text)
-                                val pack = ProductPackParser.parse(text)
                                 val observation = ProductCaptureObservation(
                                     barcode = barcode,
                                     printedName = parsed.name,
@@ -163,14 +159,13 @@ fun IntelligentProductCaptureScreen(
                                     mrp = parsed.mrp,
                                     categoryHint = bestLabel,
                                     categoryConfidence = bestConfidence,
-                                    pack = pack,
+                                    pack = ProductPackParser.parse(text),
                                     frameCount = 1
                                 )
-                                val next = (observations + observation).takeLast(6)
-                                observations = next
+                                val next = (observationRef.get() + observation).takeLast(6)
+                                observationRef.set(next)
                                 val consensus = ProductCaptureConsensus.merge(next) ?: observation
                                 val stability = ProductCaptureStabilityRules.evaluate(consensus)
-                                val current = resultPreview
                                 val fingerprint = listOf(
                                     consensus.barcode,
                                     consensus.printedName,
@@ -182,11 +177,9 @@ fun IntelligentProductCaptureScreen(
                                     consensus.frameCount,
                                     stability.stable
                                 ).joinToString("|")
-                                val currentFingerprint = current?.let {
-                                    listOf(it.barcode, it.detectedName, it.detectedBrand, it.categoryHint, it.detectedMrp, it.detectedPackSize, it.detectedPackUnit, it.frameCount, it.stabilityExplanation).joinToString("|")
-                                }
-                                if (fingerprint != currentFingerprint) {
-                                    resultPreview = ProductCaptureResult(
+                                if (fingerprint != resultFingerprintRef.get()) {
+                                    resultFingerprintRef.set(fingerprint)
+                                    val nextResult = ProductCaptureResult(
                                         barcode = consensus.barcode,
                                         detectedName = consensus.printedName,
                                         detectedBrand = consensus.printedBrand,
@@ -199,15 +192,14 @@ fun IntelligentProductCaptureScreen(
                                         frameCount = consensus.frameCount,
                                         stabilityExplanation = stability.explanation
                                     )
+                                    mainHandler.post { resultPreview = nextResult }
                                 }
                                 closeOnce()
                             }
 
                             scanner.process(image)
                                 .addOnSuccessListener { codes ->
-                                    barcode = codes.firstOrNull {
-                                        it.format != Barcode.FORMAT_QR_CODE && !it.rawValue.isNullOrBlank()
-                                    }?.rawValue
+                                    barcode = codes.firstOrNull { it.format != Barcode.FORMAT_QR_CODE && !it.rawValue.isNullOrBlank() }?.rawValue
                                 }
                                 .addOnCompleteListener { completed++; recordObservation() }
                             recognizer.process(image)
@@ -225,9 +217,7 @@ fun IntelligentProductCaptureScreen(
                 try {
                     provider.unbindAll()
                     provider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
-                } catch (_: Exception) {
-                    // Keep the review state intact if camera binding fails.
-                }
+                } catch (_: Exception) { }
             }
 
             providerFuture.addListener(listener, ContextCompat.getMainExecutor(context))
@@ -237,6 +227,7 @@ fun IntelligentProductCaptureScreen(
                 recognizer.close()
                 labeler.close()
                 executor.shutdownNow()
+                mainHandler.removeCallbacksAndMessages(null)
             }
         }
 
@@ -246,19 +237,14 @@ fun IntelligentProductCaptureScreen(
                 Column(Modifier.padding(16.dp)) {
                     Text("Point the camera at the front of the product", style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(6.dp))
-                    Text(
-                        "The app samples multiple frames and keeps only consistent evidence. Identity remains a suggestion until review.",
-                        style = MaterialTheme.typography.bodySmall
-                    )
+                    Text("The app samples multiple frames and keeps only consistent evidence. Identity remains a suggestion until review.", style = MaterialTheme.typography.bodySmall)
                     resultPreview?.let { result ->
                         Spacer(Modifier.height(10.dp))
                         Text("Detected: ${result.detectedName ?: result.categoryHint ?: "Unknown product"}", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
                         result.detectedBrand?.let { Text("Brand: $it", style = MaterialTheme.typography.bodySmall) }
                         result.barcode?.let { Text("Barcode: $it", style = MaterialTheme.typography.bodySmall) }
                         result.detectedMrp?.let { Text("Printed MRP: ₹${formatMoney(it)}", style = MaterialTheme.typography.bodySmall) }
-                        if (result.detectedPackSize != null && !result.detectedPackUnit.isNullOrBlank()) {
-                            Text("Pack size: ${formatQuantity(result.detectedPackSize)} ${result.detectedPackUnit}", style = MaterialTheme.typography.bodySmall)
-                        }
+                        if (result.detectedPackSize != null && !result.detectedPackUnit.isNullOrBlank()) Text("Pack size: ${formatQuantity(result.detectedPackSize)} ${result.detectedPackUnit}", style = MaterialTheme.typography.bodySmall)
                         result.categoryHint?.let { Text("Category hint: $it", style = MaterialTheme.typography.bodySmall) }
                         Text("Evidence frames: ${result.frameCount}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text(result.stabilityExplanation, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
