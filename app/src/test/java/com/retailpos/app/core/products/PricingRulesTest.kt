@@ -51,6 +51,24 @@ class PricingRulesTest {
     }
 
     @Test
+    fun currencyValuesAreRoundedToTwoDecimalPlaces() {
+        val result = PricingRules.calculate(
+            PricingInput(
+                subtotal = 100.005,
+                discountAmount = 0.005,
+                taxRatePercent = 18.0,
+                taxTreatment = TaxTreatment.GST_ADDED
+            )
+        )
+
+        assertEquals(100.01, result.subtotal, 0.0001)
+        assertEquals(0.01, result.discountAmount, 0.0001)
+        assertEquals(100.0, result.taxableAmount, 0.0001)
+        assertEquals(18.0, result.taxAmount, 0.0001)
+        assertEquals(118.0, result.total, 0.0001)
+    }
+
+    @Test
     fun discountCannotExceedSubtotal() {
         assertThrows(IllegalArgumentException::class.java) {
             PricingRules.calculate(PricingInput(subtotal = 100.0, discountAmount = 100.01))
