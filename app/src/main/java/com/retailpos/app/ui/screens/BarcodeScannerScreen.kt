@@ -36,6 +36,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
@@ -56,6 +57,7 @@ import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
 import com.retailpos.app.core.products.ProductBarcodeDecision
 import com.retailpos.app.core.products.ProductBarcodeSafety
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
 private enum class ScannerState { REQUESTING_PERMISSION, READY, DENIED }
@@ -71,8 +73,11 @@ fun BarcodeScannerScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     var scannerState by remember {
         mutableStateOf(
-            if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) ScannerState.READY
-            else ScannerState.REQUESTING_PERMISSION
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                ScannerState.READY
+            } else {
+                ScannerState.REQUESTING_PERMISSION
+            }
         )
     }
     var torchEnabled by remember { mutableStateOf(false) }
@@ -99,92 +104,147 @@ fun BarcodeScannerScreen(
         Box(Modifier.fillMaxSize().padding(padding).background(Color.Black)) {
             when (scannerState) {
                 ScannerState.READY -> {
-                    AndroidView(
-                        factory = {
-                            PreviewView(it).apply {
-                                scaleType = PreviewView.ScaleType.FILL_CENTER
-                                layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
-                            }
-                        },
-                        modifier = Modifier.fillMaxSize(),
-                        update = { previewView ->
-                            val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
-                            cameraProviderFuture.addListener({
-                                val cameraProvider = cameraProviderFuture.get()
-                                val preview = Preview.Builder().build().also { it.surfaceProvider = previewView.surfaceProvider }
-                                val scannerOptions = BarcodeScannerOptions.Builder()
-                                    .setBarcodeFormats(
-                                        Barcode.FORMAT_EAN_8,
-                                        Barcode.FORMAT_EAN_13,
-                                        Barcode.FORMAT_UPC_A,
-                                        Barcode.FORMAT_UPC_E,
-                                        Barcode.FORMAT_ITF,
-                                        Barcode.FORMAT_CODE_128,
-                                        Barcode.FORMAT_CODE_39,
-                                        Barcode.FORMAT_CODE_93,
-                                        Barcode.FORMAT_CODABAR,
-                                        Barcode.FORMAT_DATA_MATRIX,
-                                        Barcode.FORMAT_PDF417,
-                                        Barcode.FORMAT_AZTEC
-                                    )
-                                    .build()
-                                val scanner = BarcodeScanning.getClient(scannerOptions)
-                                val executor = Executors.newSingleThreadExecutor()
-                                val analysis = ImageAnalysis.Builder().setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST).build().also { useCase ->
+                    val previewView = remember(lifecycleOwner) {
+                        PreviewView(context).apply {
+                            scaleType = PreviewView.ScaleType.FILL_CENTER
+                            layoutParams = ViewGroup.LayoutParams(
+                                ViewGroup.LayoutParams.MATCH_PARENT,
+                                ViewGroup.LayoutParams.MATCH_PARENT
+                            )
+                        }
+                    }
+
+                    DisposableEffect(lifecycleOwner, torchEnabled) {
+                        val providerFuture = ProcessCameraProvider.getInstance(context)
+                        val scannerOptions = BarcodeScannerOptions.Builder()
+                            .setBarcodeFormats(
+                                Barcode.FORMAT_EAN_8,
+                                Barcode.FORMAT_EAN_13,
+                                Barcode.FORMAT_UPC_A,
+                                Barcode.FORMAT_UPC_E,
+                                Barcode.FORMAT_ITF,
+                                Barcode.FORMAT_CODE_128,
+                                Barcode.FORMAT_CODE_39,
+                                Barcode.FORMAT_CODE_93,
+                                Barcode.FORMAT_CODABAR,
+                                Barcode.FORMAT_DATA_MATRIX,
+                                Barcode.FORMAT_PDF417,
+                                Barcode.FORMAT_AZTEC
+                            )
+                            .build()
+                        val scanner = BarcodeScanning.getClient(scannerOptions)
+                        val executor: ExecutorService = Executors.newSingleThreadExecutor()
+                        var cameraProvider: ProcessCameraProvider? = null
+
+                        val listener = Runnable {
+                            val provider = runCatching { providerFuture.get() }.getOrNull() ?: return@Runnable
+                            cameraProvider = provider
+                            val preview = Preview.Builder().build().also { it.surfaceProvider = previewView.surfaceProvider }
+                            val analysis = ImageAnalysis.Builder()
+                                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                                .build()
+                                .also { useCase ->
                                     useCase.setAnalyzer(executor) { imageProxy ->
                                         val mediaImage = imageProxy.image
                                         if (mediaImage == null) {
                                             imageProxy.close()
-                                        } else {
-                                            scanner.process(InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees))
-                                                .addOnSuccessListener { barcodes ->
-                                                    val hit = barcodes.firstOrNull { !it.rawValue.isNullOrBlank() && it.format != Barcode.FORMAT_QR_CODE }
-                                                    val raw = hit?.rawValue?.trim()
-                                                    if (!raw.isNullOrBlank()) {
-                                                        when (ProductBarcodeSafety.classify(raw)) {
-                                                            ProductBarcodeDecision.ACCEPT -> {
-                                                                val now = System.currentTimeMillis()
-                                                                if (raw != lastScan || now - lastScanAt > 1_000L) {
-                                                                    lastScan = raw
-                                                                    lastScanAt = now
-                                                                    ignoredScanMessage = null
-                                                                    onBarcodeDetected(raw, hit?.format ?: Barcode.FORMAT_UNKNOWN)
-                                                                }
+                                            return@setAnalyzer
+                                        }
+                                        scanner.process(InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees))
+                                            .addOnSuccessListener { barcodes ->
+                                                val hit = barcodes.firstOrNull {
+                                                    !it.rawValue.isNullOrBlank() && it.format != Barcode.FORMAT_QR_CODE
+                                                }
+                                                val raw = hit?.rawValue?.trim()
+                                                if (!raw.isNullOrBlank()) {
+                                                    when (ProductBarcodeSafety.classify(raw)) {
+                                                        ProductBarcodeDecision.ACCEPT -> {
+                                                            val now = System.currentTimeMillis()
+                                                            if (raw != lastScan || now - lastScanAt > 1_000L) {
+                                                                lastScan = raw
+                                                                lastScanAt = now
+                                                                ignoredScanMessage = null
+                                                                onBarcodeDetected(raw, hit.format)
                                                             }
-                                                            ProductBarcodeDecision.IGNORE_QR -> ignoredScanMessage = "This looks like a QR/payment/link payload, not a product barcode."
-                                                            ProductBarcodeDecision.REJECT_INVALID -> ignoredScanMessage = "That barcode value is not a valid retail product identifier."
+                                                        }
+                                                        ProductBarcodeDecision.IGNORE_QR -> {
+                                                            ignoredScanMessage = "This looks like a QR/payment/link payload, not a product barcode."
+                                                        }
+                                                        ProductBarcodeDecision.REJECT_INVALID -> {
+                                                            ignoredScanMessage = "That barcode value is not a valid retail product identifier."
                                                         }
                                                     }
                                                 }
-                                                .addOnCompleteListener { imageProxy.close() }
-                                        }
+                                            }
+                                            .addOnCompleteListener { imageProxy.close() }
                                     }
                                 }
-                                runCatching { cameraProvider.unbindAll() }
-                                runCatching {
-                                    val camera = cameraProvider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
-                                    camera.cameraControl.enableTorch(torchEnabled)
-                                }
-                            }, ContextCompat.getMainExecutor(context))
+
+                            runCatching { provider.unbindAll() }
+                            runCatching {
+                                val camera = provider.bindToLifecycle(
+                                    lifecycleOwner,
+                                    CameraSelector.DEFAULT_BACK_CAMERA,
+                                    preview,
+                                    analysis
+                                )
+                                camera.cameraControl.enableTorch(torchEnabled)
+                            }
                         }
+
+                        providerFuture.addListener(listener, ContextCompat.getMainExecutor(context))
+
+                        onDispose {
+                            runCatching { cameraProvider?.unbindAll() }
+                            scanner.close()
+                            executor.shutdownNow()
+                        }
+                    }
+
+                    AndroidView(
+                        factory = { previewView },
+                        modifier = Modifier.fillMaxSize()
                     )
-                    Box(Modifier.align(Alignment.Center).size(280.dp, 180.dp).border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(20.dp)))
+                    Box(
+                        Modifier.align(Alignment.Center)
+                            .size(280.dp, 180.dp)
+                            .border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(20.dp))
+                    )
                     Surface(
                         modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(20.dp),
-                        shape = RoundedCornerShape(20.dp), tonalElevation = 6.dp
+                        shape = RoundedCornerShape(20.dp),
+                        tonalElevation = 6.dp
                     ) {
-                        Row(Modifier.padding(14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = { torchEnabled = !torchEnabled }) { Icon(Icons.Default.FlashOn, contentDescription = "Flash") }
+                        Row(
+                            Modifier.padding(14.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            IconButton(onClick = { torchEnabled = !torchEnabled }) {
+                                Icon(Icons.Default.FlashOn, contentDescription = "Flash")
+                            }
                             Column(Modifier.weight(1f)) {
                                 Text("Align product barcode inside the frame", style = MaterialTheme.typography.titleSmall)
                                 Spacer(Modifier.height(2.dp))
-                                Text(ignoredScanMessage ?: "QR codes are not accepted in the product scanner", style = MaterialTheme.typography.bodySmall, color = if (ignoredScanMessage != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(
+                                    ignoredScanMessage ?: "QR codes are not accepted in the product scanner",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (ignoredScanMessage != null) {
+                                        MaterialTheme.colorScheme.error
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    }
+                                )
                             }
                         }
                     }
                 }
                 ScannerState.DENIED -> {
-                    Column(Modifier.fillMaxSize().padding(32.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+                    Column(
+                        Modifier.fillMaxSize().padding(32.dp),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
                         Text("Camera access is required", color = Color.White, style = MaterialTheme.typography.headlineSmall)
                         Spacer(Modifier.height(12.dp))
                         Text("Allow camera access in Android settings to scan products.", color = Color.LightGray)
