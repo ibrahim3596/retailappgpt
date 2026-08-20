@@ -6,23 +6,31 @@ import org.junit.Test
 
 class ProductListFilterTest {
     @Test
-    fun allMatchesEveryProduct() {
-        assertTrue(ProductListFilter.ALL.matches(10.0, 5.0))
-        assertTrue(ProductListFilter.ALL.matches(0.0, 5.0))
+    fun allMatchesActiveProductsOnly() {
+        assertTrue(ProductListFilter.ALL.matches(10.0, 5.0, archived = false))
+        assertFalse(ProductListFilter.ALL.matches(10.0, 5.0, archived = true))
     }
 
     @Test
     fun lowStockMatchesPositiveStockAtOrBelowThreshold() {
-        assertTrue(ProductListFilter.LOW_STOCK.matches(5.0, 5.0))
-        assertTrue(ProductListFilter.LOW_STOCK.matches(1.0, 5.0))
-        assertFalse(ProductListFilter.LOW_STOCK.matches(0.0, 5.0))
-        assertFalse(ProductListFilter.LOW_STOCK.matches(8.0, 5.0))
+        assertTrue(ProductListFilter.LOW_STOCK.matches(5.0, 5.0, archived = false))
+        assertTrue(ProductListFilter.LOW_STOCK.matches(1.0, 5.0, archived = false))
+        assertFalse(ProductListFilter.LOW_STOCK.matches(0.0, 5.0, archived = false))
+        assertFalse(ProductListFilter.LOW_STOCK.matches(8.0, 5.0, archived = false))
+        assertFalse(ProductListFilter.LOW_STOCK.matches(1.0, 5.0, archived = true))
     }
 
     @Test
-    fun outOfStockMatchesZeroAndNegativeStock() {
-        assertTrue(ProductListFilter.OUT_OF_STOCK.matches(0.0, 5.0))
-        assertTrue(ProductListFilter.OUT_OF_STOCK.matches(-1.0, 5.0))
-        assertFalse(ProductListFilter.OUT_OF_STOCK.matches(1.0, 5.0))
+    fun outOfStockMatchesZeroAndNegativeStockForActiveProducts() {
+        assertTrue(ProductListFilter.OUT_OF_STOCK.matches(0.0, 5.0, archived = false))
+        assertTrue(ProductListFilter.OUT_OF_STOCK.matches(-1.0, 5.0, archived = false))
+        assertFalse(ProductListFilter.OUT_OF_STOCK.matches(1.0, 5.0, archived = false))
+        assertFalse(ProductListFilter.OUT_OF_STOCK.matches(0.0, 5.0, archived = true))
+    }
+
+    @Test
+    fun archivedMatchesOnlyArchivedProducts() {
+        assertTrue(ProductListFilter.ARCHIVED.matches(0.0, 5.0, archived = true))
+        assertFalse(ProductListFilter.ARCHIVED.matches(10.0, 5.0, archived = false))
     }
 }
