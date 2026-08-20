@@ -1,5 +1,6 @@
 package com.retailpos.app.ui.screens
 
+import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -27,13 +28,17 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.retailpos.app.StaffGateActivity
+import com.retailpos.app.core.staff.StaffSessionStore
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,6 +46,7 @@ fun HomeScreen(
     onNewBill: () -> Unit,
     onNavigate: (String) -> Unit
 ) {
+    val context = LocalContext.current
     val quickActions = listOf(
         "products" to (Icons.Default.Storefront to "Products"),
         "inventory" to (Icons.Default.Inventory2 to "Inventory"),
@@ -48,6 +54,13 @@ fun HomeScreen(
         "analytics" to (Icons.Default.Analytics to "Analytics"),
         "settings" to (Icons.Default.Settings to "Settings")
     )
+
+    fun switchCashier() {
+        StaffSessionStore.clear()
+        context.startActivity(Intent(context, StaffGateActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
+        })
+    }
 
     Scaffold(
         topBar = {
@@ -65,6 +78,9 @@ fun HomeScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+                },
+                actions = {
+                    TextButton(onClick = ::switchCashier) { Text("SWITCH CASHIER") }
                 }
             )
         }
