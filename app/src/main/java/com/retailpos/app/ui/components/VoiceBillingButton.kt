@@ -9,14 +9,13 @@ import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -25,8 +24,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
-import com.retailpos.app.R
 
 @Composable
 fun VoiceBillingButton(
@@ -97,30 +96,29 @@ fun VoiceBillingButton(
         }
     }
 
-    Surface(modifier = modifier, shape = MaterialTheme.shapes.large, tonalElevation = 3.dp) {
-        IconButton(
-            onClick = {
-                if (listening) {
-                    recognizer?.stopListening()
-                    listening = false
-                    return@IconButton
-                }
-                val hasPermission = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
-                if (hasPermission) {
-                    recognizer?.startListening(createIntent())
-                    listening = true
-                } else {
-                    pendingStart = true
-                    permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                }
+    IconButton(
+        onClick = {
+            if (listening) {
+                recognizer?.stopListening()
+                listening = false
+                return@IconButton
             }
-        ) {
-            Icon(
-                imageVector = if (listening) Icons.Default.Mic else Icons.Default.MicOff,
-                contentDescription = if (listening) "Stop voice billing" else "Voice billing",
-                tint = if (listening) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-            )
-        }
+            val hasPermission = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+            if (hasPermission) {
+                recognizer?.startListening(createIntent())
+                listening = true
+            } else {
+                pendingStart = true
+                permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            }
+        },
+        modifier = modifier.size(56.dp)
+    ) {
+        Icon(
+            imageVector = if (listening) Icons.Default.Mic else Icons.Default.MicOff,
+            contentDescription = if (listening) "Stop voice billing" else "Voice billing",
+            tint = if (listening) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+        )
     }
 }
 
