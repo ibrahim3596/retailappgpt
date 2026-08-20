@@ -33,20 +33,12 @@ object VoiceSaleCommandParser {
     )
 
     private val ALIASES = mapOf(
-        "shakkar" to listOf("sugar", "shakkar"),
-        "शक्कर" to listOf("sugar", "shakkar", "शक्कर"),
-        "cheeni" to listOf("sugar", "cheeni"),
-        "चीनी" to listOf("sugar", "cheeni", "चीनी"),
-        "chawal" to listOf("rice", "chawal"),
-        "चावल" to listOf("rice", "chawal", "चावल"),
-        "atta" to listOf("atta", "wheat flour"),
-        "आटा" to listOf("atta", "wheat flour", "आटा"),
-        "maida" to listOf("maida", "refined flour"),
-        "मैदा" to listOf("maida", "refined flour", "मैदा"),
-        "tel" to listOf("oil", "tel"),
-        "तेल" to listOf("oil", "tel", "तेल"),
-        "namak" to listOf("salt", "namak"),
-        "नमक" to listOf("salt", "namak", "नमक")
+        "shakkar" to "sugar", "शक्कर" to "sugar", "cheeni" to "sugar", "चीनी" to "sugar",
+        "chawal" to "rice", "चावल" to "rice",
+        "atta" to "wheat flour", "आटा" to "wheat flour",
+        "maida" to "refined flour", "मैदा" to "refined flour",
+        "tel" to "oil", "तेल" to "oil",
+        "namak" to "salt", "नमक" to "salt"
     )
 
     fun parse(spoken: String): VoiceSaleCommand? {
@@ -62,10 +54,8 @@ object VoiceSaleCommandParser {
         }
 
         val fractionToken = FRACTIONS.keys.firstOrNull { token -> Regex("(^|\\s)$token(?=\\s|$)").containsMatchIn(text) }
-        var quantity = fractionToken?.let(FRACTIONS::get)
-        if (quantity == null) {
-            quantity = NUMBER.find(text)?.value?.replace(',', '.')?.toDoubleOrNull()
-        }
+        val quantity = fractionToken?.let(FRACTIONS::get)
+            ?: NUMBER.find(text)?.value?.replace(',', '.')?.toDoubleOrNull()
         if (quantity == null || quantity <= 0.0) return null
 
         text = text
@@ -79,12 +69,9 @@ object VoiceSaleCommandParser {
             .replace(Regex("\\s+"), " ")
             .trim()
 
-        return text.takeIf { it.isNotBlank() }?.let { VoiceSaleCommand(it, quantity, explicitUnit) }
-    }
-
-    fun productQueries(query: String): List<String> {
-        val normalized = query.trim().lowercase()
-        return ALIASES[normalized].orEmpty().plus(normalized).distinct()
+        return text.takeIf { it.isNotBlank() }?.let { query ->
+            VoiceSaleCommand(ALIASES[query] ?: query, quantity, explicitUnit)
+        }
     }
 
     private fun cleanFractionTokens(text: String): String = FRACTIONS.keys.fold(text) { acc, token ->
