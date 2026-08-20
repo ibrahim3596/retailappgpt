@@ -9,12 +9,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddShoppingCart
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.Button
@@ -52,6 +55,7 @@ fun PosScreen(
     onAddProduct: (ProductEntity) -> Unit,
     onVoiceInput: (String) -> Unit,
     onVoiceError: (String) -> Unit,
+    onSetCartQuantity: (CartLine, Double) -> Unit,
     onRemoveFromCart: (String) -> Unit,
     onBack: () -> Unit,
     onOpenScanner: () -> Unit,
@@ -147,23 +151,64 @@ fun PosScreen(
             } else {
                 item { Text("CURRENT BILL", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold) }
                 items(cart, key = { it.productId }) { line ->
+                    var quantityText by remember(line.productId, line.quantity) { mutableStateOf(displayQuantity(line.quantity)) }
                     Card(Modifier.fillMaxWidth()) {
-                        Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Column(Modifier.weight(1f)) {
-                                Text(line.name, fontWeight = FontWeight.Bold)
-                                Text("${line.quantity.clean()} ${line.unit} × ${money(line.unitPrice)}", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Spacer(Modifier.height(4.dp))
-                                Text(money(line.lineTotal), fontWeight = FontWeight.Black)
+                        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(line.name, fontWeight = FontWeight.Bold)
+                                    Text("${displayQuantity(line.quantity)} ${line.unit} × ${money(line.unitPrice)}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                IconButton(onClick = { onRemoveFromCart(line.productId) }) { Icon(Icons.Default.DeleteOutline, contentDescription = "Remove ${line.name}") }
                             }
-                            IconButton(onClick = { onRemoveFromCart(line.productId) }) { Icon(Icons.Default.DeleteOutline, contentDescription = "Remove ${line.name}") }
+                            Spacer(Modifier.height(8.dp))
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                val step = quantityStep(line.unit)
+                                OutlinedButton(
+                                    onClick = { onSetCartQuantity(line, line.quantity - step) },
+                                    enabled = line.quantity - step > 0.0,
+                                    modifier = Modifier.width(52.dp)
+                                ) { Icon(Icons.Default.Remove, contentDescription = "Decrease") }
+                                OutlinedTextField(
+                                    value = quantityText,
+                                    onValueChange = { value -> quantityText = value.filter { it.isDigit() || it == '.' || it == ',' } },
+                                    singleLine = true,
+                                    modifier = Modifier.weight(1f),
+                                    label = { Text("Quantity (${line.unit})") }
+                                )
+                                Button(
+                                    onClick = { onSetCartQuantity(line, line.quantity + step) },
+                                    modifier = Modifier.width(52.dp)
+                                ) { Icon(Icons.Default.Add, contentDescription = "Increase") }
+                            }
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                                OutlinedButton(onClick = {
+                                    val parsed = quantityText.replace(',', '.').toDoubleOrNull()
+                                    if (parsed != null) onSetCartQuantity(line, parsed) else quantityText = displayQuantity(line.quantity)
+                                }) { Text("SET") }
+                                Spacer(Modifier.width(8.dp))
+                                Text(money(line.lineTotal), fontWeight = FontWeight.Black, modifier = Modifier.padding(top = 14.dp))
+                            }
                         }
                     }
                 }
-                item { Text("${itemCount.clean()} items", style = MaterialTheme.typography.labelLarge) }
+                item { Text("${itemCount.clean()} total quantity", style = MaterialTheme.typography.labelLarge) }
             }
         }
     }
 }
+
+private fun quantityStep(unit: String): Double = when (unit.trim().lowercase()) {
+    "kg", "kilo", "kilogram", "kilograms" -> 0.05
+    "l", "lt", "ltr", "litre", "liter", "litres", "liters" -> 0.05
+    "g", "gm", "gram", "grams" -> 50.0
+    "ml", "millilitre", "milliliter" -> 50.0
+    else -> 1.0
+}
+
+private fun displayQuantity(value: Double): String =
+    if (value % 1.0 == 0.0) value.toInt().toString()
+    else String.format(Locale.US, "%.3f", value).trimEnd('0').trimEnd('.')
 
 private fun money(value: Double): String = String.format(Locale.US, "₹%.2f", value)
 private fun Double.clean(): String = if (this % 1.0 == 0.0) toInt().toString() else String.format(Locale.US, "%.2f", this)
