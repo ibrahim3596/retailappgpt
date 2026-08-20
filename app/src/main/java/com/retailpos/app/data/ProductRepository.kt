@@ -3,6 +3,8 @@ package com.retailpos.app.data
 import androidx.room.withTransaction
 import com.retailpos.app.core.identifiers.ProductIdentityRules
 import com.retailpos.app.core.identifiers.ProductIdentifierValidator
+import com.retailpos.app.core.products.ProductLocalCandidate
+import com.retailpos.app.core.products.ProductLocalCandidateRanking
 import kotlinx.coroutines.flow.Flow
 import java.util.UUID
 
@@ -19,6 +21,17 @@ class ProductRepository(
     suspend fun getByBarcode(storeId: String, value: String): ProductBarcodeEntity? = barcodeDao.getByValue(storeId, ProductIdentifierValidator.normalize(value))
     suspend fun getProductByBarcode(storeId: String, value: String): ProductEntity? =
         barcodeDao.getProductByBarcode(storeId, ProductIdentifierValidator.normalize(value))
+
+    suspend fun findLocalCandidates(storeId: String, name: String?, brand: String?, limit: Int = 30): List<ProductLocalCandidate> {
+        val queries = listOf(name, brand).filter { !it.isNullOrBlank() }
+            .map { ProductIdentityRules.normalizeSku(it!!) }
+            .filter { it.isNotBlank() }
+            .distinct()
+        val candidates = queries.flatMap { dao.findLocalCandidates(storeId, it, limit) }
+            .distinctBy { it.id }
+        return ProductLocalCandidateRanking.rank(name, brand, candidates)
+    }
+
     suspend fun save(product: ProductEntity) = dao.upsert(product)
 
     suspend fun saveProductWithPrimaryBarcode(product: ProductEntity, barcodeType: String = "UNKNOWN"): Boolean {
