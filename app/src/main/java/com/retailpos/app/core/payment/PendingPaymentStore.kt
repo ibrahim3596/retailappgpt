@@ -25,6 +25,12 @@ object PendingPaymentStore {
         cartFingerprint = prefs?.getString(KEY_CART_FINGERPRINT, null)?.takeIf { it.isNotBlank() }
     }
 
+    /** Backward-compatible setter; automatically binds the value to the current active cart. */
+    fun set(amount: Double?) {
+        val fingerprint = ActiveCartStore.load().takeIf { it.isNotEmpty() }?.let(CheckoutRecoveryFingerprint::of)
+        set(amount, fingerprint)
+    }
+
     fun set(amount: Double?, fingerprint: String?) {
         amountTendered = amount
         cartFingerprint = fingerprint?.takeIf { it.isNotBlank() }
@@ -32,6 +38,11 @@ object PendingPaymentStore {
             if (amount == null) remove(KEY_AMOUNT_TENDERED) else putString(KEY_AMOUNT_TENDERED, amount.toString())
             if (cartFingerprint == null) remove(KEY_CART_FINGERPRINT) else putString(KEY_CART_FINGERPRINT, cartFingerprint)
         }?.apply()
+    }
+
+    fun get(): Double? {
+        val fingerprint = ActiveCartStore.load().takeIf { it.isNotEmpty() }?.let(CheckoutRecoveryFingerprint::of) ?: return null
+        return getAmountTendered(fingerprint)
     }
 
     fun getAmountTendered(fingerprint: String): Double? =
@@ -45,6 +56,13 @@ object PendingPaymentStore {
         cartFingerprint = fingerprint
         prefs?.edit()?.putString(KEY_IDEMPOTENCY, created)?.putString(KEY_CART_FINGERPRINT, fingerprint)?.apply()
         return created
+    }
+
+    /** Backward-compatible overload for older callers. */
+    fun getOrCreateIdempotencyKey(create: () -> String): String {
+        val fingerprint = ActiveCartStore.load().takeIf { it.isNotEmpty() }?.let(CheckoutRecoveryFingerprint::of)
+            ?: "NO_ACTIVE_CART"
+        return getOrCreateIdempotencyKey(fingerprint, create)
     }
 
     fun clearIdempotencyKey() {
