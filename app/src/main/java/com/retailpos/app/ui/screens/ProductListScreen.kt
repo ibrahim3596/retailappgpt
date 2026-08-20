@@ -81,9 +81,14 @@ fun ProductListScreen(
                 ProductFilterButton("ALL", ProductListFilter.ALL, filter, viewModel::setFilter, Modifier.weight(1f))
                 ProductFilterButton("LOW", ProductListFilter.LOW_STOCK, filter, viewModel::setFilter, Modifier.weight(1f))
                 ProductFilterButton("OUT", ProductListFilter.OUT_OF_STOCK, filter, viewModel::setFilter, Modifier.weight(1f))
+                ProductFilterButton("ARCHIVED", ProductListFilter.ARCHIVED, filter, viewModel::setFilter, Modifier.weight(1f))
             }
             if (products.isEmpty()) {
-                val message = if (query.isBlank()) "No products match this filter." else "No products match \"$query\"."
+                val message = when {
+                    filter == ProductListFilter.ARCHIVED && query.isBlank() -> "No archived products."
+                    query.isBlank() -> "No products match this filter."
+                    else -> "No products match \"$query\"."
+                }
                 Text(message, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
             } else {
                 LazyColumn(contentPadding = PaddingValues(bottom = 96.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -91,7 +96,8 @@ fun ProductListScreen(
                         ProductRow(
                             product = product,
                             onClick = { onEditProduct(product.id) },
-                            onEditDetails = { onEditDetails(product.id) }
+                            onEditDetails = { onEditDetails(product.id) },
+                            onArchive = { viewModel.archiveProduct(product.id, !product.isArchived) }
                         )
                     }
                 }
@@ -113,13 +119,19 @@ private fun ProductFilterButton(
 }
 
 @Composable
-private fun ProductRow(product: ProductEntity, onClick: () -> Unit, onEditDetails: () -> Unit) {
+private fun ProductRow(
+    product: ProductEntity,
+    onClick: () -> Unit,
+    onEditDetails: () -> Unit,
+    onArchive: () -> Unit
+) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(product.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (product.isArchived) Text("ARCHIVED", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Black)
             if (product.brand.isNotBlank()) Text(product.brand, maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text("₹${"%.2f".format(product.sellingPrice)}", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
@@ -128,6 +140,7 @@ private fun ProductRow(product: ProductEntity, onClick: () -> Unit, onEditDetail
             product.sku?.takeIf { it.isNotBlank() }?.let { Text("SKU $it", style = MaterialTheme.typography.labelMedium) }
             product.barcode?.takeIf { it.isNotBlank() }?.let { Text("Barcode $it", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             TextButton(onClick = onEditDetails, modifier = Modifier.fillMaxWidth()) { Text("PRODUCT DETAILS") }
+            TextButton(onClick = onArchive, modifier = Modifier.fillMaxWidth()) { Text(if (product.isArchived) "RESTORE PRODUCT" else "ARCHIVE PRODUCT") }
         }
     }
 }
