@@ -34,26 +34,28 @@ object PricingRules {
             "Tax rate must be between 0 and 100 percent."
         }
 
-        val taxable = (input.subtotal - input.discountAmount).coerceAtLeast(0.0)
+        val taxable = roundCurrency((input.subtotal - input.discountAmount).coerceAtLeast(0.0))
         val tax = when (input.taxTreatment) {
             TaxTreatment.NO_TAX -> 0.0
-            TaxTreatment.GST_ADDED -> taxable * input.taxRatePercent / 100.0
+            TaxTreatment.GST_ADDED -> roundCurrency(taxable * input.taxRatePercent / 100.0)
             TaxTreatment.GST_INCLUSIVE ->
                 if (input.taxRatePercent == 0.0) 0.0
-                else taxable - (taxable / (1.0 + input.taxRatePercent / 100.0))
+                else roundCurrency(taxable - (taxable / (1.0 + input.taxRatePercent / 100.0)))
         }
         val total = when (input.taxTreatment) {
-            TaxTreatment.GST_ADDED -> taxable + tax
+            TaxTreatment.GST_ADDED -> roundCurrency(taxable + tax)
             TaxTreatment.NO_TAX -> taxable
             TaxTreatment.GST_INCLUSIVE -> taxable
         }
 
         return PricingResult(
-            subtotal = input.subtotal,
-            discountAmount = input.discountAmount,
+            subtotal = roundCurrency(input.subtotal),
+            discountAmount = roundCurrency(input.discountAmount),
             taxableAmount = taxable,
             taxAmount = tax,
             total = total
         )
     }
+
+    private fun roundCurrency(value: Double): Double = kotlin.math.round(value * 100.0) / 100.0
 }
