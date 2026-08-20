@@ -5,6 +5,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -20,6 +21,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -37,6 +39,7 @@ import kotlinx.coroutines.launch
 typealias GstMode = StoreTaxMode
 
 private const val PREFS = "retailpos_settings"
+private const val LOCAL_STORE_ID = "local-store"
 private object Keys {
     const val STORE_NAME = "store_name"
     const val STORE_PHONE = "store_phone"
@@ -94,6 +97,7 @@ private fun Context.saveStoreSettings(settings: LocalStoreSettings) {
 @Composable
 fun SettingsScreen(context: Context, onBack: () -> Unit) {
     val initial = remember(context) { context.loadStoreSettings() }
+    val database = remember(context) { RetailDatabase.get(context) }
     val scope = rememberCoroutineScope()
     var storeName by remember { mutableStateOf(initial.storeName) }
     var storePhone by remember { mutableStateOf(initial.storePhone) }
@@ -109,6 +113,16 @@ fun SettingsScreen(context: Context, onBack: () -> Unit) {
     var saving by remember { mutableStateOf(false) }
     var backupStatus by remember { mutableStateOf<String?>(null) }
     var validationError by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(database) {
+        runCatching { database.storeSettingsDao().get(LOCAL_STORE_ID) }
+            .getOrNull()
+            ?.let { persisted ->
+                gstMode = StoreTaxMode.fromStorage(persisted.gstMode)
+                taxRate = persisted.defaultTaxRatePercent.toString()
+                upiVpa = persisted.upiVpa
+            }
+    }
 
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
         if (uri != null && backupPassword.length >= 8) {
@@ -131,8 +145,9 @@ fun SettingsScreen(context: Context, onBack: () -> Unit) {
                 runCatching {
                     context.contentResolver.openInputStream(uri)?.use { input -> DatabaseBackupManager.importEncrypted(context, input, backupPassword.toCharArray()) }
                         ?: error("Could not open the selected backup.")
-                }.onSuccess { backupStatus = "Backup restored. Restart the app before continuing to use it." }
-                    .onFailure { backupStatus = it.message ?: "Backup restore failed." }
+                }.onSuccess {
+                    backupStatus = "Backup restored. Restart the app before continuing to use it."
+                }.onFailure { backupStatus = it.message ?: "Backup restore failed." }
             }
         }
     }
@@ -174,7 +189,7 @@ fun SettingsScreen(context: Context, onBack: () -> Unit) {
                     context.saveStoreSettings(normalized)
                     scope.launch {
                         runCatching {
-                            RetailDatabase.get(context).storeSettingsDao().upsert(StoreSettingsEntity("local-store", gstMode.storageValue, effectiveRate, normalized.currency, System.currentTimeMillis(), normalized.upiVpa))
+                            database.storeSettingsDao().upsert(StoreSettingsEntity(LOCAL_STORE_ID, gstMode.storageValue, effectiveRate, normalized.currency, System.currentTimeMillis(), normalized.upiVpa))
                         }.onSuccess { validationError = null; saved = true }.onFailure { validationError = "Settings could not be persisted locally." }
                         saving = false
                     }
@@ -200,7 +215,7 @@ fun SettingsScreen(context: Context, onBack: () -> Unit) {
 
 @Composable
 private fun RowButtons(exportEnabled: Boolean, onExport: () -> Unit, onImport: () -> Unit) {
-    androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedButton(onClick = onExport, enabled = exportEnabled, modifier = Modifier.weight(1f)) { Text("EXPORT BACKUP") }
         OutlinedButton(onClick = onImport, enabled = exportEnabled, modifier = Modifier.weight(1f)) { Text("IMPORT BACKUP") }
     }
