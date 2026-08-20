@@ -4,6 +4,9 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Transaction
+import com.retailpos.app.core.products.PricingInput
+import com.retailpos.app.core.products.PricingRules
+import com.retailpos.app.core.products.TaxTreatment
 import java.util.UUID
 
 @Dao
@@ -29,6 +32,8 @@ abstract class SaleDao {
     abstract suspend fun getPaymentSummary(storeId: String, start: Long, end: Long): List<PaymentSummary>
     @Query("SELECT * FROM sales WHERE storeId = :storeId ORDER BY createdAt DESC LIMIT :limit")
     abstract suspend fun getRecentSales(storeId: String, limit: Int): List<SaleEntity>
+    @Query("SELECT * FROM product_metadata WHERE productId = :productId AND storeId = :storeId LIMIT 1")
+    abstract suspend fun getProductMetadata(productId: String, storeId: String): ProductMetadataEntity?
     @Query("UPDATE products SET stock = stock - :quantity, updatedAt = :updatedAt WHERE id = :productId AND storeId = :storeId AND stock >= :quantity")
     abstract suspend fun decrementStock(productId: String, storeId: String, quantity: Double, updatedAt: Long): Int
     @Query("SELECT * FROM inventory_batches WHERE storeId = :storeId AND productId = :productId AND quantity > 0 AND (expiryDate IS NULL OR expiryDate > :now) ORDER BY CASE WHEN expiryDate IS NULL THEN 1 ELSE 0 END, expiryDate ASC, createdAt ASC")
@@ -59,7 +64,16 @@ abstract class SaleDao {
     }
 
     @Transaction
-    open suspend fun checkout(storeId: String, cart: List<CartLine>, paymentMethod: String, idempotencyKey: String, customerId: String? = null, now: Long = System.currentTimeMillis()): CheckoutResult {
+    open suspend fun checkout(
+        storeId: String,
+        cart: List<CartLine>,
+        paymentMethod: String,
+        idempotencyKey: String,
+        customerId: String? = null,
+        now: Long = System.currentTimeMillis(),
+        taxTreatment: TaxTreatment = TaxTreatment.NO_TAX,
+        billDiscountAmount: Double = 0.0
+    ): CheckoutResult {
         require(CheckoutRules.validateCart(cart)) { "Invalid cart" }
         require(CheckoutRules.validatePaymentMethod(paymentMethod)) { "Unsupported payment method" }
         require(CheckoutRules.validateIdempotencyKey(idempotencyKey)) { "Missing checkout idempotency key" }
@@ -67,8 +81,35 @@ abstract class SaleDao {
         findByIdempotencyKey(storeId, idempotencyKey)?.let { return CheckoutResult(it.id, it.total) }
 
         val subtotal = cart.sumOf { it.lineTotal }
+        val pricingWithoutTax = PricingRules.calculate(
+            PricingInput(
+                subtotal = subtotal,
+                discountAmount = billDiscountAmount,
+                taxTreatment = TaxTreatment.NO_TAX
+            )
+        )
+        val safeDiscount = pricingWithoutTax.discountAmount
+        val pricedLines = cart.map { line ->
+            val lineDiscount = if (subtotal <= 0.0) 0.0 else safeDiscount * (line.lineTotal / subtotal)
+            val productTaxRate = if (taxTreatment == TaxTreatment.GST_ADDED || taxTreatment == TaxTreatment.GST_INCLUSIVE) {
+                getProductMetadata(line.productId, storeId)?.taxRatePercent ?: 0.0
+            } else 0.0
+            val pricing = PricingRules.calculate(
+                PricingInput(
+                    subtotal = line.lineTotal,
+                    discountAmount = lineDiscount,
+                    taxRatePercent = productTaxRate,
+                    taxTreatment = taxTreatment
+                )
+            )
+            line to pricing
+        }
+
+        val saleDiscount = pricedLines.sumOf { it.second.discountAmount }
+        val saleTax = pricedLines.sumOf { it.second.taxAmount }
+        val saleTotal = pricedLines.sumOf { it.second.total }
         val saleId = UUID.randomUUID().toString()
-        val sale = SaleEntity(saleId, storeId, customerId, subtotal, subtotal, paymentMethod, idempotencyKey, now)
+        val sale = SaleEntity(saleId, storeId, customerId, subtotal, saleDiscount, saleTax, saleTotal, paymentMethod, idempotencyKey, now)
         val fallbackMovements = mutableListOf<InventoryMovementEntity>()
         for (line in cart) {
             val allocatedToBatch = allocateFefo(storeId, line.productId, line.quantity, saleId, now)
@@ -80,10 +121,26 @@ abstract class SaleDao {
         }
         if (fallbackMovements.isNotEmpty()) insertInventoryMovements(fallbackMovements)
         insertSale(sale)
-        insertLines(cart.map { line -> SaleLineEntity(UUID.randomUUID().toString(), saleId, line.productId, line.name, line.sku, line.quantity, line.unit, line.unitPrice, line.lineTotal) })
+        insertLines(pricedLines.map { (line, pricing) ->
+            SaleLineEntity(
+                id = UUID.randomUUID().toString(),
+                saleId = saleId,
+                productId = line.productId,
+                name = line.name,
+                sku = line.sku,
+                quantity = line.quantity,
+                unit = line.unit,
+                unitPrice = line.unitPrice,
+                taxableAmount = pricing.taxableAmount,
+                discountAmount = pricing.discountAmount,
+                taxRatePercent = if (taxTreatment == TaxTreatment.NO_TAX) 0.0 else (getProductMetadata(line.productId, storeId)?.taxRatePercent ?: 0.0),
+                taxAmount = pricing.taxAmount,
+                lineTotal = pricing.total
+            )
+        })
         if (paymentMethod == "CREDIT") {
-            insertLedgerEntry(CustomerLedgerEntry(UUID.randomUUID().toString(), storeId, customerId!!, subtotal, "CREDIT_SALE", "Sale $saleId", "SALE", saleId, now))
+            insertLedgerEntry(CustomerLedgerEntry(UUID.randomUUID().toString(), storeId, customerId!!, saleTotal, "CREDIT_SALE", "Sale $saleId", "SALE", saleId, now))
         }
-        return CheckoutResult(saleId, subtotal)
+        return CheckoutResult(saleId, saleTotal)
     }
 }
