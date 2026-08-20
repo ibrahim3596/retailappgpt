@@ -50,6 +50,8 @@ abstract class SaleDao {
     abstract suspend fun getCurrentPurchasePrice(productId: String, storeId: String): Double?
     @Query("SELECT * FROM store_settings WHERE storeId = :storeId LIMIT 1")
     abstract suspend fun getStoreSettings(storeId: String): StoreSettingsEntity?
+    @Query("SELECT isArchived FROM products WHERE id = :productId AND storeId = :storeId LIMIT 1")
+    abstract suspend fun isProductArchived(productId: String, storeId: String): Boolean?
     @Query("UPDATE products SET stock = stock - :quantity, updatedAt = :updatedAt WHERE id = :productId AND storeId = :storeId AND stock >= :quantity")
     abstract suspend fun decrementStock(productId: String, storeId: String, quantity: Double, updatedAt: Long): Int
     @Query("SELECT * FROM inventory_batches WHERE storeId = :storeId AND productId = :productId AND quantity > 0 AND (expiryDate IS NULL OR expiryDate > :now) ORDER BY CASE WHEN expiryDate IS NULL THEN 1 ELSE 0 END, expiryDate ASC, createdAt ASC")
@@ -122,6 +124,7 @@ abstract class SaleDao {
         val allCosts = mutableListOf<SaleCostAllocationEntity>()
         val fallbackMovements = mutableListOf<InventoryMovementEntity>()
         for ((index, line) in cart.withIndex()) {
+            check(isProductArchived(line.productId, storeId) != true) { "${line.name} is archived and cannot be sold" }
             val costs = allocateFefo(storeId, line.productId, line.quantity, now)
             val batchCosts = costs.filter { it.batchId != null }
             if (batchCosts.isNotEmpty()) {
