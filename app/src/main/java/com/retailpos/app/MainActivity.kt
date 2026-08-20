@@ -124,18 +124,6 @@ fun RetailPosApp(staffSession: StaffSession) {
 
     fun refreshHeldBills() { heldBills = HeldBillStore.list() }
 
-    fun replaceCart(lines: List<CartLine>) {
-        cartManager.clear()
-        lines.forEach { line ->
-            val result = cartManager.restoreLine(line)
-            if (result != AddToCartResult.Added) {
-                cartError = "Could not restore ${line.name}. The product may no longer have enough stock."
-                return
-            }
-        }
-        cart = cartManager.lines
-    }
-
     fun addProductToCart(product: ProductEntity, quantity: Double = 1.0) {
         when (cartManager.addQuantity(product, quantity)) {
             AddToCartResult.Added -> { cart = cartManager.lines; posQuery = ""; cartError = null }
@@ -216,31 +204,23 @@ fun RetailPosApp(staffSession: StaffSession) {
             cartError = "Clear or hold the current bill before resuming another bill."
             return
         }
-        val restored = snapshot.lines.mapNotNull { line ->
-            val current = database.productDao().getById(line.productId, LOCAL_STORE_ID)
-            if (current == null) null else {
-                line.copy(unitPrice = current.sellingPrice)
+        scope.launch {
+            val restored = snapshot.lines.mapNotNull { line ->
+                val current = database.productDao().getById(line.productId, LOCAL_STORE_ID)
+                if (current == null || line.quantity > current.stock) null else line.copy(unitPrice = current.sellingPrice)
             }
+            if (restored.size != snapshot.lines.size) {
+                cartError = "One or more products in this held bill no longer exist or lack sufficient stock. The bill was not resumed."
+                return@launch
+            }
+            cartManager.replace(restored)
+            cart = cartManager.lines
+            HeldBillStore.take(snapshot.id)
+            refreshHeldBills()
+            showHeldBills = false
+            cartError = "Held bill resumed."
         }
-        if (restored.size != snapshot.lines.size) {
-            cartError = "One or more products in this held bill no longer exist. The bill was not resumed."
-            return
-        }
-        if (restored.any { line ->
-                val stock = heldBillStock(line)
-                line.quantity > stock
-            }) {
-            cartError = "A held-bill item no longer has enough stock. Review the products before resuming."
-            return
-        }
-        replaceCart(restored)
-        HeldBillStore.take(snapshot.id)
-        refreshHeldBills()
-        showHeldBills = false
-        cartError = "Held bill resumed."
     }
-
-    fun heldBillStock(line: CartLine): Double = database.productDao().getById(line.productId, LOCAL_STORE_ID)?.stock ?: 0.0
 
     fun openReceipt(saleId: String) {
         scope.launch {
@@ -312,50 +292,28 @@ fun RetailPosApp(staffSession: StaffSession) {
                 }
             }
         }
-        composable(Routes.PRODUCTS) {
-            ProductListScreen(storeId = LOCAL_STORE_ID, onBack = { navController.popBackStack() }, onAddProduct = { navController.navigate("products/add?barcode=&identify=false&returnToBilling=false") }, onIntelligentCapture = { navController.navigate("products/add?barcode=&identify=true&returnToBilling=false") }, onEditProduct = { navController.navigate("products/edit/$it") }, onEditDetails = { navController.navigate("products/details/$it") })
-        }
+        composable(Routes.PRODUCTS) { ProductListScreen(storeId = LOCAL_STORE_ID, onBack = { navController.popBackStack() }, onAddProduct = { navController.navigate("products/add?barcode=&identify=false&returnToBilling=false") }, onIntelligentCapture = { navController.navigate("products/add?barcode=&identify=true&returnToBilling=false") }, onEditProduct = { navController.navigate("products/edit/$it") }, onEditDetails = { navController.navigate("products/details/$it") }) }
         composable(Routes.ADD_PRODUCT, arguments = listOf(navArgument("barcode") { type = NavType.StringType; defaultValue = "" }, navArgument("identify") { type = NavType.BoolType; defaultValue = false }, navArgument("returnToBilling") { type = NavType.BoolType; defaultValue = false })) { entry ->
             val initialBarcode = entry.arguments?.getString("barcode").orEmpty()
             val returnToBilling = entry.arguments?.getBoolean("returnToBilling") ?: false
-            ProductReviewScreen(storeId = LOCAL_STORE_ID, productId = null, initialBarcode = initialBarcode, autoIdentify = entry.arguments?.getBoolean("identify") ?: false,
-                onBack = { navController.popBackStack() },
-                onSaved = if (returnToBilling) ({ savedProductId -> scope.launch { val product = database.productDao().getById(savedProductId, LOCAL_STORE_ID); if (product != null) addProductToCart(product) else cartError = "The new product was saved, but it could not be loaded back into the bill."; navController.popBackStack(Routes.POS, inclusive = false) } }) else null,
-                onExistingProductSelected = { existingProductId -> scope.launch { val product = database.productDao().getById(existingProductId, LOCAL_STORE_ID); if (product != null && returnToBilling) { addProductToCart(product); navController.popBackStack(Routes.POS, inclusive = false) } else if (product != null) navController.navigate("products/edit/$existingProductId") } })
+            ProductReviewScreen(storeId = LOCAL_STORE_ID, productId = null, initialBarcode = initialBarcode, autoIdentify = entry.arguments?.getBoolean("identify") ?: false, onBack = { navController.popBackStack() }, onSaved = if (returnToBilling) ({ savedProductId -> scope.launch { val product = database.productDao().getById(savedProductId, LOCAL_STORE_ID); if (product != null) addProductToCart(product) else cartError = "The new product was saved, but it could not be loaded back into the bill."; navController.popBackStack(Routes.POS, inclusive = false) } }) else null, onExistingProductSelected = { existingProductId -> scope.launch { val product = database.productDao().getById(existingProductId, LOCAL_STORE_ID); if (product != null && returnToBilling) { addProductToCart(product); navController.popBackStack(Routes.POS, inclusive = false) } else if (product != null) navController.navigate("products/edit/$existingProductId") } })
         }
         composable(Routes.EDIT_PRODUCT, arguments = listOf(navArgument("productId") { type = NavType.StringType })) { entry -> ProductReviewScreen(storeId = LOCAL_STORE_ID, productId = entry.arguments?.getString("productId"), onBack = { navController.popBackStack() }) }
         composable(Routes.PRODUCT_DETAILS, arguments = listOf(navArgument("productId") { type = NavType.StringType })) { entry -> ProductMetadataScreen(storeId = LOCAL_STORE_ID, productId = entry.arguments?.getString("productId").orEmpty(), onBack = { navController.popBackStack() }) }
         composable(Routes.INVENTORY) { InventoryScreen(storeId = LOCAL_STORE_ID, repository = repository, inventoryMovements = { database.inventoryDao().getMovements(LOCAL_STORE_ID) }, onBack = { navController.popBackStack() }, onOpenProduct = { navController.navigate("inventory/detail/$it") }, onAdjustProduct = { navController.navigate("inventory/adjust/$it") }, onReceiveProduct = { navController.navigate("inventory/receive/$it") }) }
         composable(Routes.INVENTORY_DETAIL, arguments = listOf(navArgument("productId") { type = NavType.StringType })) { entry -> val id = entry.arguments?.getString("productId"); val product by if (id == null) remember { mutableStateOf(null) } else androidx.compose.runtime.produceState<ProductEntity?>(initialValue = null, id) { value = database.productDao().getById(id, LOCAL_STORE_ID) }; val p = product; if (p != null) InventoryDetailScreen(product = p, movements = database.inventoryDao().observeMovements(LOCAL_STORE_ID, p.id).collectAsState(initial = emptyList()).value, onBack = { navController.popBackStack() }, onAdjust = { navController.navigate("inventory/adjust/${p.id}") }, onReceive = { navController.navigate("inventory/receive/${p.id}") }) }
         composable(Routes.INVENTORY_ADJUST, arguments = listOf(navArgument("productId") { type = NavType.StringType })) { entry -> InventoryAdjustmentScreen(productId = entry.arguments?.getString("productId").orEmpty(), onBack = { navController.popBackStack() }, error = inventoryAdjustmentError, onSubmit = { productId, delta, reason -> adjustInventory(productId, delta, reason) }) }
-        composable(Routes.INVENTORY_RECEIVE, arguments = listOf(navArgument("productId") { type = NavType.StringType })) { entry -> InventoryReceiveProductScreenPlaceholder() }
+        composable(Routes.INVENTORY_RECEIVE, arguments = listOf(navArgument("productId") { type = NavType.StringType })) { entry -> InventoryReceiveScreen(productId = entry.arguments?.getString("productId").orEmpty(), onBack = { navController.popBackStack() }, error = inventoryReceiveError, onSubmit = { productId, quantity, batch, expiry, purchasePrice -> receiveInventory(productId, quantity, batch, expiry, purchasePrice) }) }
         composable(Routes.CUSTOMERS) { CustomersScreen(storeId = LOCAL_STORE_ID, onBack = { navController.popBackStack() }, onOpenKhata = { navController.navigate("customers/khata/$it") }) }
         composable(Routes.CUSTOMER_KHATA, arguments = listOf(navArgument("customerId") { type = NavType.StringType })) { entry -> CustomerKhataScreen(storeId = LOCAL_STORE_ID, customerId = entry.arguments?.getString("customerId").orEmpty(), onBack = { navController.popBackStack() }) }
         composable(Routes.ANALYTICS) { AnalyticsScreen(storeId = LOCAL_STORE_ID, saleDao = database.saleDao(), inventoryDao = database.inventoryDao(), onBack = { navController.popBackStack() }) }
         composable(Routes.SETTINGS) { SettingsScreen(context, onBack = { navController.popBackStack() }) }
     }
 
-    if (unknownBarcode != null) {
-        AlertDialog(onDismissRequest = { unknownBarcode = null }, title = { Text("UNKNOWN PRODUCT") }, text = { Text("Barcode ${unknownBarcode.orEmpty()} was not found. Identify the product or add it manually.") }, confirmButton = { Button(onClick = { navController.navigate("products/add?barcode=${Uri.encode(unknownBarcode.orEmpty())}&identify=true&returnToBilling=true"); unknownBarcode = null }) { Text("IDENTIFY PRODUCT") } }, dismissButton = { TextButton(onClick = { navController.navigate("products/add?barcode=${Uri.encode(unknownBarcode.orEmpty())}&identify=false&returnToBilling=true"); unknownBarcode = null }) { Text("ADD MANUALLY") } })
-    }
-
-    if (showHeldBills) {
-        AlertDialog(onDismissRequest = { showHeldBills = false }, title = { Text("HELD BILLS") }, text = {
-            if (heldBills.isEmpty()) Text("No held bills.") else Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                heldBills.forEachIndexed { index, bill ->
-                    TextButton(onClick = { restoreHeldBill(bill) }) { Text("${index + 1}. ${bill.lines.size} item line(s) • ${money(bill.lines.sumOf { it.lineTotal })}") }
-                }
-            }
-        }, confirmButton = { TextButton(onClick = { showHeldBills = false }) { Text("CLOSE") } })
-    }
-
-    if (completedSale != null) {
-        AlertDialog(onDismissRequest = { completedSale = null }, title = { Text("SALE COMPLETE") }, text = { Text("Sale ${completedSale.orEmpty()} was recorded successfully.") }, confirmButton = { TextButton(onClick = { val id = completedSale.orEmpty(); completedSale = null; openReceipt(id) }) { Text("VIEW RECEIPT") } }, dismissButton = { TextButton(onClick = { completedSale = null }) { Text("DONE") } })
-    }
+    if (unknownBarcode != null) AlertDialog(onDismissRequest = { unknownBarcode = null }, title = { Text("UNKNOWN PRODUCT") }, text = { Text("Barcode ${unknownBarcode.orEmpty()} was not found. Identify the product or add it manually.") }, confirmButton = { Button(onClick = { navController.navigate("products/add?barcode=${Uri.encode(unknownBarcode.orEmpty())}&identify=true&returnToBilling=true"); unknownBarcode = null }) { Text("IDENTIFY PRODUCT") } }, dismissButton = { TextButton(onClick = { navController.navigate("products/add?barcode=${Uri.encode(unknownBarcode.orEmpty())}&identify=false&returnToBilling=true"); unknownBarcode = null }) { Text("ADD MANUALLY") } })
+    if (showHeldBills) AlertDialog(onDismissRequest = { showHeldBills = false }, title = { Text("HELD BILLS") }, text = { if (heldBills.isEmpty()) Text("No held bills.") else Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { heldBills.forEachIndexed { index, bill -> TextButton(onClick = { restoreHeldBill(bill) }) { Text("${index + 1}. ${bill.lines.size} item line(s) • ${money(bill.lines.sumOf { it.lineTotal })}") } } } }, confirmButton = { TextButton(onClick = { showHeldBills = false }) { Text("CLOSE") } })
+    if (completedSale != null) AlertDialog(onDismissRequest = { completedSale = null }, title = { Text("SALE COMPLETE") }, text = { Text("Sale ${completedSale.orEmpty()} was recorded successfully.") }, confirmButton = { TextButton(onClick = { val id = completedSale.orEmpty(); completedSale = null; openReceipt(id) }) { Text("VIEW RECEIPT") } }, dismissButton = { TextButton(onClick = { completedSale = null }) { Text("DONE") } })
 }
-
-@Composable
-private fun InventoryReceiveProductScreenPlaceholder() { Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center) { Text("Inventory receive screen", style = MaterialTheme.typography.titleLarge) } }
 
 private fun money(value: Double): String = String.format(java.util.Locale.US, "₹%.2f", value)
 private fun Double.clean(): String = if (this % 1.0 == 0.0) toInt().toString() else String.format(java.util.Locale.US, "%.2f", this)
