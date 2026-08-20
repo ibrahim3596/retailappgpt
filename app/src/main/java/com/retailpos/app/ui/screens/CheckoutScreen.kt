@@ -33,6 +33,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.retailpos.app.core.payment.PaymentSettlementRules
 import com.retailpos.app.core.payment.PendingPaymentStore
+import com.retailpos.app.core.payment.SplitPaymentPart
+import com.retailpos.app.core.payment.SplitPaymentRules
 import com.retailpos.app.core.payment.UpiPaymentIntent
 import com.retailpos.app.core.products.CheckoutPricingPreview
 import com.retailpos.app.core.products.CheckoutPricingPreviewCalculator
@@ -43,7 +45,7 @@ import com.retailpos.app.data.RetailDatabase
 import java.util.Locale
 import java.util.UUID
 
-private val PAYMENT_METHODS = listOf("CASH", "UPI", "CARD", "CREDIT")
+private val PAYMENT_METHODS = listOf("CASH", "UPI", "CARD", "CREDIT", "SPLIT")
 private const val LOCAL_STORE_ID = "local-store"
 private enum class DiscountMode { AMOUNT, PERCENT }
 
@@ -64,6 +66,9 @@ fun CheckoutScreen(
     var discountMode by remember { mutableStateOf(DiscountMode.AMOUNT) }
     var discountInput by remember { mutableStateOf("") }
     var cashTenderedInput by remember { mutableStateOf("") }
+    var splitSecondMethod by remember { mutableStateOf("UPI") }
+    var splitFirstAmount by remember { mutableStateOf("") }
+    var splitSecondAmount by remember { mutableStateOf("") }
     var pricingPreview by remember { mutableStateOf<CheckoutPricingPreview?>(null) }
     var pricingError by remember { mutableStateOf<String?>(null) }
     var paymentError by remember { mutableStateOf<String?>(null) }
@@ -95,14 +100,27 @@ fun CheckoutScreen(
     val discount = pricingPreview?.discountAmount ?: 0.0
     val tax = pricingPreview?.taxAmount ?: 0.0
     val tendered = cashTenderedInput.replace(',', '.').toDoubleOrNull()
-    val paymentPreview = runCatching { PaymentSettlementRules.settle(paymentMethod, total, if (paymentMethod == "CASH") tendered else null) }.getOrNull()
+    val splitAmount1 = splitFirstAmount.replace(',', '.').toDoubleOrNull() ?: 0.0
+    val splitAmount2 = splitSecondAmount.replace(',', '.').toDoubleOrNull() ?: 0.0
+    val splitEncoded = if (paymentMethod == "SPLIT") {
+        val parts = listOf(SplitPaymentPart("CASH", splitAmount1), SplitPaymentPart(splitSecondMethod, splitAmount2))
+        SplitPaymentRules.validate(total, parts)?.also { paymentError = it }
+        if (SplitPaymentRules.validate(total, parts) == null) SplitPaymentRules.encode(parts) else null
+    } else null
+    val settlementMethod = splitEncoded ?: paymentMethod
+    val paymentPreview = runCatching { PaymentSettlementRules.settle(settlementMethod, total, if (paymentMethod == "CASH") tendered else null) }.getOrNull()
     val change = paymentPreview?.change ?: 0.0
 
-    LaunchedEffect(paymentMethod, cashTenderedInput, total) {
+    LaunchedEffect(paymentMethod, cashTenderedInput, total, splitFirstAmount, splitSecondAmount, splitSecondMethod) {
         paymentError = runCatching {
-            PaymentSettlementRules.settle(paymentMethod, total, if (paymentMethod == "CASH") tendered else null)
+            val method = if (paymentMethod == "SPLIT") {
+                val parts = listOf(SplitPaymentPart("CASH", splitAmount1), SplitPaymentPart(splitSecondMethod, splitAmount2))
+                SplitPaymentRules.validate(total, parts)?.let { throw IllegalArgumentException(it) }
+                SplitPaymentRules.encode(parts)
+            } else paymentMethod
+            PaymentSettlementRules.settle(method, total, if (paymentMethod == "CASH") tendered else null)
         }.exceptionOrNull()?.message
-        upiError = null
+        if (paymentMethod != "SPLIT") upiError = null
     }
 
     fun openUpiApp() {
@@ -113,22 +131,11 @@ fun CheckoutScreen(
                 upiError = "Set your merchant UPI VPA in Settings first."
                 return
             }
-            val uri = UpiPaymentIntent.build(
-                vpa = vpa,
-                payeeName = settings?.let { "RetailPOS Store" } ?: "RetailPOS Store",
-                amount = total,
-                transactionRef = UUID.randomUUID().toString()
-            )
+            val uri = UpiPaymentIntent.build(vpa = vpa, payeeName = "RetailPOS Store", amount = total, transactionRef = UUID.randomUUID().toString())
             val intent = Intent(Intent.ACTION_VIEW, uri)
-            if (intent.resolveActivity(context.packageManager) == null) {
-                upiError = "No installed UPI app can handle payment requests on this device."
-            } else {
-                context.startActivity(intent)
-                upiError = null
-            }
-        } catch (e: Exception) {
-            upiError = e.message ?: "UPI app could not be opened."
-        }
+            if (intent.resolveActivity(context.packageManager) == null) upiError = "No installed UPI app can handle payment requests on this device."
+            else { context.startActivity(intent); upiError = null }
+        } catch (e: Exception) { upiError = e.message ?: "UPI app could not be opened." }
     }
 
     Scaffold(topBar = { TopAppBar(title = { Text("CHECKOUT", fontWeight = FontWeight.Black) }) }) { padding ->
@@ -192,6 +199,17 @@ fun CheckoutScreen(
                             }
                             "CARD" -> Text("Collect exactly ${money(total)} using CARD.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                             "CREDIT" -> Text("Credit sale will be added to this customer's Khata.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            "SPLIT" -> {
+                                Text("Split between CASH and a second tender.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                OutlinedTextField(splitFirstAmount, { splitFirstAmount = it.filter { c -> c.isDigit() || c == '.' || c == ',' } }, enabled = !isProcessing, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Cash part") })
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    listOf("UPI", "CARD").forEach { method ->
+                                        OutlinedButton(onClick = { splitSecondMethod = method }, enabled = !isProcessing, modifier = Modifier.weight(1f)) { Text(if (splitSecondMethod == method) "✓ $method" else method) }
+                                    }
+                                }
+                                OutlinedTextField(splitSecondAmount, { splitSecondAmount = it.filter { c -> c.isDigit() || c == '.' || c == ',' } }, enabled = !isProcessing, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("$splitSecondMethod part") })
+                                Text("Remaining: ${money((total - splitAmount1 - splitAmount2).coerceAtLeast(0.0))}", fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
                 }
@@ -214,7 +232,7 @@ fun CheckoutScreen(
             item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedButton(onClick = onBack, enabled = !isProcessing, modifier = Modifier.weight(1f).height(56.dp)) { Text("BACK") }
-                    Button(onClick = { PendingPaymentStore.set(if (paymentMethod == "CASH") tendered else null); onComplete(paymentMethod, selectedCustomer?.id, discount) }, enabled = cart.isNotEmpty() && !isProcessing && !creditWithoutCustomer && pricingPreview != null && pricingError == null && paymentError == null, modifier = Modifier.weight(1.4f).height(56.dp)) { Text(if (isProcessing) "PROCESSING…" else "COMPLETE SALE", fontWeight = FontWeight.Bold) }
+                    Button(onClick = { PendingPaymentStore.set(if (paymentMethod == "CASH") tendered else if (paymentMethod == "SPLIT") total else null); onComplete(settlementMethod, selectedCustomer?.id, discount) }, enabled = cart.isNotEmpty() && !isProcessing && !creditWithoutCustomer && pricingPreview != null && pricingError == null && paymentError == null, modifier = Modifier.weight(1.4f).height(56.dp)) { Text(if (isProcessing) "PROCESSING…" else "COMPLETE SALE", fontWeight = FontWeight.Bold) }
                 }
             }
         }
