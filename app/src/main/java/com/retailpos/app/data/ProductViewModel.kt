@@ -50,10 +50,15 @@ class ProductViewModel(application: Application, private val storeId: String) : 
     fun setQuery(value: String) { _query.value = value }
     fun setFilter(value: ProductListFilter) { _filter.value = value }
 
-    fun findLocalCaptureCandidates(name: String?, brand: String?, onComplete: (() -> Unit)? = null) {
+    fun findLocalCaptureCandidates(
+        name: String?,
+        brand: String?,
+        onComplete: ((List<ProductLocalCandidate>) -> Unit)? = null
+    ) {
         viewModelScope.launch {
-            _localCandidates.value = repository.findLocalCandidates(storeId, name, brand)
-            onComplete?.invoke()
+            val candidates = repository.findLocalCandidates(storeId, name, brand)
+            _localCandidates.value = candidates
+            onComplete?.invoke(candidates)
         }
     }
 
