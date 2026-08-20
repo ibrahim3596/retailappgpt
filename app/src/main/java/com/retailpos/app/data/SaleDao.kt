@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Transaction
+import com.retailpos.app.core.payment.PaymentSettlementRules
 import com.retailpos.app.core.permissions.StaffPermissionRules
 import com.retailpos.app.core.permissions.StaffRole
 import com.retailpos.app.core.products.PricingInput
@@ -77,6 +78,7 @@ abstract class SaleDao {
         paymentMethod: String,
         idempotencyKey: String,
         customerId: String? = null,
+        amountTendered: Double? = null,
         now: Long = System.currentTimeMillis(),
         taxTreatment: TaxTreatment? = null,
         billDiscountAmount: Double = 0.0,
@@ -86,7 +88,7 @@ abstract class SaleDao {
         require(CheckoutRules.validatePaymentMethod(paymentMethod)) { "Unsupported payment method" }
         require(CheckoutRules.validateIdempotencyKey(idempotencyKey)) { "Missing checkout idempotency key" }
         require(paymentMethod != "CREDIT" || !customerId.isNullOrBlank()) { "Select a customer for credit sales" }
-        findByIdempotencyKey(storeId, idempotencyKey)?.let { return CheckoutResult(it.id, it.total) }
+        findByIdempotencyKey(storeId, idempotencyKey)?.let { return CheckoutResult(it.id, it.total, it.changeAmount) }
 
         val subtotal = cart.sumOf { it.lineTotal }
         StaffPermissionRules.validateBillDiscount(staffRole, subtotal, billDiscountAmount)?.let { error ->
@@ -115,8 +117,22 @@ abstract class SaleDao {
         val saleDiscount = pricedLines.sumOf { it.second.discountAmount }
         val saleTax = pricedLines.sumOf { it.second.taxAmount }
         val saleTotal = pricedLines.sumOf { it.second.total }
+        val payment = PaymentSettlementRules.settle(paymentMethod, saleTotal, amountTendered)
         val saleId = UUID.randomUUID().toString()
-        val sale = SaleEntity(saleId, storeId, customerId, subtotal, saleDiscount, saleTax, saleTotal, paymentMethod, idempotencyKey, now)
+        val sale = SaleEntity(
+            id = saleId,
+            storeId = storeId,
+            customerId = customerId,
+            subtotal = subtotal,
+            discountAmount = saleDiscount,
+            taxAmount = saleTax,
+            total = saleTotal,
+            paymentMethod = paymentMethod,
+            amountTendered = payment.amountTendered,
+            changeAmount = payment.change,
+            idempotencyKey = idempotencyKey,
+            createdAt = now
+        )
         val fallbackMovements = mutableListOf<InventoryMovementEntity>()
         for (line in cart) {
             val allocatedToBatch = allocateFefo(storeId, line.productId, line.quantity, saleId, now)
@@ -148,6 +164,6 @@ abstract class SaleDao {
         if (paymentMethod == "CREDIT") {
             insertLedgerEntry(CustomerLedgerEntry(UUID.randomUUID().toString(), storeId, customerId!!, saleTotal, "CREDIT_SALE", "Sale $saleId", "SALE", saleId, now))
         }
-        return CheckoutResult(saleId, saleTotal)
+        return CheckoutResult(saleId, saleTotal, payment.change)
     }
 }
