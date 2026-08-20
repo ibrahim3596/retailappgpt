@@ -27,6 +27,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -86,10 +87,7 @@ fun PurchaseEntryScreen(
     var showSupplierDialog by remember { mutableStateOf(false) }
     var showLineDialog by remember { mutableStateOf(false) }
 
-    fun loadSuppliers() {
-        scope.launch { suppliers = supplierDao.getAll(storeId) }
-    }
-
+    fun loadSuppliers() { scope.launch { suppliers = supplierDao.getAll(storeId) } }
     LaunchedEffect(Unit) { loadSuppliers() }
 
     val gross = lines.sumOf { it.gross }
@@ -156,30 +154,25 @@ fun PurchaseEntryScreen(
                                             val now = System.currentTimeMillis()
                                             val purchaseId = UUID.randomUUID().toString()
                                             val entity = PurchaseEntity(
-                                                id = purchaseId,
-                                                storeId = storeId,
-                                                supplierId = supplier.id,
-                                                invoiceNumber = invoiceNumber.trim().ifBlank { null },
-                                                grossAmount = gross,
-                                                schemeDiscount = scheme,
-                                                netAmount = net,
-                                                paidAmount = paidValue,
-                                                outstandingAmount = outstanding,
-                                                createdAt = now
+                                                id = purchaseId, storeId = storeId, supplierId = supplier.id,
+                                                invoiceNumber = invoiceNumber.trim().ifBlank { null }, grossAmount = gross,
+                                                schemeDiscount = scheme, netAmount = net, paidAmount = paidValue,
+                                                outstandingAmount = outstanding, createdAt = now
                                             )
                                             val purchaseLines = lines.map { line ->
-                                                PurchaseLineEntity(purchaseId, storeId, line.product.id, line.orderedQuantity, line.freeQuantity, line.purchaseRate, line.schemeDiscount, line.net, line.effectiveCost, line.batchNumber, line.expiryDate, now)
+                                                PurchaseLineEntity(purchaseId, storeId, line.product.id, line.orderedQuantity, line.freeQuantity,
+                                                    line.purchaseRate, line.schemeDiscount, line.net, line.effectiveCost, line.batchNumber, line.expiryDate, now)
                                             }
                                             val batches = lines.map { line ->
-                                                InventoryBatchEntity(UUID.randomUUID().toString(), storeId, line.product.id, line.batchNumber, line.expiryDate, line.stockQuantity, line.effectiveCost, now)
+                                                InventoryBatchEntity(UUID.randomUUID().toString(), storeId, line.product.id, line.batchNumber,
+                                                    line.expiryDate, line.stockQuantity, line.effectiveCost, now)
                                             }
                                             purchaseRepository.recordPurchase(entity, purchaseLines, batches, now)
                                         }.onSuccess { onSaved() }.onFailure { error = it.message ?: "Purchase could not be saved." }
                                     }
                                 }
                             },
-                            modifier = Modifier.fillMaxWidth(),
-                            enabled = selectedSupplier != null && lines.isNotEmpty()
+                            modifier = Modifier.fillMaxWidth(), enabled = selectedSupplier != null && lines.isNotEmpty()
                         ) { Text("RECEIVE PURCHASE") }
                     }
                 }
@@ -188,24 +181,19 @@ fun PurchaseEntryScreen(
     }
 
     if (showSupplierDialog) {
-        SupplierDialog(
-            onDismiss = { showSupplierDialog = false },
-            onSave = { name, phone, address, notes ->
-                scope.launch {
-                    val now = System.currentTimeMillis()
-                    val supplier = SupplierEntity(UUID.randomUUID().toString(), storeId, name.trim(), phone.trim(), address.trim(), notes.trim(), now, now)
-                    supplierDao.insert(supplier)
-                    selectedSupplier = supplier
-                    showSupplierDialog = false
-                    loadSuppliers()
-                }
+        SupplierDialog(onDismiss = { showSupplierDialog = false }, onSave = { name, phone, address, notes ->
+            scope.launch {
+                val now = System.currentTimeMillis()
+                val supplier = SupplierEntity(UUID.randomUUID().toString(), storeId, name.trim(), phone.trim(), address.trim(), notes.trim(), now, now)
+                supplierDao.insert(supplier); selectedSupplier = supplier; showSupplierDialog = false; loadSuppliers()
             }
-        )
+        })
     }
 
     if (showLineDialog) {
         PurchaseLineDialog(
             products = products,
+            alreadySelectedProductIds = lines.map { it.product.id }.toSet(),
             onDismiss = { showLineDialog = false },
             onAdd = { product, ordered, free, rate, discount, batch, expiry ->
                 lines += PurchaseUiLine(product, ordered, free, rate, discount, batch.ifBlank { null }, expiry)
@@ -233,13 +221,19 @@ private fun SupplierDialog(onDismiss: () -> Unit, onSave: (String, String, Strin
     var phone by remember { mutableStateOf("") }
     var address by remember { mutableStateOf("") }
     var notes by remember { mutableStateOf("") }
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("Add supplier") }, text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedTextField(name, { name = it }, singleLine = true, label = { Text("Name") }); OutlinedTextField(phone, { phone = it }, singleLine = true, label = { Text("Phone") }); OutlinedTextField(address, { address = it }, minLines = 2, label = { Text("Address") }); OutlinedTextField(notes, { notes = it }, minLines = 2, label = { Text("Notes") }) } }, confirmButton = { Button(onClick = { if (name.isNotBlank()) onSave(name, phone, address, notes) }) { Text("SAVE") } }, dismissButton = { TextButton(onClick = onDismiss) { Text("CANCEL") } })
+    AlertDialog(onDismissRequest = onDismiss, title = { Text("Add supplier") }, text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedTextField(name, { name = it }, singleLine = true, label = { Text("Name") })
+        OutlinedTextField(phone, { phone = it }, singleLine = true, label = { Text("Phone") })
+        OutlinedTextField(address, { address = it }, minLines = 2, label = { Text("Address") })
+        OutlinedTextField(notes, { notes = it }, minLines = 2, label = { Text("Notes") })
+    } }, confirmButton = { Button(onClick = { if (name.isNotBlank()) onSave(name, phone, address, notes) }) { Text("SAVE") } }, dismissButton = { TextButton(onClick = onDismiss) { Text("CANCEL") } })
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PurchaseLineDialog(
     products: List<ProductEntity>,
+    alreadySelectedProductIds: Set<String>,
     onDismiss: () -> Unit,
     onAdd: (ProductEntity, Double, Double, Double, Double, String, Long?) -> Unit
 ) {
@@ -257,8 +251,13 @@ private fun PurchaseLineDialog(
     AlertDialog(onDismissRequest = onDismiss, title = { Text("Add purchase item") }, text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
             OutlinedTextField(value = selected?.name.orEmpty(), onValueChange = {}, readOnly = true, modifier = Modifier.fillMaxWidth().menuAnchor(), label = { Text("Product") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) })
-            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }, modifier = Modifier.heightIn(max = 300.dp)) { products.forEach { product -> DropdownMenuItem(text = { Text("${product.name} • ${product.unit}") }, onClick = { selected = product; expanded = false }) } }
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }, modifier = Modifier.heightIn(max = 300.dp)) {
+                products.filterNot { it.id in alreadySelectedProductIds }.forEach { product ->
+                    DropdownMenuItem(text = { Text("${product.name} • ${product.unit}") }, onClick = { selected = product; expanded = false })
+                }
+            }
         }
+        if (products.none { it.id !in alreadySelectedProductIds }) Text("All available products are already on this purchase.", color = MaterialTheme.colorScheme.onSurfaceVariant)
         OutlinedTextField(ordered, { ordered = it }, singleLine = true, label = { Text("Paid quantity") })
         OutlinedTextField(free, { free = it }, singleLine = true, label = { Text("Free quantity") })
         OutlinedTextField(rate, { rate = it }, singleLine = true, label = { Text("Purchase rate") })
@@ -278,6 +277,7 @@ private fun PurchaseLineDialog(
             expiry.isNotBlank() && expiryMillis == null -> error = "Use expiry format YYYY-MM-DD."
             expiryMillis != null && expiryMillis < System.currentTimeMillis() -> error = "Expiry date cannot be in the past."
             expiryMillis != null && batch.isBlank() -> error = "Batch number is required when expiry is entered."
+            selected!!.id in alreadySelectedProductIds -> error = "That product is already on this purchase."
             else -> onAdd(selected!!, q!!, f!!, r!!, d!!, batch.trim(), expiryMillis)
         }
     }) { Text("ADD") } }, dismissButton = { TextButton(onClick = onDismiss) { Text("CANCEL") } })
