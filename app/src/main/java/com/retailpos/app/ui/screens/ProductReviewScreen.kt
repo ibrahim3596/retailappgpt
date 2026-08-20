@@ -33,6 +33,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.retailpos.app.core.products.PackCompatibility
 import com.retailpos.app.core.products.ParsedPack
 import com.retailpos.app.core.products.ProductCaptureObservation
+import com.retailpos.app.core.products.ProductIdentificationFeedback
 import com.retailpos.app.core.products.ProductIdentificationRanking
 import com.retailpos.app.core.products.ProductIdentificationSignals
 import com.retailpos.app.core.products.ProductLocalCandidate
@@ -119,6 +120,11 @@ fun ProductReviewScreen(
     val isEdit = productId != null
 
     fun applyLocalCandidate(candidate: ProductLocalCandidate) {
+        viewModel.recordIdentificationFeedback(
+            barcode = captureObservation?.barcode,
+            candidateKey = candidate.product.id,
+            feedback = ProductIdentificationFeedback(acceptedLocalCandidate = true)
+        )
         onExistingProductSelected?.invoke(candidate.product.id)
             ?: run { errorMessage = "This product already exists in your product master. Open it from Product Master instead of creating a duplicate." }
     }
@@ -218,7 +224,7 @@ fun ProductReviewScreen(
                 }.ifBlank { null }
 
                 localCandidateStatus = "Checking your local product master…"
-                viewModel.findLocalCaptureCandidates(observation.printedName, observation.printedBrand) { candidates ->
+                viewModel.findLocalCaptureCandidates(observation.printedName, observation.printedBrand, observation.pack?.size, observation.pack?.unit) { candidates ->
                     if (candidates.isEmpty()) localCandidateStatus = "No strong local product match found."
                     else {
                         localCandidateStatus = "Local product matches found. Review before creating a new product."
@@ -273,9 +279,34 @@ fun ProductReviewScreen(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) { OutlinedTextField(unit, { unit = it }, Modifier.weight(1f), label = { Text("Unit") }, singleLine = true); OutlinedTextField(lowStockThreshold, { lowStockThreshold = it }, Modifier.weight(1f), label = { Text("Low-stock alert") }, singleLine = true) }
             captureObservation?.pack?.let { pack -> val compatibility = ProductPackCompatibility.classify(pack, unit); Text("OBSERVED PACK: ${pack.sourceText} • ${compatibility.explanation}", color = if (compatibility.compatibility == PackCompatibility.MISMATCH_REQUIRES_REVIEW) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold) }
             localCandidateStatus?.let { Text(it, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall) }
-            localCandidates.take(3).forEach { candidate -> Column(Modifier.fillMaxWidth().padding(4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) { Text("LOCAL PRODUCT MATCH", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold); Text(candidate.product.name, fontWeight = FontWeight.Bold); if (candidate.product.brand.isNotBlank()) Text("Brand: ${candidate.product.brand}", style = MaterialTheme.typography.bodyMedium); Text("Match: ${candidate.score}% • ${candidate.explanation}", style = MaterialTheme.typography.bodySmall); Text("This product already exists in this store. Opening it avoids creating a duplicate.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant); OutlinedButton(onClick = { applyLocalCandidate(candidate) }, modifier = Modifier.fillMaxWidth()) { Text("OPEN EXISTING PRODUCT") } } }
+            localCandidates.take(3).forEach { candidate ->
+                Column(Modifier.fillMaxWidth().padding(4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("LOCAL PRODUCT MATCH", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                    Text(candidate.product.name, fontWeight = FontWeight.Bold)
+                    if (candidate.product.brand.isNotBlank()) Text("Brand: ${candidate.product.brand}", style = MaterialTheme.typography.bodyMedium)
+                    Text("Match: ${candidate.score}% • ${candidate.explanation}", style = MaterialTheme.typography.bodySmall)
+                    Text("This product already exists in this store. Opening it avoids creating a duplicate.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                        OutlinedButton(onClick = { applyLocalCandidate(candidate) }, modifier = Modifier.weight(1f)) { Text("OPEN EXISTING PRODUCT") }
+                        TextButton(onClick = { viewModel.recordIdentificationFeedback(captureObservation?.barcode, candidate.product.id, ProductIdentificationFeedback(rejectedLocalCandidate = true)); localCandidateStatus = "Local suggestion dismissed." }) { Text("DISMISS") }
+                    }
+                }
+            }
             catalogStatus?.let { Text(it, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall) }
-            catalogCandidate?.let { catalog -> Column(Modifier.fillMaxWidth().padding(4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) { Text("CATALOG MATCH", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold); catalog.name?.let { Text("Name: $it", style = MaterialTheme.typography.bodyMedium) }; catalog.brand?.let { Text("Brand: $it", style = MaterialTheme.typography.bodyMedium) }; catalog.quantity?.let { Text("Quantity: $it", style = MaterialTheme.typography.bodyMedium) }; catalog.category?.let { Text("Category: $it", style = MaterialTheme.typography.bodyMedium) }; Text("Barcode-backed candidate. Applying it never changes retailer price, purchase price, stock or SKU.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant); Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) { Button(onClick = { catalog.name?.let { name = it }; catalog.brand?.let { brand = it }; catalog.quantity?.let { captureHint = "Catalog quantity: $it" }; catalog.category?.let { captureHint = "Catalog category: $it" }; identificationStatus = "IDENTIFICATION: CATALOG APPLIED"; identificationConfidence = ProductIdentificationRanking.score(ProductIdentificationSignals(barcodeDetected = true, catalogMatched = true, barcodeMatchesCatalog = true)).score; identificationExplanation = "Catalog candidate accepted by the retailer. Verify all fields before saving."; catalogStatus = "Catalog identity applied. Store-controlled fields remain unchanged."; catalogCandidate = null }, modifier = Modifier.weight(1f)) { Text("USE CATALOG") }; OutlinedButton(onClick = { catalogCandidate = null; identificationConfidence = ProductIdentificationRanking.score(ProductIdentificationSignals(barcodeDetected = barcode.isNotBlank(), printedTextDetected = name.isNotBlank() || brand.isNotBlank())).score; identificationExplanation = "Catalog suggestion dismissed. Camera/OCR details remain under retailer control."; catalogStatus = "Catalog suggestion dismissed." }, modifier = Modifier.weight(1f)) { Text("KEEP CAMERA") } } } }
+            catalogCandidate?.let { catalog ->
+                Column(Modifier.fillMaxWidth().padding(4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("CATALOG MATCH", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                    catalog.name?.let { Text("Name: $it", style = MaterialTheme.typography.bodyMedium) }
+                    catalog.brand?.let { Text("Brand: $it", style = MaterialTheme.typography.bodyMedium) }
+                    catalog.quantity?.let { Text("Quantity: $it", style = MaterialTheme.typography.bodyMedium) }
+                    catalog.category?.let { Text("Category: $it", style = MaterialTheme.typography.bodyMedium) }
+                    Text("Barcode-backed candidate. Applying it never changes retailer price, purchase price, stock or SKU.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                        Button(onClick = { viewModel.recordIdentificationFeedback(captureObservation?.barcode, catalog.name, ProductIdentificationFeedback(acceptedCatalog = true)); catalog.name?.let { name = it }; catalog.brand?.let { brand = it }; catalog.quantity?.let { captureHint = "Catalog quantity: $it" }; catalog.category?.let { captureHint = "Catalog category: $it" }; identificationStatus = "IDENTIFICATION: CATALOG APPLIED"; identificationConfidence = ProductIdentificationRanking.score(ProductIdentificationSignals(barcodeDetected = true, catalogMatched = true, barcodeMatchesCatalog = true)).score; identificationExplanation = "Catalog candidate accepted by the retailer. Verify all fields before saving."; catalogStatus = "Catalog identity applied. Store-controlled fields remain unchanged."; catalogCandidate = null }, modifier = Modifier.weight(1f)) { Text("USE CATALOG") }
+                        OutlinedButton(onClick = { viewModel.recordIdentificationFeedback(captureObservation?.barcode, catalog.name, ProductIdentificationFeedback(rejectedCatalog = true, retainedCameraData = true)); catalogCandidate = null; identificationConfidence = ProductIdentificationRanking.score(ProductIdentificationSignals(barcodeDetected = barcode.isNotBlank(), printedTextDetected = name.isNotBlank() || brand.isNotBlank())).score; identificationExplanation = "Catalog suggestion dismissed. Camera/OCR details remain under retailer control."; catalogStatus = "Catalog suggestion dismissed." }, modifier = Modifier.weight(1f)) { Text("KEEP CAMERA") }
+                    }
+                }
+            }
             captureHint?.let { Text(it, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall) }
             Text("ADDITIONAL BAR CODES", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
             if (productId == null) Text("Save the product first, then add additional barcodes.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
