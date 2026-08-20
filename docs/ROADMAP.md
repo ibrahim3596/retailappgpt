@@ -1,16 +1,22 @@
 # RetailPOS V2 — Master Developer Roadmap
 
-> **This is the master reference for development.** Before adding a feature, check this document. Before declaring a feature complete, update its status here.
+> Master reference for development. Build coherent vertical slices, validate locally, and reserve GitHub Actions for deliberate verification when the budget is available.
 
-RetailPOS V2 is being built as a **real shopkeeper-first retail POS**, not a demo. The target is a fast, reliable, offline-first system with intelligent product identification, strong product/barcode handling, billing, inventory, customers/Khata, reporting, staff controls, and eventual cloud sync.
+RetailPOS V2 is a **shopkeeper-first, offline-first Indian retail POS**. The primary product loops are:
+
+```text
+SELL    Product → Cart → Payment → Stock ↓
+BUY     Supplier → Purchase → Receive → Stock ↑ → Payable ↑
+COLLECT Customer → Credit/Khata → Payment → Balance ↓
+```
+
+The owner view ultimately combines sales, cash/UPI/credit, inventory, receivables, payables and margin.
 
 ## Current build state
 
-**Product Master is functionally complete as a foundation:** canonical SKU/barcode identity, product create/edit, product list/search/filtering, alternate barcodes, product metadata, category/subcategory, pack data, description, product image, and a dedicated product-details screen are wired together. **Intelligent Capture now has a substantially complete local/offline evidence pipeline and unknown-product billing handoff; remaining work is device/release hardening plus advanced image-assisted recognition and offline dataset work.**
+**Product Master is functionally complete as a foundation.** Intelligent Product Capture has a substantially complete local/offline evidence pipeline, review/confidence model, catalog fallback, feedback and exact unknown-product billing handoff. POS has transactional checkout, discounts, GST foundations, payment validation, receipts/reprints and persistent held-bill infrastructure. Customers/Khata is substantially wired end-to-end. Supplier/purchase persistence has now been added through Room 17→19 migrations, with atomic purchase-domain repository work in progress.
 
-### Development rule
-
-Build coherent vertical slices, validate logic locally, and reserve GitHub Actions for deliberate verification when the Actions budget is available. Do not use CI as the debugging loop.
+Advanced visual recognition, cloud sync, multi-store, forecasting and other enterprise features remain later priorities.
 
 ---
 
@@ -22,8 +28,8 @@ Build coherent vertical slices, validate logic locally, and reserve GitHub Actio
 - [x] CameraX foundation
 - [x] ML Kit barcode/OCR foundation
 - [ ] Finalize feature-oriented package structure
-- [x] Establish `core / data / domain / feature / ui` boundaries (in progress; legacy files remain)
-- [x] Keep business rules independent from Compose screens for identity/barcode rules
+- [x] Establish `core / data / domain / feature / ui` boundaries (legacy files remain)
+- [x] Keep core business rules independent from Compose
 - [ ] Consistent ViewModel/UI-state pattern across all features
 - [x] Repository boundaries
 - [ ] Formal use-case layer across all major features
@@ -35,214 +41,188 @@ Build coherent vertical slices, validate logic locally, and reserve GitHub Actio
 
 ## Data integrity
 
-- [x] Stable IDs for product/barcode/cache/metadata foundations
+- [x] Stable IDs for core entities
 - [x] Database migration strategy foundation
-- [ ] Referential integrity across all entities
-- [ ] Transaction boundaries for sales/inventory/Khata
+- [ ] Referential integrity review across all entities
+- [x] Transaction boundaries for core sales/inventory/Khata/purchase writes
 - [x] Product + primary barcode save protected by Room transaction
 - [x] Product + metadata saved in one atomic transaction
-- [ ] Money/quantity precision strategy
+- [ ] Money/quantity precision strategy beyond Double
 - [ ] Date/time/timezone strategy
 
 ---
 
-# 2. Product master — foundation complete
+# 2. Product Master
 
 ## Product identity
 
-- [x] Product entity foundation
-- [x] Product DAO foundation
-- [x] SKU foundation
-- [x] Central SKU normalization/validation
-- [x] Barcode entity foundation
+- [x] Product entity
+- [x] Product DAO
+- [x] SKU normalization/validation
 - [x] Primary barcode
-- [x] Multiple/alternate barcodes per product
-- [x] Barcode type storage
-- [x] GTIN/EAN/UPC identifier support
+- [x] Alternate barcodes
+- [x] Barcode type
+- [x] GTIN/EAN/UPC support
 - [x] Barcode normalization/check validation foundation
 - [x] Identifier uniqueness rules
 - [x] Duplicate identifier detection
 - [x] Product-without-barcode support
-- [x] Canonical barcode lookup through `product_barcodes`
-- [x] Product search includes alternate barcodes
-- [x] Legacy single-barcode field treated as compatibility mirror rather than authoritative lookup source
+- [x] Canonical lookup through `product_barcodes`
+- [x] Alternate-barcode search
+- [x] Legacy `ProductEntity.barcode` treated only as compatibility mirror
 - [ ] Retailer SKU auto-generation/manual SKU UX
 
 ## Product information
 
 - [x] Product name
 - [x] Brand
-- [x] Category/subcategory persistence + editor
-- [x] Unit/pack unit editing
-- [x] Pack size / quantity per pack persistence + editor
-- [ ] Variant support
-- [x] Product image URI persistence
-- [x] Product image picker + preview + remove
+- [x] Category/subcategory
+- [x] Selling unit
+- [x] Pack size / pack unit
+- [ ] Variant persistence as first-class model
+- [x] Product image persistence
 - [x] Description/notes
-- [x] Purchase price/cost foundation
-- [x] Selling price foundation
+- [x] Purchase/selling price foundation
 - [x] MRP foundation
-- [ ] Tax configuration
-- [ ] Discount configuration
-- [x] Minimum stock threshold foundation
-- [ ] Active/inactive state
+- [ ] Store-level GST configuration UI
+- [x] Bill-level discount rules
+- [x] Minimum stock threshold
+- [ ] Active/archive/restore state
 
-## Product list / discovery
+## Product discovery/workflows
 
-- [x] Product list screen foundation
-- [x] Product search by name/brand/SKU/barcode
-- [x] Canonical alternate-barcode search
-- [x] Stock filter logic: All / Low stock / Out of stock
-- [x] Stock filter unit tests
-- [x] Product rows show selling price and stock state
-- [x] Product details entry point
-- [ ] Product list filter UI polish
-- [ ] Category filters
-- [ ] Sort options
-- [ ] Recently updated/recently sold views
-
-## Product workflows
-
-- [x] Add-product navigation foundation
-- [x] Edit-product navigation foundation
-- [x] Create product core flow
-- [x] Edit product core flow
-- [x] Dedicated product details view
-- [x] Dedicated barcode management section
+- [x] Product list/search/filter
+- [x] Product details
+- [x] Create/edit product
+- [x] Barcode management
+- [ ] Category filters/sort polish
 - [ ] Duplicate/copy product
-- [ ] Archive product
-- [ ] Restore product
-- [ ] Bulk product import
-- [ ] Bulk product export
-- [ ] Product backup/restore
+- [ ] Archive/restore
+- [ ] Bulk import/export
+- [ ] Backup/restore
 
-## Built-in product/catalog intelligence
+## Catalog intelligence
 
-- [x] Barcode → public catalog lookup foundation
-- [x] Catalog candidate matching foundation
-- [x] Review-before-applying catalog result
-- [x] Store-specific override principle for retailer-controlled fields
-- [x] Persistent barcode-backed cache foundation
-- [ ] Offline/common built-in product dataset
-- [x] Catalog source priority system foundation: local canonical lookup → persistent cache → public catalog
-- [ ] Catalog data freshness/versioning
+- [x] Public catalog lookup foundation
+- [x] Candidate/review model
+- [x] Store-specific override principle
+- [x] Persistent barcode-backed cache
+- [ ] Offline common-product dataset
+- [ ] Catalog freshness/versioning
 
 ---
 
-# 3. Intelligent Product Capture — next major focus
+# 3. Intelligent Product Capture
 
-## Capture inputs
+## Capture
 
-- [x] Barcode scanning foundation
-- [x] Camera foundation
-- [x] OCR foundation
-- [x] Visual/image-label foundation
-- [x] Manual barcode entry fallback
-- [x] Manual product search fallback
-- [x] Product image selection/persistence
-- [x] Multiple-frame capture
+- [x] Barcode scanning
+- [x] Camera
+- [x] OCR
+- [x] Visual evidence foundation
+- [x] Manual barcode fallback
+- [x] Manual search fallback
+- [x] Image selection/persistence
+- [x] Multi-frame capture
 
-## Identification pipeline
+## Identification
 
-- [x] Barcode/catalog/name/image evidence model foundation
+- [x] Evidence model
 - [x] Confidence classification
-- [x] HIGH / GOOD / MEDIUM / LOW / NONE semantics
 - [x] Review-before-save
-- [x] Catalog candidate review actions
+- [x] Catalog candidate review
 - [x] Confidence explanation
-- [x] POS unknown-product identification flow foundation
-- [x] Return-to-POS flow foundation
-- [x] Persistent identification cache foundation
-- [x] Complete live-cache integration audit: Room-backed cache is checked before network lookup
-- [x] OCR-noise filtering integration
+- [x] Unknown-product POS flow
+- [x] Exact saved-product return-to-bill
+- [x] Persistent identification cache
+- [x] Offline cache-first catalog lookup
+- [x] OCR cleanup
 - [x] Candidate ranking
-- [x] Pack-size extraction
-- [x] Reliable MRP/price extraction foundation
-- [ ] Category inference as authoritative product data
-- [ ] Automatic selling-unit inference
-- [x] Variant detection/ranking by pack evidence
-- [ ] Dedicated image-assisted recognition service
-- [x] Human correction/feedback loop with bounded offline persistence
+- [x] Pack extraction
+- [x] MRP extraction foundation
+- [x] Variant ranking
 - [x] Local-vs-catalog conflict resolver
-- [x] Exact local barcode evidence before public catalog lookup
-- [x] Unknown barcode → review → save → return exact saved product to active bill
+- [x] Exact local barcode evidence before catalog fallback
+- [x] Bounded persistent correction feedback
+- [ ] Authoritative category inference
+- [ ] Automatic selling-unit inference
+- [ ] Dedicated image-recognition service
+- [ ] Offline common-product vision dataset
+- [ ] Device/release capture hardening
 
 ## Safety
 
-- [x] Weak guesses treated as suggestions
-- [x] Evidence/confidence shown to retailer
-- [x] Candidate can be rejected
-- [x] Camera/OCR result can be kept instead of catalog result
-- [x] Retailer price/stock fields preserved
-- [x] Low-confidence result requires review
-- [x] Package quantity never silently changes selling unit
-- [x] Conflicting local/catalog evidence does not auto-select a product
+- [x] Weak guesses stay suggestions
+- [x] Evidence/confidence shown
+- [x] Candidate rejection
+- [x] Camera/OCR data can be retained
+- [x] Retailer price/stock/SKU preserved
+- [x] Low-confidence requires review
+- [x] Pack quantity never overwrites selling unit
+- [x] Conflicting evidence never silently confirms identity
 
 ---
 
-# 4. Barcode / QR system
+# 4. Barcode / QR
 
-- [x] Common retail barcode detection
-- [x] Barcode normalization
-- [x] GTIN check-digit validation foundation
-- [x] Local canonical barcode lookup
+- [x] Common retail barcodes
+- [x] Normalization
+- [x] GTIN validation foundation
+- [x] Canonical local lookup
 - [x] Public catalog fallback
-- [x] Duplicate barcode prevention
-- [x] Multiple barcodes per product
+- [x] Duplicate prevention
+- [x] Multiple barcodes
 - [x] Manual barcode entry
-- [x] QR codes excluded from standard product scanner
-- [x] Unsupported QR payload is not converted into a product
-- [ ] Payment/business QR flow kept separate from product identification
-- [x] Duplicate-scan debounce foundation
-- [x] Scan callback
-- [x] Camera permission flow
-- [x] Flash/torch
-- [ ] Camera retry/restart polish
+- [x] QR rejection for normal product identification
+- [x] Unsupported QR not converted into a product
+- [ ] Separate payment/business QR feature
+- [x] Scan debounce foundation
+- [x] Permission/torch
+- [ ] Retry/restart polish
 - [ ] Low-light guidance
 
 ---
 
-# 5. POS / billing — after Intelligent Capture
+# 5. POS / Billing
 
 ## Product entry
 
 - [x] Cart foundation
-- [x] Checkout rules foundation
-- [x] Intelligent identification foundation
-- [ ] Fast canonical product lookup in POS
-- [ ] Barcode scan → cart
-- [ ] Search → cart
-- [x] Unknown barcode → intelligent capture → create → return to bill complete integration
-- [ ] Recently sold products
-- [ ] Favorites/quick add
+- [x] Search → cart
+- [x] Barcode scan → cart
+- [x] Intelligent unknown-product → create → return to bill
+- [ ] Recently sold UI integration
+- [ ] Favorites persistence/UI integration
+- [ ] Fast canonical lookup polish
+- [x] Voice billing foundation
 
 ## Cart
 
-- [ ] Add/remove item UI
-- [ ] Quantity editing
-- [ ] Decimal quantities
-- [ ] Price override permissions
-- [ ] Item discounts
-- [ ] Bill discounts
-- [ ] Tax calculations
-- [ ] Totals
-- [ ] Hold/resume bill
-- [ ] Clear bill confirmation
+- [x] Add/remove item UI
+- [x] Quantity editing
+- [x] Decimal quantities
+- [x] Bill discount
+- [x] Tax calculation foundation
+- [x] Totals
+- [x] Clear bill confirmation
+- [x] Hold/resume infrastructure, now Room-persistent
+- [ ] Item-level discounts
+- [ ] Price override flow
 
 ## Checkout
 
-- [ ] Cash
-- [ ] Card
-- [ ] UPI
-- [ ] Other payment methods
+- [x] Cash
+- [x] Card amount validation
+- [x] UPI amount validation
+- [x] Credit/Khata
 - [ ] Split payment
-- [ ] Amount tendered/change
-- [ ] Payment validation
-- [ ] Sale persistence
-- [ ] Atomic inventory deduction
-- [ ] Receipt generation
-- [ ] Receipt preview/share/print
-- [ ] Reprint
+- [x] Amount tendered/change persistence
+- [x] Payment validation
+- [x] Sale persistence
+- [x] Atomic inventory deduction
+- [x] Receipt generation
+- [x] Receipt share/reprint foundation
+- [ ] Thermal printer integration
 
 ## Returns
 
@@ -252,85 +232,91 @@ Build coherent vertical slices, validate logic locally, and reserve GitHub Actio
 - [ ] Inventory restoration
 - [ ] Refund recording
 - [ ] Return reason
-- [ ] Audit trail
+- [ ] Refund audit trail
 
 ---
 
 # 6. Inventory
 
 - [x] Inventory foundation
-- [ ] Current stock views
-- [ ] Stock-in
-- [ ] Stock-out
-- [ ] Adjustments
-- [ ] Adjustment reasons
-- [x] Stock movement foundation
-- [ ] Inventory audit trail
-- [ ] Suppliers
-- [ ] Purchase entry
-- [ ] Purchase history
+- [x] Current stock views
+- [x] Stock receiving foundation
+- [x] Stock adjustment foundation
+- [x] Adjustment reasons
+- [x] Stock movements
+- [x] Negative-stock protection
 - [x] Batch/lot foundation
-- [x] Expiry foundation
-- [ ] Low-stock alerts
-- [ ] Out-of-stock state polish
-- [ ] Near-expiry alerts
-- [ ] FEFO/FIFO rules where applicable
+- [x] Expiry validation
+- [x] FEFO-safe batch lookup
+- [x] Low/out-of-stock status rules
+- [ ] Near-expiry alert UI
 - [ ] Inventory valuation
+- [ ] COGS integration
 - [ ] Stock transfer
-- [ ] Multi-location support
+- [ ] Multi-location
 
 ---
 
 # 7. Customers & Khata
 
 - [x] Customer data foundation
-- [x] Khata data foundation
-- [ ] Customer CRUD UI
-- [ ] Customer search
-- [ ] Purchase history
-- [ ] Credit sale
+- [x] Customer CRUD/search UI
+- [x] Customer → Khata navigation
+- [x] Credit sale
+- [x] Ledger
+- [x] Live outstanding balance
+- [x] Partial payments
+- [x] Full settlement
+- [x] Overpayment rejection
+- [x] Statement/share foundation
+- [x] Delete protection while balance is outstanding
 - [ ] Credit limits
-- [ ] Payment collection
-- [ ] Partial payments
-- [x] Ledger data foundation
-- [ ] Ledger UI
-- [ ] Outstanding balances
-- [ ] Statements
-- [ ] Payment receipts
-- [ ] Credit audit trail
+- [ ] Payment receipt artifact
+- [ ] Dedicated purchase history view
+- [ ] Credit audit/reporting polish
 
 ---
 
-# 8. Suppliers & purchasing
+# 8. Suppliers & Purchasing
 
-- [ ] Supplier profiles
-- [ ] Contacts
+- [x] Supplier entity foundation
+- [x] Supplier DAO foundation
+- [x] Supplier ledger entity
+- [x] Purchase entity foundation
+- [x] Purchase line foundation
+- [x] Free quantity / scheme economics
+- [x] Supplier payable rules
+- [x] Room 18→19 persistence migration
+- [x] Atomic purchase repository foundation
+- [ ] Supplier management UI
+- [ ] Supplier search UI
+- [ ] Purchase entry UI
+- [ ] Purchase history UI
+- [ ] Supplier payment UI
 - [ ] Supplier/product associations
-- [ ] Purchase workflows
-- [ ] Purchase history
-- [ ] Payables foundation
-- [ ] Supplier search
+- [ ] Purchase return/debit note workflow
 
 ---
 
-# 9. Reports & business intelligence
+# 9. Reports & Owner Dashboard
 
-- [ ] Today's sales
-- [ ] Sales by range
+- [x] Payment-method reconciliation rules
+- [ ] Today's sales screen
+- [ ] Sales by date range
 - [ ] Bill count
 - [ ] Average bill value
-- [ ] Payment-method breakdown
+- [ ] Cash/UPI/card/credit dashboard
 - [ ] Discount/tax/returns summaries
 - [ ] Best sellers
 - [ ] Slow movers
 - [ ] Category performance
-- [ ] Product profit
-- [ ] Current inventory
-- [ ] Low/out-of-stock
-- [ ] Stock movements
-- [ ] Expiry
+- [ ] Product gross profit
+- [ ] Current inventory summary
+- [ ] Expiry summary
 - [ ] Inventory valuation
 - [ ] Khata outstanding
+- [ ] Supplier payables
+- [ ] Purchase summary
 - [ ] Collections
 - [ ] Expenses
 - [ ] Gross sales / COGS / gross profit
@@ -341,7 +327,7 @@ Build coherent vertical slices, validate logic locally, and reserve GitHub Actio
 
 # 10. Expenses
 
-- [ ] Expense categories
+- [ ] Categories
 - [ ] Record expense
 - [ ] Edit/delete with audit rules
 - [ ] Expense history
@@ -350,53 +336,56 @@ Build coherent vertical slices, validate logic locally, and reserve GitHub Actio
 
 ---
 
-# 11. Staff, permissions & audit
+# 11. Staff, Permissions & Audit
 
-- [ ] Staff profiles
-- [ ] Authentication/access
-- [ ] Roles
-- [ ] Permission matrix
-- [ ] Cashier restrictions
-- [ ] Manager permissions
-- [ ] Price override permission
-- [ ] Discount permission
+- [x] Local staff accounts
+- [x] PIN authentication
+- [x] Owner/Manager/Cashier roles
+- [x] Discount permission enforcement in checkout
+- [x] Staff activation/deactivation foundation
+- [x] PIN reset foundation
+- [x] Cashier switching/session gate foundation
+- [ ] Price override permission workflow
+- [ ] Item discount permission workflow
 - [ ] Refund permission
-- [ ] Inventory adjustment permission
-- [ ] Reports permission
-- [ ] Settings permission
+- [ ] Inventory-adjustment permission
+- [ ] Report permission UI
+- [ ] Settings permission UI
 - [ ] Staff activity audit
+- [ ] Session timeout/lock
 
 ---
 
-# 12. Store & business settings
+# 12. Store & Business Settings
 
 - [ ] Store profile
 - [ ] Address/contact
-- [ ] Currency
-- [ ] GST/tax configuration
+- [x] Currency foundation
+- [ ] GST mode configuration UI
 - [ ] Invoice/receipt numbering
 - [ ] Receipt branding
 - [ ] Payment configuration
 - [ ] Product/unit defaults
 - [ ] Inventory defaults
 - [ ] Notifications
-- [ ] Staff settings
+- [ ] Staff management navigation polish
 
 ---
 
 # 13. Offline-first reliability
 
 - [x] Local DB foundation
-- [x] Product lookup works locally for stored products
-- [ ] Billing fully offline
-- [ ] Inventory fully offline
-- [ ] Customers/Khata fully offline
-- [ ] Reports from local data
-- [x] Intelligent capture has offline-safe fallback behavior
+- [x] Stored-product lookup offline
+- [x] Intelligent capture offline cache fallback
+- [x] Held bills persist locally
+- [x] Customers/Khata local data
+- [x] Supplier/purchase domain is local-first
 - [ ] Explicit online/offline state
-- [ ] No silent data loss
+- [ ] Full billing recovery audit
+- [ ] Full inventory recovery audit
 - [ ] Retryable network operations
 - [ ] Sync queue
+- [ ] No-silent-data-loss audit
 
 ---
 
@@ -404,66 +393,62 @@ Build coherent vertical slices, validate logic locally, and reserve GitHub Actio
 
 - [ ] Authentication
 - [ ] Store identity
-- [ ] Cloud backup
+- [ ] Backup
 - [ ] Restore
 - [ ] Sync engine
-- [ ] Conflict detection
-- [ ] Conflict resolution
+- [ ] Conflict detection/resolution
 - [ ] Sync status
 - [ ] Failed-sync recovery
-- [ ] Multi-device support
-- [ ] Secure cloud data handling
+- [ ] Multi-device
+- [ ] Secure cloud handling
 
 ---
 
 # 15. Security & privacy
 
-- [ ] Local data security
-- [ ] Sensitive settings protection
-- [ ] Permission enforcement in business logic
+- [ ] Local database security review
+- [x] PIN hash storage
+- [x] Business-rule permission enforcement for discounts
+- [ ] Full permission matrix enforcement
 - [ ] Audit trail
 - [ ] Secure export/backup
-- [ ] Account/session handling
 - [ ] Camera/OCR/image privacy review
 - [ ] Network security review
 
 ---
 
-# 16. UX / design system
+# 16. UX / Shopkeeper speed
 
-- [ ] Typography tokens
-- [ ] Spacing tokens
-- [ ] Color tokens
-- [ ] Shared buttons/fields/cards
-- [ ] Shared dialogs/sheets
-- [ ] Scanner UI consistency
-- [x] Product metadata editor consistency
-- [ ] Empty/loading/error states
+- [ ] Typography/spacing/color tokens
+- [ ] Shared buttons/fields/cards/dialogs
+- [ ] Shared scanner UI
+- [ ] Standard loading/error/empty states
 - [ ] Accessibility
 - [ ] Touch-target audit
 - [ ] Shopkeeper-speed audit
 - [ ] Reduce billing taps
+- [ ] Favorites/recently-sold quick add UI
+- [ ] Voice-language download/settings UI
 
 ---
 
-# 17. Repository / documentation quality
+# 17. Documentation
 
-- [x] Professional README
+- [x] README
 - [x] Master roadmap
-- [ ] Architecture documentation
+- [x] Intelligent Capture docs
+- [x] Buy-loop specification
+- [ ] Architecture document
 - [ ] Product specification
 - [ ] Data model
-- [ ] Barcode/identifier specification
-- [x] Intelligent Capture specification/progress documentation
+- [ ] Barcode specification
 - [ ] Offline/sync specification
-- [x] Initial unit-test structure
 - [ ] Testing guide
 - [ ] Contributing guide
 - [ ] Changelog
 - [ ] Remove stale temporary artifacts
-- [ ] Naming conventions
-- [ ] Commit conventions
-- [ ] Remove dead/duplicate code
+- [ ] Naming/commit conventions
+- [ ] Dead/duplicate code audit
 
 ---
 
@@ -471,59 +456,53 @@ Build coherent vertical slices, validate logic locally, and reserve GitHub Actio
 
 ## Unit
 
-- [x] Product identity rules
-- [x] SKU normalization/validation
-- [x] Barcode normalization/validation foundation
-- [x] QR rejection rules
-- [x] Identification confidence
-- [x] Product list stock-filter rules
-- [x] Product metadata validation foundation
-- [ ] Money calculations
-- [ ] Quantity calculations
-- [ ] Tax/discount calculations
-- [ ] Checkout rules
-- [ ] Inventory rules
-- [ ] Khata balance
+- [x] Product identity
+- [x] SKU/barcode rules
+- [x] QR rejection
+- [x] Capture confidence/ranking
+- [x] Pack extraction
+- [x] Candidate conflict resolver
+- [x] Identification feedback
+- [x] Purchase economics
+- [x] Supplier payable rules
+- [x] Inventory validation/status rules
+- [x] Khata payment rules
+- [x] Day-end reconciliation rules
+- [ ] Money precision strategy
+- [ ] Full checkout rules
 - [ ] Returns/refunds
-- [x] Candidate ranking
-- [x] Capture parser / pack extraction
-- [x] Capture local/catalog conflict resolver
-- [x] Identification feedback rules
 
 ## Repository/data
 
-- [ ] DAO CRUD
-- [ ] Constraints
-- [x] Database migration 10 → 11
-- [ ] Full migration verification
-- [ ] Duplicate identifiers
-- [x] Product + primary barcode transaction path
-- [x] Product + metadata atomic save
-- [ ] Full transactional audit
-- [x] Identification cache foundation
-- [ ] Full offline behavior
+- [ ] Full DAO CRUD suite
+- [ ] Migration 17→18 verification
+- [ ] Migration 18→19 verification
+- [ ] Full migration chain verification
+- [x] Product + barcode transaction
+- [x] Product + metadata transaction
+- [x] Atomic purchase transaction foundation
+- [ ] Full transaction audit
 
 ## Integration
 
 - [ ] Scan → local product
-- [x] Unknown barcode → intelligent identification foundation
-- [x] Identification → product save foundation
-- [x] Identification → return to POS foundation
-- [ ] POS → payment → sale → stock deduction
-- [ ] Credit sale → Khata
-- [ ] Payment → Khata settlement
-- [ ] Return → stock restoration
+- [x] Unknown barcode → identify → save → bill
+- [ ] POS → payment → sale → stock full integration test
+- [ ] Credit sale → Khata integration test
+- [ ] Payment → Khata settlement integration test
+- [ ] Purchase → stock/batch/payable integration test
+- [ ] Return → stock/refund integration test
 
 ## Device/manual
 
 - [ ] Camera permission
 - [ ] Barcode scanning
-- [x] QR rejection behavior
+- [x] QR rejection
 - [ ] Low light
 - [ ] Different packaging/barcode sizes
 - [ ] Rapid scans
 - [ ] Offline billing
-- [ ] Product image picker/preview
+- [ ] Persistent held bill after process restart
 - [ ] Printer/receipt workflow
 
 ---
@@ -541,57 +520,37 @@ Build coherent vertical slices, validate logic locally, and reserve GitHub Actio
 - [ ] Backup/restore test
 - [ ] Offline/recovery test
 - [ ] Release build
-- [ ] One deliberate CI verification cycle when Actions budget is available
+- [ ] Deliberate CI verification when Actions budget is available
 - [ ] Production checklist
 - [ ] Versioning/changelog
 
 ---
 
-# 20. Definition of done
+# 20. Current priority order
 
-A feature is not done because a screen exists.
-
-A feature is done when:
-
-1. UI exists.
-2. Business rules exist.
-3. Persistence exists where required.
-4. Navigation/back behavior works.
-5. Loading/error/empty states are handled.
-6. It integrates with related workflows.
-7. Important edge cases are handled.
-8. Appropriate tests exist.
-9. Offline behavior is considered.
-10. Documentation/roadmap is updated.
-11. CI is deliberately verified later when the verification budget is available.
-
----
-
-# 21. Priority order
-
-1. **Finish Intelligent Product Capture**
-2. **POS/billing end-to-end**
-3. **Inventory hardening**
-4. **Customers + Khata end-to-end**
-5. **Suppliers/purchasing**
-6. **Reports + expenses**
-7. **Staff/permissions + settings**
-8. **Offline reliability**
+1. **POS/billing completion** — receipts, split/real payment UX, recent/favorites, item discounts/price overrides
+2. **Suppliers/purchasing UI** — supplier CRUD, purchase entry, receiving, payable settlement
+3. **Inventory economics** — purchase cost, COGS, valuation, expiry dashboard
+4. **Returns/refunds**
+5. **Owner dashboard + day-end reconciliation UI**
+6. **Staff/permissions hardening**
+7. **Advanced Intelligent Capture** — image recognition/dataset/device hardening
+8. **Offline reliability hardening**
 9. **Cloud backup/sync**
-10. **Testing, hardening and release**
+10. **Final testing/release**
 
-Prefer completing an end-to-end workflow before jumping to unrelated UI.
+The product is intentionally **not** prioritizing enterprise ERP complexity or advanced AI forecasting before the core `SELL / BUY / COLLECT` loops are complete.
 
 ---
 
-# 22. CI budget rule
+# 21. CI budget rule
 
 During periods when Actions minutes are scarce:
 
-- Do not use CI to discover obvious compile errors.
+- Do not use CI to discover obvious compilation errors.
 - Do not trigger CI for tiny changes.
 - Do not create dummy trigger commits.
-- Do not repeatedly rerun unexplained failures.
-- Validate locally/static/unit-level wherever possible.
-- Batch coherent work.
-- Reserve CI for deliberate integration verification and release hardening.
+- Do not repeatedly rerun failures.
+- Use source inspection, local/static reasoning and unit tests.
+- Batch coherent changes.
+- Reserve CI for deliberate verification and release hardening.
