@@ -8,6 +8,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import com.retailpos.app.core.permissions.NavigationPermissionRules
+import com.retailpos.app.core.staff.StaffSessionStore
 import com.retailpos.app.data.ProductRepository
 import com.retailpos.app.data.PurchaseRepository
 import com.retailpos.app.data.RetailDatabase
@@ -18,6 +20,11 @@ import com.retailpos.app.ui.theme.RetailPosTheme
 class PurchaseActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val role = StaffSessionStore.current()?.role
+        if (role == null || !NavigationPermissionRules.canOpenInventory(role)) {
+            finish()
+            return
+        }
         setContent {
             RetailPosTheme {
                 val context = LocalContext.current
