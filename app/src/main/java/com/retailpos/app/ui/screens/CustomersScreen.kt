@@ -38,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.retailpos.app.core.customer.KhataRules
 import com.retailpos.app.data.CustomerDao
 import com.retailpos.app.data.CustomerEntity
 import com.retailpos.app.data.KhataDao
@@ -47,11 +48,7 @@ import java.util.Locale
 import java.util.UUID
 
 @Composable
-fun CustomersScreen(
-    storeId: String,
-    onBack: () -> Unit,
-    onOpenKhata: (String) -> Unit
-) {
+fun CustomersScreen(storeId: String, onBack: () -> Unit, onOpenKhata: (String) -> Unit) {
     val context = LocalContext.current
     val database = remember(context) { RetailDatabase.get(context) }
     CustomersScreen(
@@ -76,6 +73,7 @@ private fun CustomersScreen(
     var query by remember { mutableStateOf("") }
     var showAdd by remember { mutableStateOf(false) }
     var deleteCustomer by remember { mutableStateOf<CustomerEntity?>(null) }
+    var actionError by remember { mutableStateOf<String?>(null) }
     val customers by dao.search(storeId, query.trim()).collectAsState(initial = emptyList())
 
     Scaffold(
@@ -92,6 +90,7 @@ private fun CustomersScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            actionError?.let { error -> item { Text(error, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold) } }
             item {
                 OutlinedTextField(
                     value = query,
@@ -122,17 +121,18 @@ private fun CustomersScreen(
                                 Text(customer.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                                 if (customer.phone.isNotBlank()) Text(customer.phone)
                                 Text(
-                                    when {
-                                        balance > 0.0 -> "Due ${money(balance)}"
-                                        balance < 0.0 -> "Credit ${money(-balance)}"
-                                        else -> "Settled"
+                                    when (KhataRules.displayState(balance)) {
+                                        com.retailpos.app.core.customer.KhataState.DUE -> "Due ${money(balance)}"
+                                        com.retailpos.app.core.customer.KhataState.CREDIT -> "Credit ${money(-balance)}"
+                                        com.retailpos.app.core.customer.KhataState.SETTLED -> "Settled"
+                                        com.retailpos.app.core.customer.KhataState.INVALID -> "Invalid balance"
                                     },
                                     color = if (balance > 0.0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontWeight = FontWeight.Bold
                                 )
                                 OutlinedButton(onClick = { onOpenCustomer(customer) }) { Text("OPEN KHATA") }
                             }
-                            IconButton(onClick = { deleteCustomer = customer }) {
+                            IconButton(onClick = { deleteCustomer = customer; actionError = null }) {
                                 Icon(Icons.Default.DeleteOutline, contentDescription = "Delete ${customer.name}")
                             }
                         }
@@ -145,17 +145,26 @@ private fun CustomersScreen(
 
     if (showAdd) AddCustomerDialog(storeId, dao, { showAdd = false })
     deleteCustomer?.let { customer ->
+        val balance by khataDao.observeBalance(storeId, customer.id).collectAsState(initial = 0.0)
         AlertDialog(
             onDismissRequest = { deleteCustomer = null },
             title = { Text("Delete customer?") },
-            text = { Text("Remove ${customer.name} from this store's customer list?") },
+            text = {
+                Text(
+                    if (balance == 0.0) "Remove ${customer.name} from this store's customer list?"
+                    else "${customer.name} has an outstanding Khata balance of ${money(balance)}. Settle the balance before deleting this customer."
+                )
+            },
             confirmButton = {
-                Button(onClick = {
-                    scope.launch {
-                        dao.delete(customer.id, storeId)
-                        deleteCustomer = null
+                Button(
+                    enabled = balance == 0.0,
+                    onClick = {
+                        scope.launch {
+                            dao.delete(customer.id, storeId)
+                            deleteCustomer = null
+                        }
                     }
-                }) { Text("DELETE") }
+                ) { Text("DELETE") }
             },
             dismissButton = { TextButton(onClick = { deleteCustomer = null }) { Text("CANCEL") } }
         )
