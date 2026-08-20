@@ -55,6 +55,17 @@ fun ProductMetadataEditor(
             )
         }
         OutlinedTextField(
+            value = form.taxRatePercent,
+            onValueChange = { value ->
+                val filtered = value.filter { it.isDigit() || it == '.' || it == ',' }
+                onChange { state -> state.copy(taxRatePercent = filtered) }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("GST rate (%)") },
+            supportingText = { Text("Keep 0% when this product should not have GST configured.") },
+            singleLine = true
+        )
+        OutlinedTextField(
             value = form.description,
             onValueChange = { value -> onChange { state -> state.copy(description = value) } },
             modifier = Modifier.fillMaxWidth(),
