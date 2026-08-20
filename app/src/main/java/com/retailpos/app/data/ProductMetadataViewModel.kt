@@ -30,7 +30,8 @@ class ProductMetadataViewModel(
                 packSize = metadata.packSize?.toString().orEmpty(),
                 packUnit = metadata.packUnit,
                 description = metadata.description,
-                imageUri = metadata.imageUri
+                imageUri = metadata.imageUri,
+                taxRatePercent = metadata.taxRatePercent.toString()
             )
             _error.value = null
         }
@@ -67,6 +68,7 @@ class ProductMetadataViewModel(
                         packUnit = normalized.packUnit,
                         description = normalized.description,
                         imageUri = normalized.imageUri,
+                        taxRatePercent = normalized.taxRateValue(),
                         updatedAt = System.currentTimeMillis()
                     )
                 )
