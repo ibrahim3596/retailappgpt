@@ -149,6 +149,7 @@ fun PurchaseEntryScreen(
                         when {
                             supplier == null -> error = "Select a supplier."
                             lines.isEmpty() -> error = "Add at least one purchase item."
+                            lines.map { it.product.id }.distinct().size != lines.size -> error = "Each product can appear only once per purchase."
                             paidValue < 0.0 -> error = "Paid amount cannot be negative."
                             paidValue > net + 1e-9 -> error = "Paid amount cannot exceed purchase total."
                             else -> scope.launch {
@@ -220,7 +221,17 @@ private fun PurchaseLineDialog(products: List<ProductEntity>, alreadySelectedPro
     } }, confirmButton = { Button(onClick = {
         val q = ordered.replace(',', '.').toDoubleOrNull(); val f = free.replace(',', '.').toDoubleOrNull(); val r = rate.replace(',', '.').toDoubleOrNull(); val d = discount.replace(',', '.').toDoubleOrNull()
         when {
-            selected == null -> error = "Select a product."; q == null || q <= 0 -> error = "Paid quantity must be greater than zero."; f == null || f < 0 -> error = "Free quantity cannot be negative."; r == null || r < 0 -> error = "Purchase rate cannot be negative."; d == null || d < 0 -> error = "Scheme discount cannot be negative."; d > (q!! * r!! + 1e-9) -> error = "Scheme discount cannot exceed gross cost."; expiry.isNotBlank() && expiryMillis == null -> error = "Use expiry format YYYY-MM-DD."; expiryMillis != null && expiryMillis < System.currentTimeMillis() -> error = "Expiry date cannot be in the past."; expiryMillis != null && batch.isBlank() -> error = "Batch number is required when expiry is entered."; selected!!.id in alreadySelectedProductIds -> error = "That product is already on this purchase."; else -> onAdd(selected!!, q!!, f!!, r!!, d!!, batch.trim(), expiryMillis)
+            selected == null -> error = "Select a product."
+            q == null || q <= 0 -> error = "Paid quantity must be greater than zero."
+            f == null || f < 0 -> error = "Free quantity cannot be negative."
+            r == null || r < 0 -> error = "Purchase rate cannot be negative."
+            d == null || d < 0 -> error = "Scheme discount cannot be negative."
+            d > (q!! * r!! + 1e-9) -> error = "Scheme discount cannot exceed gross cost."
+            expiry.isNotBlank() && expiryMillis == null -> error = "Use expiry format YYYY-MM-DD."
+            expiryMillis != null && expiryMillis < System.currentTimeMillis() -> error = "Expiry date cannot be in the past."
+            expiryMillis != null && batch.isBlank() -> error = "Batch number is required when expiry is entered."
+            selected!!.id in alreadySelectedProductIds -> error = "That product is already on this purchase."
+            else -> onAdd(selected!!, q!!, f!!, r!!, d!!, batch.trim(), expiryMillis)
         }
     }) { Text("ADD") } }, dismissButton = { TextButton(onClick = onDismiss) { Text("CANCEL") } })
 }
