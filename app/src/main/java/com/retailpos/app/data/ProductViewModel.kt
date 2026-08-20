@@ -16,6 +16,7 @@ import com.retailpos.app.core.products.matches
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -41,13 +42,29 @@ class ProductViewModel(application: Application, private val storeId: String) : 
     val barcodes: StateFlow<List<ProductBarcodeEntity>> = _barcodes
     val localCandidates: StateFlow<List<ProductLocalCandidate>> = _localCandidates
 
-    val products: StateFlow<List<ProductEntity>> = _query
-        .flatMapLatest { search -> if (search.isBlank()) repository.observeProducts(storeId) else repository.searchProducts(storeId, search) }
-        .map { list -> list.filter { product -> _filter.value.matches(product.stock, product.lowStockThreshold) } }
+    val products: StateFlow<List<ProductEntity>> = combine(_query, _filter) { query, filter -> query to filter }
+        .flatMapLatest { (search, selectedFilter) ->
+            when (selectedFilter) {
+                ProductListFilter.ARCHIVED -> if (search.isBlank()) database.productDao().observeArchivedProducts(storeId) else database.productDao().searchArchivedProducts(storeId, search)
+                else -> if (search.isBlank()) repository.observeProducts(storeId) else repository.searchProducts(storeId, search)
+            }
+        }
+        .map { list ->
+            val selectedFilter = _filter.value
+            if (selectedFilter == ProductListFilter.ARCHIVED) list.filter { it.isArchived }
+            else list.filter { product -> selectedFilter.matches(product.stock, product.lowStockThreshold, product.isArchived) }
+        }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun setQuery(value: String) { _query.value = value }
     fun setFilter(value: ProductListFilter) { _filter.value = value }
+
+    fun archiveProduct(productId: String, archived: Boolean, onResult: (Boolean) -> Unit = {}) {
+        viewModelScope.launch {
+            val changed = database.productDao().setArchived(productId, storeId, archived, System.currentTimeMillis()) == 1
+            onResult(changed)
+        }
+    }
 
     fun findLocalCaptureCandidates(
         barcode: String? = null,
@@ -142,7 +159,8 @@ class ProductViewModel(application: Application, private val storeId: String) : 
                     mrp = mrp, sellingPrice = sellingPrice, purchasePrice = purchasePrice,
                     stock = if (current != null) current.stock else stock,
                     unit = unit.trim().ifBlank { "pcs" }, lowStockThreshold = lowStockThreshold,
-                    updatedAt = System.currentTimeMillis()
+                    updatedAt = System.currentTimeMillis(),
+                    isArchived = current?.isArchived ?: false
                 )
                 val saved = if (captureObservation != null) {
                     val existingMetadata = productId?.let { metadataRepository.get(it, storeId) }
