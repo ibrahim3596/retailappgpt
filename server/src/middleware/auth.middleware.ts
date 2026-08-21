@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
+import { getJwtSecret } from "../config";
 
 export interface AuthenticatedUser {
   userId: string;
@@ -12,22 +13,27 @@ export interface AuthenticatedRequest extends Request {
   user?: AuthenticatedUser;
 }
 
-const JWT_SECRET = process.env.JWT_SECRET || "RETAIL_POS_SUPER_SECRET_KEY_2026";
-
 export function authenticateToken(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   const authHeader = req.headers["authorization"];
-  const token = authHeader && authHeader.split(" ")[1];
+  const [scheme, token] = authHeader?.split(" ") ?? [];
 
-  if (!token) {
-    return res.status(401).json({ error: "UNAUTHORIZED", message: "Missing authorization token" });
+  if (scheme !== "Bearer" || !token) {
+    return res.status(401).json({
+      error: "UNAUTHORIZED",
+      message: "Missing authorization token"
+    });
   }
 
-  jwt.verify(token, JWT_SECRET, (err, decoded) => {
-    if (err || !decoded) {
-      return res.status(403).json({ error: "FORBIDDEN", message: "Invalid or expired token" });
+  try {
+    const payload = jwt.verify(token, getJwtSecret()) as AuthenticatedUser;
+
+    if (!payload.userId || !payload.storeId || !payload.role) {
+      return res.status(403).json({
+        error: "FORBIDDEN",
+        message: "Invalid token claims"
+      });
     }
 
-    const payload = decoded as AuthenticatedUser;
     req.user = {
       userId: payload.userId,
       storeId: payload.storeId,
@@ -35,6 +41,11 @@ export function authenticateToken(req: AuthenticatedRequest, res: Response, next
       role: payload.role
     };
 
-    next();
-  });
+    return next();
+  } catch {
+    return res.status(403).json({
+      error: "FORBIDDEN",
+      message: "Invalid or expired token"
+    });
+  }
 }

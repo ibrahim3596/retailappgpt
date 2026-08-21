@@ -4,10 +4,10 @@ import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import { PrismaClient } from "@prisma/client";
 import { LoginRequestSchema, RefreshTokenRequestSchema } from "../contracts/schemas";
+import { getJwtSecret } from "../config";
 
 export function createAuthRouter(prisma: PrismaClient) {
   const router = Router();
-  const JWT_SECRET = process.env.JWT_SECRET || "RETAIL_POS_SUPER_SECRET_KEY_2026";
 
   router.post("/login", async (req, res) => {
     try {
@@ -26,14 +26,12 @@ export function createAuthRouter(prisma: PrismaClient) {
         return res.status(401).json({ error: "INVALID_CREDENTIALS", message: "Invalid credentials" });
       }
 
-      // Generate JWT Token
       const accessToken = jwt.sign(
         { userId: user.id, storeId: user.storeId, username: user.username, role: user.role },
-        JWT_SECRET,
+        getJwtSecret(),
         { expiresIn: "12h" }
       );
 
-      // Generate Hashed Refresh Token
       const rawRefreshToken = crypto.randomBytes(32).toString("hex");
       const refreshTokenHash = crypto.createHash("sha256").update(rawRefreshToken).digest("hex");
 
@@ -42,11 +40,11 @@ export function createAuthRouter(prisma: PrismaClient) {
           userId: user.id,
           tokenHash: refreshTokenHash,
           installationId: body.installationId,
-          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
+          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
         }
       });
 
-      res.json({
+      return res.json({
         accessToken,
         refreshToken: rawRefreshToken,
         storeId: user.storeId,
@@ -54,7 +52,7 @@ export function createAuthRouter(prisma: PrismaClient) {
         role: user.role
       });
     } catch (err: any) {
-      res.status(400).json({ error: "BAD_REQUEST", message: err.message });
+      return res.status(400).json({ error: "BAD_REQUEST", message: err.message });
     }
   });
 
@@ -79,13 +77,13 @@ export function createAuthRouter(prisma: PrismaClient) {
           username: existingToken.user.username,
           role: existingToken.user.role
         },
-        JWT_SECRET,
+        getJwtSecret(),
         { expiresIn: "12h" }
       );
 
-      res.json({ accessToken });
+      return res.json({ accessToken });
     } catch (err: any) {
-      res.status(400).json({ error: "BAD_REQUEST", message: err.message });
+      return res.status(400).json({ error: "BAD_REQUEST", message: err.message });
     }
   });
 

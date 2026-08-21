@@ -1,29 +1,30 @@
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
 import { PrismaClient } from "@prisma/client";
 import { authenticateToken } from "./middleware/auth.middleware";
 import { createAuthRouter } from "./routes/auth.routes";
 import { createSyncRouter } from "./routes/sync.routes";
+import { config } from "./config";
 
-dotenv.config();
-
-const app = express();
+export const app = express();
 const prisma = new PrismaClient();
-const PORT = process.env.PORT || 4000;
 
 app.use(cors());
 app.use(express.json());
 
-// Health check endpoint
-app.get("/health", (req, res) => {
-  res.json({ status: "OK", timestamp: new Date().toISOString() });
+app.get("/health", (_req, res) => {
+  res.json({
+    status: "OK",
+    version: "1.0.0",
+    timestamp: new Date().toISOString()
+  });
 });
 
-// Routes
 app.use("/api/v1/auth", createAuthRouter(prisma));
-app.use("/api/v1/sync", authenticateToken as any, createSyncRouter(prisma));
+app.use("/api/v1/sync", authenticateToken, createSyncRouter(prisma));
 
-app.listen(PORT, () => {
-  console.log(`[POS Server] Running on port ${PORT}`);
-});
+if (require.main === module) {
+  app.listen(config.port, () => {
+    console.log(`[POS Server] Running on port ${config.port}`);
+  });
+}

@@ -6,8 +6,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
-import com.example.retailpos.auth.SupabaseClientProvider
-import io.github.jan.supabase.auth.handleDeeplinks
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
@@ -23,12 +21,14 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.example.retailpos.auth.SupabaseClientProvider
 import com.example.retailpos.auth.UserPermissions
 import com.example.retailpos.auth.userRole
 import com.example.retailpos.ui.MainViewModel
 import com.example.retailpos.ui.Screen
 import com.example.retailpos.ui.screens.*
 import com.example.ui.theme.RetailPosTheme
+import io.github.jan.supabase.auth.handleDeeplinks
 
 class MainActivity : ComponentActivity() {
 
@@ -42,18 +42,15 @@ class MainActivity : ComponentActivity() {
             RetailPosTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     RetailPosApp(mainViewModel)
-                    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        SupabaseClientProvider.client.handleDeeplinks(intent)
+                }
+            }
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        setIntent(intent)
         SupabaseClientProvider.client.handleDeeplinks(intent)
-    }
-}
-            }
-        }
     }
 }
 
@@ -63,7 +60,6 @@ fun RetailPosApp(viewModel: MainViewModel) {
     val isSetupComplete by viewModel.isSetupComplete.collectAsStateWithLifecycle()
     val loggedInUserId by viewModel.loggedInUserId.collectAsStateWithLifecycle()
 
-    // Decision Logic for start destination and automatic redirection
     LaunchedEffect(isSetupComplete, loggedInUserId) {
         if (isSetupComplete == true) {
             if (loggedInUserId == null) {
@@ -71,7 +67,6 @@ fun RetailPosApp(viewModel: MainViewModel) {
                     popUpTo(0) { inclusive = true }
                 }
             } else {
-                // If we are at Login or Setup, go Home
                 val currentRoute = navController.currentBackStackEntry?.destination?.route
                 if (currentRoute == Screen.Login.route || currentRoute == Screen.Setup.route) {
                     navController.navigate(Screen.Home.route) {
@@ -87,9 +82,11 @@ fun RetailPosApp(viewModel: MainViewModel) {
     }
 
     if (isSetupComplete == null) {
-        // Still loading setup state from DataStore
         Surface(modifier = Modifier.fillMaxSize()) {
-            Box(contentAlignment = Alignment.Center) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
                 CircularProgressIndicator()
             }
         }
@@ -98,9 +95,9 @@ fun RetailPosApp(viewModel: MainViewModel) {
 
     NavHost(
         navController = navController,
-        startDestination = if (isSetupComplete == false) Screen.Setup.route 
-                          else if (loggedInUserId == null) Screen.Login.route 
-                          else Screen.Home.route
+        startDestination = if (isSetupComplete == false) Screen.Setup.route
+        else if (loggedInUserId == null) Screen.Login.route
+        else Screen.Home.route
     ) {
         composable(Screen.Setup.route) {
             SetupScreen(viewModel = viewModel)
@@ -127,7 +124,9 @@ fun RetailPosApp(viewModel: MainViewModel) {
             PosScreen(
                 viewModel = viewModel,
                 onNavigateBack = { navController.popBackStack() },
-                onNavigateToCameraScanner = { navController.navigate(Screen.CameraScanner.createRoute("BILLING")) },
+                onNavigateToCameraScanner = {
+                    navController.navigate(Screen.CameraScanner.createRoute("BILLING"))
+                },
                 onNavigateToReceipt = { invoiceId ->
                     navController.navigate(Screen.ReceiptPreview.createRoute(invoiceId)) {
                         popUpTo(Screen.Home.route)
@@ -160,7 +159,9 @@ fun RetailPosApp(viewModel: MainViewModel) {
             ProductListScreen(
                 viewModel = viewModel,
                 onNavigateBack = { navController.popBackStack() },
-                onNavigateToCameraScanner = { navController.navigate(Screen.CameraScanner.createRoute("PRODUCT_MANAGEMENT")) },
+                onNavigateToCameraScanner = {
+                    navController.navigate(Screen.CameraScanner.createRoute("PRODUCT_MANAGEMENT"))
+                },
                 onNavigateToProductDetail = { barcode ->
                     navController.navigate(Screen.ProductReview.createRoute(barcode))
                 }
@@ -182,7 +183,6 @@ fun RetailPosApp(viewModel: MainViewModel) {
         composable(Screen.Inventory.route) {
             val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
             val role = currentUser.userRole
-            
             if (UserPermissions.canAccessInventory(role)) {
                 InventoryScreen(
                     viewModel = viewModel,
@@ -230,7 +230,6 @@ fun RetailPosApp(viewModel: MainViewModel) {
         composable(Screen.Analytics.route) {
             val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
             val role = currentUser.userRole
-            
             if (UserPermissions.canAccessAnalytics(role)) {
                 AnalyticsScreen(
                     viewModel = viewModel,
