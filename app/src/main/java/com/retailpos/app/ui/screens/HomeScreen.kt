@@ -94,7 +94,7 @@ fun HomeScreen(
             expenses = database.expenseDao().totalBetween(storeId, start, end)
         )
     }
-    val metrics = metricsState ?: TodayMetrics(0.0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+    val metrics = metricsState ?: TodayMetrics(0.0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
     var countedCash by remember { mutableStateOf("") }
 
     fun switchCashier() {
