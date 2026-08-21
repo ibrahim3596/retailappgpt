@@ -52,6 +52,7 @@ class ReturnRepository(private val database: RetailDatabase) {
 
                 val allocations = database.saleDao().getSaleCostAllocations(persistedSale.id).filter { it.saleLineId == saleLineId }
                 var restoredCost = 0.0
+                var restoredFromBatch = false
                 if (allocations.isNotEmpty()) {
                     val totalAllocatedQuantity = allocations.sumOf { it.quantity }.coerceAtLeast(0.0)
                     if (totalAllocatedQuantity > 0.0) {
@@ -61,6 +62,20 @@ class ReturnRepository(private val database: RetailDatabase) {
                                 check(database.inventoryDao().updateBatchQuantity(storeId, saleLine.productId, allocation.batchId, restoreQuantity) == 1) {
                                     "Original batch could not be restored"
                                 }
+                                restoredFromBatch = true
+                                database.inventoryDao().insertMovement(
+                                    InventoryMovementEntity(
+                                        id = UUID.randomUUID().toString(),
+                                        storeId = storeId,
+                                        productId = saleLine.productId,
+                                        batchId = allocation.batchId,
+                                        quantityDelta = restoreQuantity,
+                                        reason = InventoryMovementReason.RETURN.name,
+                                        referenceType = "RETURN",
+                                        referenceId = returnId,
+                                        createdAt = now
+                                    )
+                                )
                             }
                             restoredCost += restoreQuantity * allocation.unitCost
                         }
@@ -70,9 +85,21 @@ class ReturnRepository(private val database: RetailDatabase) {
                 check(database.inventoryDao().updateProductStock(storeId, saleLine.productId, requestedQuantity, now) == 1) {
                     "Product stock could not be restored"
                 }
-                database.inventoryDao().insertMovement(
-                    InventoryMovementEntity(UUID.randomUUID().toString(), storeId, saleLine.productId, null, requestedQuantity, InventoryMovementReason.RETURN.name, "RETURN", returnId, now)
-                )
+                if (!restoredFromBatch) {
+                    database.inventoryDao().insertMovement(
+                        InventoryMovementEntity(
+                            id = UUID.randomUUID().toString(),
+                            storeId = storeId,
+                            productId = saleLine.productId,
+                            batchId = null,
+                            quantityDelta = requestedQuantity,
+                            reason = InventoryMovementReason.RETURN.name,
+                            referenceType = "RETURN",
+                            referenceId = returnId,
+                            createdAt = now
+                        )
+                    )
+                }
 
                 returnLines += ReturnLineEntity(returnId, saleLineId, saleLine.productId, requestedQuantity, refundAmount, restoredCost)
                 refundTotal += refundAmount
