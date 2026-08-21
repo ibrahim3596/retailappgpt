@@ -3,6 +3,8 @@ package com.retailpos.app.core.backup
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import androidx.core.content.edit
+import com.retailpos.app.core.payment.ActiveCartStore
+import com.retailpos.app.core.payment.PendingPaymentStore
 import com.retailpos.app.data.RetailDatabase
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
@@ -59,6 +61,10 @@ object DatabaseBackupManager {
             require(sha256(unpacked.databaseBytes) == unpacked.checksum) { "Backup checksum mismatch; import aborted." }
             require(isSQLiteDatabase(unpacked.databaseBytes)) { "Backup does not contain a valid SQLite database." }
             replaceDatabase(context, unpacked.databaseBytes)
+            // Active cart/payment state lives outside Room. After a database restore,
+            // keeping that transient state would mix two different database snapshots.
+            ActiveCartStore.clear()
+            PendingPaymentStore.clear()
             unpacked.manifest
         } finally {
             operationInProgress.set(false)
