@@ -146,6 +146,7 @@ fun BarcodeScannerScreen(
                                 .build()
                                 .also { useCase ->
                                     useCase.setAnalyzer(executor) { imageProxy ->
+                                        @Suppress("UnsafeOptInUsageError")
                                         val mediaImage = imageProxy.image
                                         if (mediaImage == null) {
                                             imageProxy.close()
