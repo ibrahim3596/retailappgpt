@@ -8,7 +8,7 @@ class CheckoutPricingPreviewTest {
     @Test
     fun noTaxPreviewLeavesTotalUnchanged() {
         val preview = CheckoutPricingPreviewCalculator.calculate(
-            cart = listOf(CartLine("p1", "Sugar", "S1", "kg", 50.0, 0.5, 25.0)),
+            cart = listOf(CartLine("p1", "Sugar", "S1", "kg", 50.0, 0.5)),
             taxTreatment = TaxTreatment.NO_TAX,
             taxRatesByProductId = mapOf("p1" to 5.0)
         )
@@ -21,7 +21,7 @@ class CheckoutPricingPreviewTest {
     @Test
     fun regularGstPreviewUsesProductRate() {
         val preview = CheckoutPricingPreviewCalculator.calculate(
-            cart = listOf(CartLine("p1", "Sugar", "S1", "kg", 100.0, 1.0, 100.0)),
+            cart = listOf(CartLine("p1", "Sugar", "S1", "kg", 100.0, 1.0)),
             taxTreatment = TaxTreatment.GST_ADDED,
             taxRatesByProductId = mapOf("p1" to 5.0)
         )
@@ -35,8 +35,8 @@ class CheckoutPricingPreviewTest {
     fun billDiscountIsAllocatedBeforeProductTax() {
         val preview = CheckoutPricingPreviewCalculator.calculate(
             cart = listOf(
-                CartLine("p1", "Rice", "R1", "kg", 100.0, 1.0, 100.0),
-                CartLine("p2", "Oil", "O1", "litre", 100.0, 1.0, 100.0)
+                CartLine("p1", "Rice", "R1", "kg", 100.0, 1.0),
+                CartLine("p2", "Oil", "O1", "litre", 100.0, 1.0)
             ),
             taxTreatment = TaxTreatment.GST_ADDED,
             taxRatesByProductId = mapOf("p1" to 5.0, "p2" to 18.0),
@@ -45,8 +45,6 @@ class CheckoutPricingPreviewTest {
 
         assertEquals(200.0, preview.subtotal, 0.0001)
         assertEquals(20.0, preview.discountAmount, 0.0001)
-        // Discount is allocated 10/10 across the two equal-value lines,
-        // so tax is 90*5% + 90*18% = 20.70.
         assertEquals(20.7, preview.taxAmount, 0.0001)
         assertEquals(200.7, preview.total, 0.0001)
     }
