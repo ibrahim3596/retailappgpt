@@ -33,6 +33,17 @@ class PurchaseRulesTest {
     }
 
     @Test
+    fun invalidLineDoesNotCauseSecondPassException() {
+        val errors = PurchaseRules.validateDraft(
+            PurchaseDraft(
+                "supplier",
+                lines = listOf(PurchaseLineDraft("p", "Broken", orderedQuantity = 0.0, purchaseRate = 25.0))
+            )
+        )
+        assertTrue(errors.any { it.contains("Ordered quantity") })
+    }
+
+    @Test
     fun payableTracksSupplierOutstanding() {
         assertEquals(700.0, SupplierPayableRules.balance(1000.0, 300.0), 0.0001)
         assertEquals(SupplierPayableState.SETTLED, SupplierPayableRules.state(0.0))
