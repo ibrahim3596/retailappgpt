@@ -62,7 +62,7 @@ fun CustomersScreen(storeId: String, onBack: () -> Unit, onOpenKhata: (String) -
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun CustomersScreen(
+fun CustomersScreen(
     storeId: String,
     dao: CustomerDao,
     khataDao: KhataDao,
