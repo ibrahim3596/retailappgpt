@@ -1,4 +1,4 @@
-package com.example.retailpos.domain.model
+package com.retailpos.app.core.identifiers
 
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
