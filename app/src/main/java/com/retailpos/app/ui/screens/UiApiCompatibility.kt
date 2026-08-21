@@ -3,16 +3,10 @@ package com.retailpos.app.ui.screens
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import com.retailpos.app.core.products.StoreTaxMode
 import com.retailpos.app.core.products.TaxTreatment
-import com.retailpos.app.data.CustomerDao
-import com.retailpos.app.data.CustomerEntity
-import com.retailpos.app.data.InventoryMovementEntity
-import com.retailpos.app.data.KhataDao
 import com.retailpos.app.data.ProductEntity
 import com.retailpos.app.data.RetailDatabase
-import kotlinx.coroutines.launch
 
 /** Transitional adapters for callers that still use the older screen signatures. */
 
@@ -24,7 +18,7 @@ fun StoreTaxMode.toTaxTreatment(): TaxTreatment = when (this) {
 @Composable
 fun InventoryDetailScreen(
     product: ProductEntity,
-    movements: List<InventoryMovementEntity>,
+    movements: List<com.retailpos.app.data.InventoryMovementEntity>,
     onBack: () -> Unit,
     onAdjust: () -> Unit,
     onReceive: () -> Unit
@@ -85,34 +79,4 @@ fun InventoryReceiveScreen(
             error = error
         )
     }
-}
-
-@Composable
-fun CustomersScreen(
-    storeId: String,
-    dao: CustomerDao,
-    khataDao: KhataDao,
-    onOpenCustomer: (CustomerEntity) -> Unit,
-    onBack: () -> Unit
-) {
-    val scope = rememberCoroutineScope()
-    CustomersScreen(
-        storeId = storeId,
-        onBack = onBack,
-        onOpenKhata = { customerId ->
-            scope.launch {
-                dao.getById(customerId, storeId)?.let(onOpenCustomer)
-            }
-        }
-    )
-}
-
-@Composable
-fun CustomerKhataScreen(
-    storeId: String,
-    customer: CustomerEntity,
-    dao: KhataDao,
-    onBack: () -> Unit
-) {
-    CustomerKhataScreen(storeId = storeId, customerId = customer.id, onBack = onBack)
 }
