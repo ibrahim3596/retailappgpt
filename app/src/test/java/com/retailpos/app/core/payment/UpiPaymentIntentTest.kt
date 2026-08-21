@@ -1,9 +1,13 @@
 package com.retailpos.app.core.payment
 
+import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 
+@RunWith(RobolectricTestRunner::class)
 class UpiPaymentIntentTest {
     @Test
     fun `builds encoded INR UPI uri`() {
