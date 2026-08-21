@@ -19,8 +19,8 @@ object VoiceSaleCommandParser {
     private val NUMBER = Regex("(?:\\d+(?:[.,]\\d+)?)")
     private val KG = Regex("(?:\\b(?:kg|kgs|kilo|kilos|kilogram|kilograms)\\b|किलो|किलोग्राम|కిలో|కిలోలు|కిలోగ్రాము|കിലോ|കിലോഗ്രാം|किलोग्रॅम|கிலோ|கிலோகிராம்|ಕಿಲೋ|ಕಿಲೋಗ್ರಾಂ|কেজি|কিলো|কিলোগ্রাম|કિલો|કિલોગ્રામ|ਕਿਲੋ|ਕਿਲੋਗ੍ਰਾਮ|କିଲୋ|କିଲୋଗ୍ରାମ)", RegexOption.IGNORE_CASE)
     private val G = Regex("(?:\\b(?:g|gm|gms|gram|grams)\\b|ग्र\\.?|ग्राम|గ్రా|గ్రాము|గ్రాములు|ഗ്രാം|গ্রাম|ग्रॅम|கிராம்|கிரா|ಗ್ರಾಂ|ಗ್ರಾಮ|ગ્રામ|ગ્?રામ|ਗ੍ਰਾਮ|ଓ?ଗ୍ରାମ)", RegexOption.IGNORE_CASE)
-    private val L = Regex("(?:\\b(?:l|lt|ltr|litre|liter|litres|liters)\\b|लीटर|లీటర్|లీటర్లు|ലിറ്റർ|लिटर|லிட்டர்|லிட்டர்கள்|ಲೀಟರ್|ಲೀಟರು|লিটার|લિટર|લિટરો|ਲੀਟਰ|ਲੀਟਰਾਂ|ଲିଟର)", RegexOption.IGNORE_CASE)
-    private val ML = Regex("(?:\\b(?:ml|millilitre|milliliter)\\b|मिली|मिलीलिटर|మిల్లీ|మిల్లీలీటర్|മില്ലി|മില്ലിലിറ്റർ|மில்லி|மில்லிலிட்டர்|ಮಿಲಿ|ಮಿಲಿಲೀಟರ್|মিলি|মিলিলিটার|મિલી|મિલિલિટર|ਮਿਲੀ|ਮਿਲੀਲੀਟਰ|ମିଲି|ମିଲିଲିಟর)", RegexOption.IGNORE_CASE)
+    private val L = Regex("(?:\\b(?:l|lt|ltr|litre|liter|litres|liters)\\b|लीटर|లీటర్|లీటర్లు|ലിറ്റർ|लिटर|லிட்டர்|லிட்டர்கள்|ಲೀಟರ್|ಲೀಟರು|লিটার|લિટર|લિટરો|લીટર|લીટરાં|ଲିଟର)", RegexOption.IGNORE_CASE)
+    private val ML = Regex("(?:\\b(?:ml|millilitre|milliliter)\\b|मिली|मिलीलिटर|మిల్లీ|మిల్లీలీటర్|മില്ലി|മില്ലിലിറ്റർ|மில்லி|மில்லிலிட்டர்|ಮಿಲಿ|ಮಿಲಿಲೀಟರ್|মিলি|মিলিলিটার|મિલી|મિલિલિટર|ਮਿਲੀ|ਮਿਲੀਲੀਟਰ|ମିଲି|ମିଲିଲିಟર)", RegexOption.IGNORE_CASE)
     private val COUNT_UNIT = Regex("(?:\\b(?:pcs|pc|piece|pieces|item|items|packet|packets|pack|packs|pouch|pouches|bottle|bottles|box|boxes|tin|tins|jar|jars|sachet|sachets)\\b|नग|पैकेट|पैकेट्स|डिब्बा|डिब्बे|बोतल|बोतलें|ప్యాకెట్|ప్యాకెట్లు|సీసా|సీసాలు|പാക്കറ്റ്|പാക്കറ്റുകൾ|കുപ്പി|കുപ്പികൾ|पाकीट|बाटली|बाटल्या|பாக்கெட்|பாட்டில்|பாக்கெட்டுகள்|ಪ್ಯಾಕೆಟ್|ಬಾಟಲಿ|প্যাকেট|বোতল|બાટલી|પેકેટ|ਪੈਕਟ|ਬੋਤਲ|ପ୍ୟାକେଟ|ବୋତଲ|నగ|കഷണം|நக|ನಗ|পিস|નંગ|ਨਗ|ନଗ)", RegexOption.IGNORE_CASE)
 
     private val FRACTIONS = mapOf(
@@ -114,12 +114,15 @@ object VoiceSaleCommandParser {
         }
     }
 
-    private fun normalizeUnit(value: String): WeightUnit? = when (value.trim().lowercase()) {
-        "kg", "kilo", "kilogram" -> WeightUnit.KG
-        "g", "gram", "gm" -> WeightUnit.G
-        "l", "litre", "liter", "lt" -> WeightUnit.L
-        "ml", "millilitre", "milliliter" -> WeightUnit.ML
-        "piece", "pieces", "pc", "pcs", "packet", "packets", "pack", "bottle", "bottles" -> WeightUnit.PIECE
-        else -> null
+    private fun normalizeUnit(value: String): WeightUnit? {
+        val normalized = value.trim().lowercase()
+        return when {
+            KG.matches(normalized) -> WeightUnit.KG
+            G.matches(normalized) -> WeightUnit.G
+            L.matches(normalized) -> WeightUnit.L
+            ML.matches(normalized) -> WeightUnit.ML
+            COUNT_UNIT.matches(normalized) -> WeightUnit.PIECE
+            else -> null
+        }
     }
 }
