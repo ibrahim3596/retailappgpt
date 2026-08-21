@@ -17,26 +17,11 @@ enum class WeightUnit {
 
 object VoiceSaleCommandParser {
     private val NUMBER = Regex("(?:\\d+(?:[.,]\\d+)?)")
-    private val KG = Regex(
-        "(?:\\b(?:kg|kgs|kilo|kilos|kilogram|kilograms)\\b|किलो|किलोग्राम|కిలో|కిలోలు|కిలోగ్రాము|കിലോ|കിലോഗ്രാം|किलोग्रॅम|கிலோ|கிலோகிராம்|ಕಿಲೋ|ಕಿಲೋಗ್ರಾಂ|কেজি|কিলো|কিলোগ্রাম|કિલો|કિલોગ્રામ|ਕਿਲੋ|ਕਿਲੋਗ੍ਰਾਮ|କିଲୋ|କିଲୋଗ୍ରାମ)",
-        RegexOption.IGNORE_CASE
-    )
-    private val G = Regex(
-        "(?:\\b(?:g|gm|gms|gram|grams)\\b|ग्र\\.?|ग्राम|గ్రా|గ్రాము|గ్రాములు|ഗ്രാം|গ্রাম|ग्रॅम|கிராம்|கிரா|ಗ್ರಾಂ|ಗ್ರಾಮ|ગ્રામ|ગ્?રામ|ਗ੍ਰਾਮ|ଓ?ଗ୍ରାମ)",
-        RegexOption.IGNORE_CASE
-    )
-    private val L = Regex(
-        "(?:\\b(?:l|lt|ltr|litre|liter|litres|liters)\\b|लीटर|లీటర్|లీటర్లు|ലിറ്റർ|लिटर|லிட்டர்|லிட்டர்கள்|ಲೀಟರ್|ಲೀಟರು|লিটার|લિટર|લિટરો|ਲੀਟਰ|ਲੀਟਰਾਂ|ଲିଟର)",
-        RegexOption.IGNORE_CASE
-    )
-    private val ML = Regex(
-        "(?:\\b(?:ml|millilitre|milliliter)\\b|मिली|मिलीलिटर|మిల్లీ|మిల్లీలీటర్|മില്ലി|മില്ലിലിറ്റർ|மில்லி|மில்லிலிட்டர்|ಮಿಲಿ|ಮಿಲಿಲೀಟರ್|মিলি|মিলিলিটার|મિલી|મિલિલિટર|ਮਿਲੀ|ਮਿਲੀਲੀਟਰ|ମିଲି|ମିଲିଲିଟର)",
-        RegexOption.IGNORE_CASE
-    )
-    private val COUNT_UNIT = Regex(
-        "(?:pcs|pc|piece|pieces|item|items|packet|packets|pack|packs|pouch|pouches|bottle|bottles|box|boxes|tin|tins|jar|jars|sachet|sachets|नग|पैकेट|पैकेट्स|डिब्बा|डिब्बे|बोतल|बोतलें|ప్యాకెట్|ప్యాకెట్లు|సీసా|సీసాలు|പാക്കറ്റ്|പാക്കറ്റുകൾ|കുപ്പി|കുപ്പികൾ|पाकीट|बाटली|बाटल्या|பாக்கெட்|பாட்டில்|பாக்கெட்டுகள்|ಪ್ಯಾಕೆಟ್|ಬಾಟಲಿ|প্যাকেট|বোতল|બાટલી|પેકેટ|ਪੈਕਟ|ਬੋਤલ|ପ୍ୟାକେଟ|ବୋତଲ|नग|నగ|കഷണം|नग|நக|ನಗ|পিস|નંગ|ਨਗ|ନଗ)",
-        RegexOption.IGNORE_CASE
-    )
+    private val KG = Regex("(?:\\b(?:kg|kgs|kilo|kilos|kilogram|kilograms)\\b|किलो|किलोग्राम|కిలో|కిలోలు|కిలోగ్రాము|കിലോ|കിലോഗ്രാം|किलोग्रॅम|கிலோ|கிலோகிராம்|ಕಿಲೋ|ಕಿಲೋಗ್ರಾಂ|কেজি|কিলো|কিলোগ্রাম|કિલો|કિલોગ્રામ|ਕਿਲੋ|ਕਿਲੋਗ੍ਰਾਮ|କିଲୋ|କିଲୋଗ୍ରାମ)", RegexOption.IGNORE_CASE)
+    private val G = Regex("(?:\\b(?:g|gm|gms|gram|grams)\\b|ग्र\\.?|ग्राम|గ్రా|గ్రాము|గ్రాములు|ഗ്രാം|গ্রাম|ग्रॅम|கிராம்|கிரா|ಗ್ರಾಂ|ಗ್ರಾಮ|ગ્રામ|ગ્?રામ|ਗ੍ਰਾਮ|ଓ?ଗ୍ରାମ)", RegexOption.IGNORE_CASE)
+    private val L = Regex("(?:\\b(?:l|lt|ltr|litre|liter|litres|liters)\\b|लीटर|లీటర్|లీటర్లు|ലിറ്റർ|लिटर|லிட்டர்|லிட்டர்கள்|ಲೀಟರ್|ಲೀಟರು|লিটার|લિટર|લિટરો|ਲੀਟਰ|ਲੀਟਰਾਂ|ଲିଟର)", RegexOption.IGNORE_CASE)
+    private val ML = Regex("(?:\\b(?:ml|millilitre|milliliter)\\b|मिली|मिलीलिटर|మిల్లీ|మిల్లీలీటర్|മില്ലി|മില്ലിലിറ്റർ|மில்லி|மில்லிலிட்டர்|ಮಿಲಿ|ಮಿಲಿಲೀಟರ್|মিলি|মিলিলিটার|મિલી|મિલિલિટર|ਮਿਲੀ|ਮਿਲੀਲੀਟਰ|ମିଲି|ମିଲିଲିಟর)", RegexOption.IGNORE_CASE)
+    private val COUNT_UNIT = Regex("(?:\\b(?:pcs|pc|piece|pieces|item|items|packet|packets|pack|packs|pouch|pouches|bottle|bottles|box|boxes|tin|tins|jar|jars|sachet|sachets)\\b|नग|पैकेट|पैकेट्स|डिब्बा|डिब्बे|बोतल|बोतलें|ప్యాకెట్|ప్యాకెట్లు|సీసా|సీసాలు|പാക്കറ്റ്|പാക്കറ്റുകൾ|കുപ്പി|കുപ്പികൾ|पाकीट|बाटली|बाटल्या|பாக்கெட்|பாட்டில்|பாக்கெட்டுகள்|ಪ್ಯಾಕೆಟ್|ಬಾಟಲಿ|প্যাকেট|বোতল|બાટલી|પેકેટ|ਪੈਕਟ|ਬੋਤਲ|ପ୍ୟାକେଟ|ବୋତଲ|నగ|കഷണം|நக|ನಗ|পিস|નંગ|ਨਗ|ନଗ)", RegexOption.IGNORE_CASE)
 
     private val FRACTIONS = mapOf(
         "aadha" to 0.5, "adha" to 0.5, "half" to 0.5, "आधा" to 0.5,
@@ -48,32 +33,30 @@ object VoiceSaleCommandParser {
         "one" to 1.0, "two" to 2.0, "teen" to 3.0, "तीन" to 3.0,
         "three" to 3.0, "चार" to 4.0, "char" to 4.0, "five" to 5.0, "पांच" to 5.0,
         "సగం" to 0.5, "పావు" to 0.25, "పావు కిలో" to 0.25,
-        "പകുതി" to 0.5, "കാൽ" to 0.25,
-        "अर्धा" to 0.5, "அரை" to 0.5, "கால்" to 0.25,
-        "ಅರ್ಧ" to 0.5, "ಕಾಲು" to 0.25, "অর্ধেক" to 0.5, "পাও" to 0.25,
-        "અડધું" to 0.5, "પાવ" to 0.25, "ਅੱਧਾ" to 0.5, "પੌણા" to 0.75,
-        "ଅଧା" to 0.5, "ପାଉ" to 0.25
+        "പകുതി" to 0.5, "കാൽ" to 0.25, "अर्धा" to 0.5,
+        "அரை" to 0.5, "கால்" to 0.25, "ಅರ್ಧ" to 0.5, "ಕಾಲು" to 0.25,
+        "অর্ধেক" to 0.5, "পাও" to 0.25, "અડધું" to 0.5, "પાવ" to 0.25,
+        "ਅੱਧਾ" to 0.5, "ਪੌਣਾ" to 0.75, "ଅଧା" to 0.5, "ପାଉ" to 0.25
     )
 
     private val ALIASES = mapOf(
         "shakkar" to "sugar", "शक्कर" to "sugar", "cheeni" to "sugar", "चीनी" to "sugar",
         "chawal" to "rice", "चावल" to "rice", "atta" to "wheat flour", "आटा" to "wheat flour",
         "maida" to "refined flour", "मैदा" to "refined flour", "tel" to "oil", "तेल" to "oil",
-        "namak" to "salt", "नमक" to "salt",
-        "చక్కెర" to "sugar", "పంచదార" to "sugar", "బియ్యం" to "rice", "బియ్యము" to "rice",
-        "ఆటా" to "wheat flour", "మైదా" to "refined flour", "నూనె" to "oil", "ఉప్పు" to "salt",
-        "പഞ്ചസാര" to "sugar", "അരി" to "rice", "ആട്ട" to "wheat flour", "മൈദ" to "refined flour",
-        "എണ്ണ" to "oil", "ഉപ്പ്" to "salt", "साखर" to "sugar", "तांदूळ" to "rice",
-        "तांदुळ" to "rice", "पीठ" to "wheat flour", "मीठ" to "salt", "சர்க்கரை" to "sugar",
-        "அரிசி" to "rice", "மாவு" to "wheat flour", "மைதா" to "refined flour", "எண்ணெய்" to "oil",
-        "உப்பு" to "salt", "ಸಕ್ಕರೆ" to "sugar", "ಅಕ್ಕಿ" to "rice", "ಗೋಧಿಹಿಟ್ಟು" to "wheat flour",
-        "ಮೈದಾ" to "refined flour", "ಎಣ್ಣೆ" to "oil", "চিনি" to "sugar", "চাল" to "rice",
-        "আটা" to "wheat flour", "ময়দা" to "refined flour", "তেল" to "oil", "লবণ" to "salt",
-        "ખાંડ" to "sugar", "ચોખા" to "rice", "ઘઉંનો લોટ" to "wheat flour", "મૈદો" to "refined flour",
-        "તેલ" to "oil", "મીઠું" to "salt", "ਚੀਨੀ" to "sugar", "ਚਾਵਲ" to "rice",
-        "ਆਟਾ" to "wheat flour", "ਮੈਦਾ" to "refined flour", "ਤੇਲ" to "oil", "ਨਮਕ" to "salt",
-        "ଚିନି" to "sugar", "ଚାଉଳ" to "rice", "ଆଟା" to "wheat flour", "ମଇଦା" to "refined flour",
-        "ତେଲ" to "oil", "ଲୁଣ" to "salt"
+        "namak" to "salt", "नमक" to "salt", "చక్కెర" to "sugar", "పంచదార" to "sugar",
+        "బియ్యం" to "rice", "బియ్యము" to "rice", "ఆటా" to "wheat flour", "మైదా" to "refined flour",
+        "నూనె" to "oil", "ఉప్పు" to "salt", "പഞ്ചസാര" to "sugar", "അരി" to "rice",
+        "ആട്ട" to "wheat flour", "മൈദ" to "refined flour", "എണ്ണ" to "oil", "ഉപ്പ്" to "salt",
+        "साखर" to "sugar", "तांदूळ" to "rice", "तांदुळ" to "rice", "पीठ" to "wheat flour",
+        "मीठ" to "salt", "சர்க்கரை" to "sugar", "அரிசி" to "rice", "மாவு" to "wheat flour",
+        "மைதா" to "refined flour", "எண்ணெய்" to "oil", "உப்பு" to "salt", "ಸಕ್ಕರೆ" to "sugar",
+        "ಅಕ್ಕಿ" to "rice", "ಗೋಧಿಹಿಟ್ಟು" to "wheat flour", "ಮೈದಾ" to "refined flour", "ಎಣ್ಣೆ" to "oil",
+        "চিনি" to "sugar", "চাল" to "rice", "আটা" to "wheat flour", "ময়দা" to "refined flour",
+        "তেল" to "oil", "লবণ" to "salt", "ખાંડ" to "sugar", "ચોખા" to "rice",
+        "ઘઉંનો લોટ" to "wheat flour", "મૈદો" to "refined flour", "તેલ" to "oil", "મીઠું" to "salt",
+        "ਚੀਨੀ" to "sugar", "ਚਾਵਲ" to "rice", "ਆਟਾ" to "wheat flour", "ਮੈਦਾ" to "refined flour",
+        "ਤੇਲ" to "oil", "ਨਮਕ" to "salt", "ଚିନି" to "sugar", "ଚାଉଳ" to "rice",
+        "ଆଟା" to "wheat flour", "ମଇଦା" to "refined flour", "ତେଲ" to "oil", "ଲୁଣ" to "salt"
     )
 
     fun parse(spoken: String): VoiceSaleCommand? {
