@@ -58,6 +58,8 @@ abstract class SaleDao {
     abstract suspend fun isProductArchived(productId: String, storeId: String): Boolean?
     @Query("SELECT * FROM products WHERE id = :productId AND storeId = :storeId LIMIT 1")
     abstract suspend fun queryProduct(productId: String, storeId: String): ProductEntity?
+    @Query("SELECT EXISTS(SELECT 1 FROM customers WHERE id = :customerId AND storeId = :storeId)")
+    abstract suspend fun customerBelongsToStore(customerId: String, storeId: String): Boolean
     @Query("UPDATE products SET stock = stock - :quantity, updatedAt = :updatedAt WHERE id = :productId AND storeId = :storeId AND stock >= :quantity")
     abstract suspend fun decrementStock(productId: String, storeId: String, quantity: Double, updatedAt: Long): Int
     @Query("SELECT * FROM inventory_batches WHERE storeId = :storeId AND productId = :productId AND quantity > 0 AND (expiryDate IS NULL OR expiryDate > :now) ORDER BY CASE WHEN expiryDate IS NULL THEN 1 ELSE 0 END, expiryDate ASC, createdAt ASC")
@@ -106,6 +108,9 @@ abstract class SaleDao {
         require(CheckoutRules.validatePaymentMethod(paymentMethod)) { "Unsupported payment method" }
         require(CheckoutRules.validateIdempotencyKey(idempotencyKey)) { "Missing checkout idempotency key" }
         require(paymentMethod != "CREDIT" || !customerId.isNullOrBlank()) { "Select a customer for credit sales" }
+        if (paymentMethod == "CREDIT") {
+            check(customerBelongsToStore(customerId!!, storeId)) { "Customer does not belong to this store." }
+        }
         findByIdempotencyKey(storeId, idempotencyKey)?.let { return CheckoutResult(it.id, it.total, it.changeAmount) }
 
         cart.forEach { line ->
