@@ -13,11 +13,12 @@ class PurchaseRepository(private val database: RetailDatabase) {
         require(lines.isNotEmpty()) { "Purchase must contain lines" }
         require(purchase.storeId.isNotBlank()) { "Purchase store is required" }
         require(purchase.supplierId.isNotBlank()) { "Supplier is required" }
+        require(purchase.grossAmount.isFinite() && purchase.grossAmount >= 0.0) { "Purchase gross amount is invalid" }
+        require(purchase.schemeDiscount.isFinite() && purchase.schemeDiscount >= 0.0) { "Purchase discount is invalid" }
         require(purchase.netAmount.isFinite() && purchase.netAmount >= 0.0) { "Purchase total is invalid" }
         require(purchase.paidAmount.isFinite() && purchase.paidAmount >= 0.0) { "Paid amount is invalid" }
         require(purchase.paidAmount <= purchase.netAmount + 1e-9) { "Paid amount cannot exceed purchase total" }
 
-        val payable = purchase.netAmount - purchase.paidAmount
         val supplier = database.supplierDao().getById(purchase.supplierId, purchase.storeId)
             ?: throw IllegalArgumentException("Supplier does not belong to this store.")
         check(supplier.id == purchase.supplierId) { "Invalid supplier reference" }
@@ -33,10 +34,24 @@ class PurchaseRepository(private val database: RetailDatabase) {
             require(line.schemeDiscount.isFinite() && line.schemeDiscount >= 0.0) { "Scheme discount cannot be negative" }
             require(line.schemeDiscount <= line.orderedQuantity * line.purchaseRate + 1e-9) { "Scheme discount cannot exceed gross cost" }
             require(line.expiryDate == null || !line.batchNumber.isNullOrBlank()) { "Expiry requires a batch number" }
-            require(database.productDao().getById(line.productId, purchase.storeId) != null) {
-                "Product ${line.productId} does not belong to this store."
-            }
+            val product = database.productDao().getById(line.productId, purchase.storeId)
+            require(product != null) { "Product ${line.productId} does not belong to this store." }
+
+            val gross = line.orderedQuantity * line.purchaseRate
+            val net = gross - line.schemeDiscount
+            val stock = line.orderedQuantity + line.freeQuantity
+            val effective = if (stock > 0.0) net / stock else 0.0
+            require(kotlin.math.abs(line.netCost - net) <= 1e-9) { "Purchase line net cost is inconsistent" }
+            require(kotlin.math.abs(line.effectiveCost - effective) <= 1e-9) { "Purchase line effective cost is inconsistent" }
         }
+
+        val expectedGross = lines.sumOf { it.orderedQuantity * it.purchaseRate }
+        val expectedScheme = lines.sumOf { it.schemeDiscount }
+        val expectedNet = expectedGross - expectedScheme
+        require(kotlin.math.abs(purchase.grossAmount - expectedGross) <= 1e-9) { "Purchase gross amount does not match its lines" }
+        require(kotlin.math.abs(purchase.schemeDiscount - expectedScheme) <= 1e-9) { "Purchase discount does not match its lines" }
+        require(kotlin.math.abs(purchase.netAmount - expectedNet) <= 1e-9) { "Purchase total does not match its lines" }
+        val payable = purchase.netAmount - purchase.paidAmount
 
         val batchesByProduct = batches.groupBy { it.productId }
         batches.forEach { batch ->
