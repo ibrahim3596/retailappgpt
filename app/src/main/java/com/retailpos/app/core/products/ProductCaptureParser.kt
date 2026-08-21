@@ -56,7 +56,7 @@ object ProductCaptureParser {
             .sortedByDescending { it.count(Char::isLetter) }
             .firstOrNull()
 
-        val flattened = rawText.replace('\\n', ' ')
+        val flattened = rawText.replace('\n', ' ')
         val mrp = MRP_PATTERNS.firstNotNullOfOrNull { pattern ->
             pattern.find(flattened)
                 ?.groupValues
