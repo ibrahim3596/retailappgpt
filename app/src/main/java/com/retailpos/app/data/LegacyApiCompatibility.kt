@@ -16,9 +16,7 @@ suspend fun SaleDao.checkout(
     billDiscountAmount: Double = 0.0,
     staffRole: com.retailpos.app.core.permissions.StaffRole = com.retailpos.app.core.staff.StaffSessionStore.current()?.role
         ?: com.retailpos.app.core.permissions.StaffRole.CASHIER
-): CheckoutResult = SaleCheckoutRepository(
-    RetailDatabase.getForDao(this)
-).checkout(
+): CheckoutResult = SaleCheckoutRepository(RetailDatabase.current()).checkout(
     storeId = storeId,
     cart = cart,
     paymentMethod = paymentMethod,
@@ -43,8 +41,7 @@ fun CustomersScreen(
     onOpenCustomer: (CustomerEntity) -> Unit,
     onBack: () -> Unit
 ) {
-    val database = androidx.compose.runtime.remember { RetailDatabase.get(androidx.compose.ui.platform.LocalContext.current) }
-    CustomersScreen(storeId = storeId, onBack = onBack, onOpenKhata = { onOpenCustomer(dao.getById(storeId, it)?.let { customer -> customer.id } ?: it) })
+    CustomersScreen(storeId = storeId, onBack = onBack, onOpenKhata = { onOpenCustomer(it) })
 }
 
 @androidx.compose.runtime.Composable
@@ -55,12 +52,4 @@ fun CustomerKhataScreen(
     onBack: () -> Unit
 ) {
     CustomerKhataScreen(storeId = storeId, customerId = customer.id, onBack = onBack)
-}
-
-private object RetailDatabaseDaoCompat {
-    private val databases = java.util.WeakHashMap<Any, RetailDatabase>()
-}
-
-private fun RetailDatabase.Companion.getForDao(dao: SaleDao): RetailDatabase {
-    error("SaleDao checkout compatibility requires the owning RetailDatabase")
 }
