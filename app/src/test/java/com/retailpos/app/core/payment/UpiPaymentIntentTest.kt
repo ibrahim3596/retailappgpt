@@ -10,7 +10,7 @@ class UpiPaymentIntentTest {
         val uri = UpiPaymentIntent.build("shop name@upi", "My Shop", 125.5, "ref-1")
         assertEquals("upi", uri.scheme)
         assertEquals("pay", uri.host)
-        assertTrue(uri.getQueryParameter("pa").contains("shop name@upi"))
+        assertTrue(uri.getQueryParameter("pa").orEmpty().contains("shop name@upi"))
         assertEquals("My Shop", uri.getQueryParameter("pn"))
         assertEquals("125.50", uri.getQueryParameter("am"))
         assertEquals("INR", uri.getQueryParameter("cu"))
