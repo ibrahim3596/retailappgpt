@@ -57,7 +57,7 @@ fun CustomerKhataScreen(storeId: String, customerId: String, onBack: () -> Unit)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun CustomerKhataScreen(storeId: String, customer: CustomerEntity, dao: KhataDao, onBack: () -> Unit) {
+fun CustomerKhataScreen(storeId: String, customer: CustomerEntity, dao: KhataDao, onBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val balance by dao.observeBalance(storeId, customer.id).collectAsState(initial = 0.0)
