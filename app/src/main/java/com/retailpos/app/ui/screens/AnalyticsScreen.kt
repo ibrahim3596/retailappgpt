@@ -95,8 +95,24 @@ fun AnalyticsScreen(
         expenses = database.expenseDao().totalBetween(storeId, start, end)
         receivables = database.khataDao().totalReceivables(storeId).coerceAtLeast(0.0)
         payables = database.supplierLedgerDao().totalPayables(storeId).coerceAtLeast(0.0)
-        paymentSummary = PaymentSummaryRules.normalize(saleDao.getPaymentSummary(storeId, start, end))
-        topProducts = saleDao.getTopProducts(storeId, start, end, 10)
+
+        val grossPaymentSummary = PaymentSummaryRules.normalize(saleDao.getPaymentSummary(storeId, start, end))
+        val refundSummary = database.returnDao().getRefundSummary(storeId, start, end)
+        val refundByMethod = refundSummary.associate { it.refundMethod to it.total }
+        paymentSummary = grossPaymentSummary.map { summary ->
+            summary.copy(total = (summary.total - (refundByMethod[summary.paymentMethod] ?: 0.0)).coerceAtLeast(0.0))
+        }.filter { it.total > 0.0 }
+
+        val grossTopProducts = saleDao.getTopProducts(storeId, start, end, 20)
+        val returnedProducts = database.returnDao().getReturnedProducts(storeId, start, end).associateBy { it.productId }
+        topProducts = grossTopProducts.map { product ->
+            val returned = returnedProducts[product.productId]
+            product.copy(
+                quantity = (product.quantity - (returned?.quantity ?: 0.0)).coerceAtLeast(0.0),
+                revenue = (product.revenue - (returned?.revenue ?: 0.0)).coerceAtLeast(0.0)
+            )
+        }.filter { it.quantity > 0.0 || it.revenue > 0.0 }.sortedWith(compareByDescending<TopProductSales> { it.quantity }.thenByDescending { it.revenue }).take(10)
+
         recentSales = saleDao.getRecentSales(storeId, 10)
     }
 
@@ -154,14 +170,14 @@ fun AnalyticsScreen(
             }
             item { Text("Payment mix", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black) }
             if (paymentSummary.isEmpty()) {
-                item { Text("No sales recorded today.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                item { Text("No net sales recorded today.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
             } else {
                 items(paymentSummary, key = { it.paymentMethod }) { summary ->
                     Card(Modifier.fillMaxWidth()) {
                         Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                             Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                 Text(summary.paymentMethod, fontWeight = FontWeight.Bold)
-                                Text("${summary.transactionCount} bill${if (summary.transactionCount == 1) "" else "s"}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("${summary.transactionCount} gross bill${if (summary.transactionCount == 1) "" else "s"}", color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             Text(currency.format(summary.total), fontWeight = FontWeight.Black)
                         }
@@ -170,7 +186,7 @@ fun AnalyticsScreen(
             }
             item { Text("Top sellers today", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black) }
             if (topProducts.isEmpty()) {
-                item { Text("No product sales recorded today.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                item { Text("No net product sales recorded today.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
             } else {
                 items(topProducts, key = { it.productId }) { top ->
                     Card(Modifier.fillMaxWidth()) {
