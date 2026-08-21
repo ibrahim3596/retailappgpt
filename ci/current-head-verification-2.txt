@@ -1,0 +1,1 @@
+Verification marker: rerun Android CI after fixing the CREDIT payment-method unit test on retailpos-v2.
