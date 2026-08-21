@@ -22,6 +22,7 @@ class ReturnRepository(private val database: RetailDatabase) {
         }
         require(quantitiesBySaleLineId.isNotEmpty()) { "Select at least one item to return" }
         require(reason.isNotBlank()) { "Return reason is required" }
+        require(originalSale.storeId == storeId) { "Sale does not belong to this store." }
         ReturnRules.validateRefundMethod(originalSale.paymentMethod, refundMethod)?.let { throw IllegalArgumentException(it) }
 
         val saleLines = database.saleDao().getSaleLines(originalSale.id)
