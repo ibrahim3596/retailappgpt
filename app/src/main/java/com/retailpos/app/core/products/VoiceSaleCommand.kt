@@ -1,27 +1,20 @@
 package com.retailpos.app.core.products
 
-/** Parsed natural-language retail request, e.g. "aadha kilo shakkar". */
 data class VoiceSaleCommand(
     val productQuery: String,
     val quantity: Double,
     val unit: WeightUnit
 )
 
-enum class WeightUnit {
-    PIECE,
-    KG,
-    G,
-    L,
-    ML
-}
+enum class WeightUnit { PIECE, KG, G, L, ML }
 
 object VoiceSaleCommandParser {
     private val NUMBER = Regex("(?:\\d+(?:[.,]\\d+)?)")
     private val KG = Regex("(?:\\b(?:kg|kgs|kilo|kilos|kilogram|kilograms)\\b|किलो|किलोग्राम|కిలో|కిలోలు|కిలోగ్రాము|കിലോ|കിലോഗ്രാം|किलोग्रॅम|கிலோ|கிலோகிராம்|ಕಿಲೋ|ಕಿಲೋಗ್ರಾಂ|কেজি|কিলো|কিলোগ্রাম|કિલો|કિલોગ્રામ|ਕਿਲੋ|ਕਿਲੋਗ੍ਰਾਮ|କିଲୋ|କିଲୋଗ୍ରାମ)", RegexOption.IGNORE_CASE)
     private val G = Regex("(?:\\b(?:g|gm|gms|gram|grams)\\b|ग्र\\.?|ग्राम|గ్రా|గ్రాము|గ్రాములు|ഗ്രാം|গ্রাম|ग्रॅम|கிராம்|கிரா|ಗ್ರಾಂ|ಗ್ರಾಮ|ગ્રામ|ગ્?રામ|ਗ੍ਰਾਮ|ଓ?ଗ୍ରାମ)", RegexOption.IGNORE_CASE)
-    private val L = Regex("(?:\\b(?:l|lt|ltr|litre|liter|litres|liters)\\b|लीटर|లీటర్|లీటర్లు|ലിറ്റർ|लिटर|லிட்டர்|லிட்டர்கள்|ಲೀಟರ್|ಲೀಟರು|লিটার|લિટર|લિટરો|લીટર|લીટરાં|ଲିଟର)", RegexOption.IGNORE_CASE)
-    private val ML = Regex("(?:\\b(?:ml|millilitre|milliliter)\\b|मिली|मिलीलिटर|మిల్లీ|మిల్లీలీటర్|മില്ലി|മില്ലിലിറ്റർ|மில்லி|மில்லிலிட்டர்|ಮಿಲಿ|ಮಿಲಿಲೀಟರ್|মিলি|মিলিলিটার|મિલી|મિલિલિટર|ਮਿਲੀ|ਮਿਲੀਲੀਟਰ|ମିଲି|ମିଲିଲିಟર)", RegexOption.IGNORE_CASE)
-    private val COUNT_UNIT = Regex("(?:\\b(?:pcs|pc|piece|pieces|item|items|packet|packets|pack|packs|pouch|pouches|bottle|bottles|box|boxes|tin|tins|jar|jars|sachet|sachets)\\b|नग|पैकेट|पैकेट्स|डिब्बा|डिब्बे|बोतल|बोतलें|ప్యాకెట్|ప్యాకెట్లు|సీసా|సీసాలు|പാക്കറ്റ്|പാക്കറ്റുകൾ|കുപ്പി|കുപ്പികൾ|पाकीट|बाटली|बाटल्या|பாக்கெட்|பாட்டில்|பாக்கெட்டுகள்|ಪ್ಯಾಕೆಟ್|ಬಾಟಲಿ|প্যাকেট|বোতল|બાટલી|પેકેટ|ਪੈਕਟ|ਬੋਤਲ|ପ୍ୟାକେଟ|ବୋତଲ|నగ|കഷണം|நக|ನಗ|পিস|નંગ|ਨਗ|ନଗ)", RegexOption.IGNORE_CASE)
+    private val L = Regex("(?:\\b(?:l|lt|ltr|litre|liter|litres|liters)\\b|लीटर|లీటర్|లీటర్లు|ലിറ്റർ|लिटर|லிட்டர்|லிட்டர்கள்|ಲೀಟರ್|ಲೀಟರು|লিটার|લિટર|લિટરો|લીટર|લીટરਾਂ|ଲିଟର)", RegexOption.IGNORE_CASE)
+    private val ML = Regex("(?:\\b(?:ml|millilitre|milliliter)\\b|मिली|मिलीलिटर|మిల్లీ|మిల్లీలీటర్|മില്ലി|മില്ലിലിറ്റർ|மில்லி|மில்லிலிட்டர்|ಮಿಲಿ|ಮಿಲಿಲೀಟರ್|মিলি|মিলিলিটার|મિલી|મિલિલિટર|ਮਿਲੀ|ਮਿਲੀਲੀਟਰ|ମିଲି|ମିଲିଲିಟর)", RegexOption.IGNORE_CASE)
+    private val COUNT_UNIT = Regex("(?:\\b(?:pcs|pc|piece|pieces|item|items|packet|packets|pack|packs|pouch|pouches|bottle|bottles|box|boxes|tin|tins|jar|jars|sachet|sachets)\\b|नग|पैकेट|पैकेट्स|डिब्बा|डिब्बे|बोतल|बोतलें|ప్యాకెట్|ప్యాకెట్లు|సీసా|సీసాలు|പാക്കറ്റ്|പാക്കറ്റുകൾ|കുപ്പി|കുപ്പികൾ|पाकीट|बाटली|बाटल्या|பாக்கெட்|பாட்டில்|பாக்கெட்டுகள்|ಪ್ಯಾಕೆಟ್|ಬಾಟಲಿ|প্যাকেট|বোতল|બાટલી|પેકેટ|ਪੈਕਟ|ਬੋਤલ|ପ୍ୟାକେਟ|ବୋତଲ|నగ|കഷണം|நக|ನಗ|পিস|નંગ|ਨਗ|ନଗ)", RegexOption.IGNORE_CASE)
 
     private val FRACTIONS = mapOf(
         "aadha" to 0.5, "adha" to 0.5, "half" to 0.5, "आधा" to 0.5,
@@ -54,7 +47,7 @@ object VoiceSaleCommandParser {
         "চিনি" to "sugar", "চাল" to "rice", "আটা" to "wheat flour", "ময়দা" to "refined flour",
         "তেল" to "oil", "লবণ" to "salt", "ખાંડ" to "sugar", "ચોખા" to "rice",
         "ઘઉંનો લોટ" to "wheat flour", "મૈદો" to "refined flour", "તેલ" to "oil", "મીઠું" to "salt",
-        "ਚੀਨੀ" to "sugar", "ਚਾਵਲ" to "rice", "ਆਟਾ" to "wheat flour", "ਮੈਦਾ" to "refined flour",
+        "ਚੀਨੀ" to "sugar", "ਚਾਵલ" to "rice", "ਆਟਾ" to "wheat flour", "ਮੈਦਾ" to "refined flour",
         "ਤੇਲ" to "oil", "ਨਮਕ" to "salt", "ଚିନି" to "sugar", "ଚାଉଳ" to "rice",
         "ଆଟା" to "wheat flour", "ମଇଦା" to "refined flour", "ତେଲ" to "oil", "ଲୁଣ" to "salt"
     )
@@ -62,7 +55,6 @@ object VoiceSaleCommandParser {
     fun parse(spoken: String): VoiceSaleCommand? {
         var text = spoken.trim().lowercase()
         if (text.isBlank()) return null
-
         val explicitUnit = when {
             ML.containsMatchIn(text) -> WeightUnit.ML
             KG.containsMatchIn(text) -> WeightUnit.KG
@@ -70,13 +62,11 @@ object VoiceSaleCommandParser {
             L.containsMatchIn(text) -> WeightUnit.L
             else -> WeightUnit.PIECE
         }
-
         val fractionToken = FRACTIONS.keys.sortedByDescending(String::length)
             .firstOrNull { token -> Regex("(^|\\s)${Regex.escape(token)}(?=\\s|$)").containsMatchIn(text) }
         val quantity = fractionToken?.let(FRACTIONS::get)
             ?: NUMBER.find(text)?.value?.replace(',', '.')?.toDoubleOrNull()
         if (quantity == null || quantity <= 0.0) return null
-
         text = text
             .replace(NUMBER, " ")
             .replace(KG, " ")
@@ -88,14 +78,10 @@ object VoiceSaleCommandParser {
             .replace(Regex("\\b(ka|ki|ke|of|mein|me|dena|do|de|please|plz|aur|and|plus)\\b"), " ")
             .replace(Regex("\\s+"), " ")
             .trim()
-
-        return text.takeIf { it.isNotBlank() }?.let { query ->
-            VoiceSaleCommand(ALIASES[query] ?: query, quantity, explicitUnit)
-        }
+        return text.takeIf { it.isNotBlank() }?.let { query -> VoiceSaleCommand(ALIASES[query] ?: query, quantity, explicitUnit) }
     }
 
-    private fun cleanFractionTokens(text: String): String = FRACTIONS.keys
-        .sortedByDescending(String::length)
+    private fun cleanFractionTokens(text: String): String = FRACTIONS.keys.sortedByDescending(String::length)
         .fold(text) { acc, token -> acc.replace(Regex("(^|\\s)${Regex.escape(token)}(?=\\s|$)"), " ") }
 
     fun toBaseQuantity(quantity: Double, unit: WeightUnit, productUnit: String): Double? {
