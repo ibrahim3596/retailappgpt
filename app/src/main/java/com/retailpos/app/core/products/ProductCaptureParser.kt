@@ -72,7 +72,11 @@ object ProductCaptureParser {
         .map { it.replace(Regex("\\s+"), " ").trim() }
         .filter { it.length in 2..80 }
         .filterNot(OCR_NUMBER_ONLY_PATTERN::matches)
-        .filterNot(OCR_METADATA_PATTERN::containsMatchIn)
+        .filterNot { line ->
+            OCR_METADATA_PATTERN.containsMatchIn(line) &&
+                !BRAND_PATTERN.matches(line) &&
+                !PRODUCT_PATTERN.matches(line)
+        }
         .map { it.replace(OCR_SYMBOL_PATTERN, " ").replace(Regex("\\s+"), " ").trim() }
         .filter { it.length >= 2 }
         .distinctBy(::normalizeForMatching)
