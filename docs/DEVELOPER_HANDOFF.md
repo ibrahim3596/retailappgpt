@@ -7,7 +7,8 @@
 - Repository: `ibrahim3596/retailappgpt`
 - Active branch: `retailpos-v2`
 - Current Room schema: **25**
-- Current head after the latest hardening batch: `36715070954cc50597bee972c37c30722770f280`
+- Current head for this development pass: `02d5cef106341d209d720e400125d28aeaaf56c4`
+- Physical testing gate document: `docs/PHYSICAL_TESTING_READINESS.md`
 - CI: **do not run GitHub Actions during the current Actions-budget restriction**.
 
 The older handoff's Room version 11 and earlier commit references are historical and stale.
@@ -83,10 +84,11 @@ Verified current foundations include:
 - staff permission foundations
 - encrypted backup/restore
 - Room migrations through version 25
+- Android instrumentation smoke-test foundation
 
 Do not reimplement these blindly; inspect current source first.
 
-## P0 hardening completed in the latest batch
+## P0 hardening completed in this pass
 
 ### Checkout
 
@@ -96,13 +98,23 @@ Latest hardening adds same-store ownership validation for CREDIT customers befor
 
 ### Returns
 
-Returns now re-load the original sale by `(storeId, saleId)` inside the transaction rather than trusting a stale caller object. CREDIT return customers are also checked against the same store. Quantity, refund, batch restoration, product stock restoration, inventory movement, return persistence and Khata adjustment remain atomic.
+Returns re-load the original sale by `(storeId, saleId)` inside the transaction rather than trusting a stale caller object. CREDIT return customers are also checked against the same store. Quantity, refund, batch restoration, product stock restoration, inventory movement, return persistence and Khata adjustment remain atomic.
+
+When a return restores a sale allocation tied to a batch, the inventory movement now retains that batch ID instead of losing batch traceability.
 
 ### Purchasing
 
-Purchase recording now validates supplier ownership, purchase/line/store ownership, product ownership, duplicate products, quantity/rate/discount economics, purchase total reconciliation, batch ownership, batch quantities and expiry. Inventory receive movements reference the actual batch when batches are used. Supplier payable and payment ledger writes remain inside the same transaction.
+Purchase recording validates supplier ownership, purchase/line/store ownership, product ownership, duplicate products, quantity/rate/discount economics, purchase total reconciliation, batch ownership, batch quantities and expiry. Inventory receive movements reference the actual batch when batches are used. Supplier payable and payment ledger writes remain inside the same transaction.
 
-`PurchaseRules.validateDraft()` was fixed so invalid lines are reported instead of causing a second-pass exception.
+`PurchaseRules.validateDraft()` reports invalid lines instead of causing a second-pass exception.
+
+### Inventory receiving
+
+Direct inventory receiving now creates a batch ID first and records the same batch ID on its corresponding inventory movement. This keeps receive history linked to the batch that was actually created.
+
+### Analytics
+
+The previous debugging limitation around return-adjusted payment mix and top sellers has now been integrated. Analytics subtracts return totals/quantities from payment and product dimensions as well as headline sales/items/COGS.
 
 ## Database / migrations
 
@@ -112,9 +124,30 @@ Room is version **25** with a sequential migration chain:
 1→2→3→4→5→6→7→8→9→10→11→12→13→14→15→16→17→18→19→20→21→22→23→24→25
 ```
 
-The migration SQL was statically audited in this session. No destructive migration was found. However, an executable full migration-chain test suite is still missing.
+The migration SQL was statically audited. No destructive migration was found. An executable full migration-chain test suite is still missing.
 
 Continue to treat schema changes as deliberate migrations. Do not use destructive fallback migration strategies.
+
+## Android physical-testing preparation
+
+Current app configuration:
+
+- application ID: `com.retailpos.app`
+- min SDK: 26
+- target/compile SDK: 36
+- Java/Kotlin JVM target: 17
+- Android Gradle Plugin: 8.13.2
+- Kotlin: 2.2.10
+- Gradle required by AGP 8.13: 8.13
+- Room: 2.8.4
+- CameraX: 1.6.1
+- ML Kit barcode/text/image labeling enabled
+
+Camera and microphone permissions are declared in the Android manifest. First launch goes through local owner setup, then staff login. The physical test sequence is documented in `docs/PHYSICAL_TESTING_READINESS.md`.
+
+The repository does not currently include Gradle wrapper scripts/JAR. Android Studio or another Android build environment must therefore supply/configure Gradle 8.13.
+
+An Android instrumentation smoke test now verifies that the device can open Room schema 25 and that SQLite `PRAGMA quick_check` returns `ok`.
 
 ## Store isolation / referential integrity
 
@@ -126,28 +159,20 @@ Remaining work is a repository-wide DAO audit for cross-store references and orp
 
 The project still uses `Double` extensively. Central pricing/settlement rules exist, but there is no complete fixed-scale money/quantity policy yet.
 
-Do not rewrite the database wholesale. Next money batch should centralize:
-
-- money rounding
-- tax rounding
-- line totals
-- payment totals
-- refunds
-- reports
+Do not rewrite the database wholesale. Next money batch should centralize rounding for money, tax, line totals, payments, refunds and reports.
 
 ## Remaining P0/P1 work
 
 1. Add executable Room integration tests for checkout, returns, purchases, Khata, recovery, idempotency and store isolation.
 2. Add full migration-chain tests.
 3. Complete DAO/repository store-isolation audit.
-4. Audit return/refund analytics for double counting.
-5. Complete money precision policy.
-6. Complete price override enforcement/audit.
-7. Finish item-discount integration without double application.
-8. Complete inventory valuation, COGS and return-adjusted COGS.
-9. Improve held-bill stale-stock UX.
-10. Finish purchase/supplier and return UI workflows.
-11. Continue intelligent capture hardening after transactional integrity is locked.
+4. Complete money precision policy.
+5. Complete price override enforcement/audit.
+6. Finish item-discount integration without double application.
+7. Complete inventory valuation, COGS and return-adjusted COGS.
+8. Improve held-bill stale-stock UX.
+9. Finish purchase/supplier and return UI workflows.
+10. Continue intelligent capture/device hardening after transactional integrity is locked.
 
 ## Repository cleanup
 
@@ -178,17 +203,6 @@ For every coherent batch:
 
 A feature is done only when UI, business rules, persistence, navigation, error/empty/loading states, edge cases, adjacent workflows, tests, offline behavior and documentation are covered. CI is a later deliberate gate.
 
-## Next large batch
+## Physical-test gate
 
-**Transaction/integration validation.** Prioritize executable tests and source audits for:
-
-```text
-checkout → payment → sale → stock → Khata
-returns → refund → stock/batch → Khata → analytics
-purchase → receive → batch → stock → supplier payable/payment
-process death → recovery → idempotent retry
-store A data → store B mutation rejection
-migration 1→25
-```
-
-After that, proceed to money precision and inventory economics, then POS completion, staff/security hardening, intelligent capture hardening, UX polish, supplier/purchasing completion, reporting and final release validation.
+The **code-preparation gate is ready**. The remaining proof must come from an actual Android device/emulator installation and critical-loop run. Do not describe the app as fully release-ready until that manual/device pass is completed.
