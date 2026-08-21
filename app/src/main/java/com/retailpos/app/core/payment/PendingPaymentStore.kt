@@ -14,18 +14,22 @@ object PendingPaymentStore {
     private const val KEY_IDEMPOTENCY_FINGERPRINT = "idempotency_fingerprint"
 
     @Volatile private var prefs: android.content.SharedPreferences? = null
+    @Volatile private var applicationContext: Context? = null
     @Volatile private var amountTendered: Double? = null
     @Volatile private var amountCartFingerprint: String? = null
     @Volatile private var idempotencyKey: String? = null
     @Volatile private var idempotencyFingerprint: String? = null
 
     fun configure(context: Context) {
-        prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        applicationContext = context.applicationContext
+        prefs = applicationContext?.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         amountTendered = prefs?.getString(KEY_AMOUNT_TENDERED, null)?.toDoubleOrNull()
         amountCartFingerprint = prefs?.getString(KEY_AMOUNT_CART_FINGERPRINT, null)?.takeIf { it.isNotBlank() }
         idempotencyKey = prefs?.getString(KEY_IDEMPOTENCY, null)?.takeIf { it.isNotBlank() }
         idempotencyFingerprint = prefs?.getString(KEY_IDEMPOTENCY_FINGERPRINT, null)?.takeIf { it.isNotBlank() }
     }
+
+    fun context(): Context = applicationContext ?: error("PendingPaymentStore has not been configured")
 
     /** Backward-compatible setter; binds cash state to the current cart only. */
     fun set(amount: Double?) {
