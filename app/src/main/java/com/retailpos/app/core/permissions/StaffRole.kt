@@ -1,6 +1,6 @@
 package com.retailpos.app.core.permissions
 
-/** Roles used by the store's staff authorization model. */
+/** Canonical roles used by staff authentication and authorization. */
 enum class StaffRole {
     OWNER,
     MANAGER,
