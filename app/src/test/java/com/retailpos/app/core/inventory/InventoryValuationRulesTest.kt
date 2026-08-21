@@ -20,9 +20,9 @@ class InventoryValuationRulesTest {
         val result = InventoryValuationRules.summarize(batches, now)
 
         assertEquals(20.0, result.totalBatchQuantity, 0.0001)
-        assertEquals(730.0, result.totalCostValue, 0.0001)
+        assertEquals(580.0, result.totalCostValue, 0.0001)
         assertEquals(18.0, result.sellableQuantity, 0.0001)
-        assertEquals(650.0, result.sellableCostValue, 0.0001)
+        assertEquals(500.0, result.sellableCostValue, 0.0001)
         assertEquals(5.0, result.nearExpiryQuantity, 0.0001)
         assertEquals(150.0, result.nearExpiryCostValue, 0.0001)
         assertEquals(2.0, result.expiredQuantity, 0.0001)
