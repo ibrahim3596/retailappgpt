@@ -103,6 +103,8 @@ abstract class RetailDatabase : RoomDatabase() {
                 }
         }
 
+        fun current(): RetailDatabase = INSTANCE ?: error("RetailDatabase has not been initialized")
+
         fun closeForRestore() {
             synchronized(this) {
                 INSTANCE?.close()
