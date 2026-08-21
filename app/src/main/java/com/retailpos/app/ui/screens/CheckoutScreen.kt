@@ -27,6 +27,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -66,6 +67,7 @@ fun CheckoutScreen(
     onUpdateCartLine: (CartLine) -> Unit = {}
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = rememberCoroutineScope()
     var paymentMethod by remember { mutableStateOf(PAYMENT_METHODS.first()) }
     var selectedCustomer by remember { mutableStateOf<CustomerEntity?>(null) }
     var showCustomerPicker by remember { mutableStateOf(false) }
@@ -133,18 +135,20 @@ fun CheckoutScreen(
     }
 
     fun openUpiApp() {
-        try {
-            val settings = RetailDatabase.get(context).storeSettingsDao().get(LOCAL_STORE_ID)
-            val vpa = settings?.upiVpa.orEmpty()
-            if (vpa.isBlank()) {
-                upiError = "Set your merchant UPI VPA in Settings first."
-                return
-            }
-            val uri = UpiPaymentIntent.build(vpa = vpa, payeeName = "RetailPOS Store", amount = total, transactionRef = UUID.randomUUID().toString())
-            val intent = Intent(Intent.ACTION_VIEW, uri)
-            if (intent.resolveActivity(context.packageManager) == null) upiError = "No installed UPI app can handle payment requests on this device."
-            else { context.startActivity(intent); upiError = null }
-        } catch (e: Exception) { upiError = e.message ?: "UPI app could not be opened." }
+        scope.launch {
+            try {
+                val settings = RetailDatabase.get(context).storeSettingsDao().get(LOCAL_STORE_ID)
+                val vpa = settings?.upiVpa.orEmpty()
+                if (vpa.isBlank()) {
+                    upiError = "Set your merchant UPI VPA in Settings first."
+                    return@launch
+                }
+                val uri = UpiPaymentIntent.build(vpa = vpa, payeeName = "RetailPOS Store", amount = total, transactionRef = UUID.randomUUID().toString())
+                val intent = Intent(Intent.ACTION_VIEW, uri)
+                if (intent.resolveActivity(context.packageManager) == null) upiError = "No installed UPI app can handle payment requests on this device."
+                else { context.startActivity(intent); upiError = null }
+            } catch (e: Exception) { upiError = e.message ?: "UPI app could not be opened." }
+        }
     }
 
     Scaffold(topBar = { TopAppBar(title = { Text("CHECKOUT", fontWeight = FontWeight.Black) }) }) { padding ->
