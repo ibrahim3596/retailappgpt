@@ -62,6 +62,8 @@ class ProductRepository(
     }
 
     suspend fun saveProductWithMetadata(product: ProductEntity, metadata: ProductMetadataEntity, barcodeType: String = "UNKNOWN"): Boolean {
+        require(metadata.productId == product.id) { "Product metadata must belong to the same product." }
+        require(metadata.storeId == product.storeId) { "Product metadata must belong to the same store." }
         val db = database ?: return false
         return db.withTransaction {
             val normalized = ProductIdentityRules.normalizeBarcode(product.barcode.orEmpty())
@@ -101,7 +103,18 @@ class ProductRepository(
     }
 
     suspend fun removeSecondaryBarcode(barcodeId: String, storeId: String) { barcodeDao.delete(barcodeId, storeId) }
-    suspend fun delete(productId: String, storeId: String) { barcodeDao.deleteForProduct(productId, storeId); dao.delete(productId, storeId) }
+
+    suspend fun delete(productId: String, storeId: String) {
+        if (database != null) {
+            database.withTransaction {
+                barcodeDao.deleteForProduct(productId, storeId)
+                dao.delete(productId, storeId)
+            }
+        } else {
+            barcodeDao.deleteForProduct(productId, storeId)
+            dao.delete(productId, storeId)
+        }
+    }
 }
 
 enum class BarcodeMutationResult { Success, Duplicate, Invalid }
