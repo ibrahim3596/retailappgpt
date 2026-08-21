@@ -7,3 +7,10 @@ data class TopProductSales(
     val quantity: Double,
     val revenue: Double
 )
+
+/** Owner analytics projection for payment-method totals. */
+data class PaymentSummary(
+    val paymentMethod: String,
+    val transactionCount: Int,
+    val total: Double
+)
