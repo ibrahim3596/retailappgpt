@@ -4,6 +4,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import com.retailpos.app.core.products.StoreTaxMode
+import com.retailpos.app.core.products.TaxTreatment
 import com.retailpos.app.data.CustomerDao
 import com.retailpos.app.data.CustomerEntity
 import com.retailpos.app.data.InventoryMovementEntity
@@ -13,6 +15,11 @@ import com.retailpos.app.data.RetailDatabase
 import kotlinx.coroutines.launch
 
 /** Transitional adapters for callers that still use the older screen signatures. */
+
+fun StoreTaxMode.toTaxTreatment(): TaxTreatment = when (this) {
+    StoreTaxMode.NO_GST, StoreTaxMode.COMPOSITION -> TaxTreatment.NO_TAX
+    StoreTaxMode.REGULAR -> TaxTreatment.GST_ADDED
+}
 
 @Composable
 fun InventoryDetailScreen(
