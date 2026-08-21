@@ -8,7 +8,7 @@ private val OCR_NUMBER_ONLY_PATTERN = Regex("[0-9 .₹$€£,/:%#*+()\\-]+")
 private val OCR_SYMBOL_PATTERN = Regex("[^\\p{L}\\p{N}\\s&+.-]")
 private val MRP_PATTERNS = listOf(
     Regex("(?:MRP|M\\.?R\\.?P\\.?)\\s*[:\\-]?\\s*(?:₹|Rs\\.?|INR)?\\s*([0-9]+(?:[.,][0-9]{1,2})?)", RegexOption.IGNORE_CASE),
-    Regex("(?:₹|Rs\\.?|INR)\\s*([0-9]+(?:[.,][0-9]{1,2})?)\\s*(?:MRP|M\\.?R\\.?P\\.?)", RegexOption.IGNORE_CASE)
+    Regex("(?:₹|Rs\\.?|INR)\\s*([0-9]+(?:[.,][0-9]{1,2})?)\\s*(?:MRP|M\\.?R\\.?P\\.?)\\b", RegexOption.IGNORE_CASE)
 )
 private val BRAND_PATTERN = Regex("^brand\\s*[:\\-]\\s*(.+)$", RegexOption.IGNORE_CASE)
 private val PRODUCT_PATTERN = Regex("^(?:product|product name|name)\\s*[:\\-]\\s*(.+)$", RegexOption.IGNORE_CASE)
@@ -30,8 +30,6 @@ object ProductCaptureParser {
         .trim()
 
     fun parse(rawText: String): ParsedProductText {
-        // Extract explicit labels from the original OCR lines before punctuation cleanup.
-        // Otherwise `Brand: ...` becomes `Brand ...` and the label parser loses precedence.
         val rawLines = rawText.lines().map { it.replace(Regex("\\s+"), " ").trim() }
         val explicitName = rawLines.firstNotNullOfOrNull {
             PRODUCT_PATTERN.matchEntire(it)?.groupValues?.getOrNull(1)?.trim()?.takeIf(String::isNotBlank)
