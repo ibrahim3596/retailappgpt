@@ -93,6 +93,24 @@ class VoiceSaleCommandTest {
     }
 
     @Test
+    fun normalizesTeluguKilogramProduct() {
+        val quantity = VoiceSaleCommandParser.toBaseQuantity(500.0, WeightUnit.G, "కిలో")
+        assertEquals(0.5, quantity!!, 0.0001)
+    }
+
+    @Test
+    fun normalizesHindiLiterProduct() {
+        val quantity = VoiceSaleCommandParser.toBaseQuantity(500.0, WeightUnit.ML, "लीटर")
+        assertEquals(0.5, quantity!!, 0.0001)
+    }
+
+    @Test
+    fun normalizesTamilMilliliterProduct() {
+        val quantity = VoiceSaleCommandParser.toBaseQuantity(500.0, WeightUnit.ML, "மில்லிலிட்டர்")
+        assertEquals(500.0, quantity!!, 0.0001)
+    }
+
+    @Test
     fun rejectsMissingQuantity() {
         assertNull(VoiceSaleCommandParser.parse("sugar"))
     }
