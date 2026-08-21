@@ -25,10 +25,18 @@ class ReturnRepository(private val database: RetailDatabase) {
         require(originalSale.storeId == storeId) { "Sale does not belong to this store." }
         ReturnRules.validateRefundMethod(originalSale.paymentMethod, refundMethod)?.let { throw IllegalArgumentException(it) }
 
-        val saleLines = database.saleDao().getSaleLines(originalSale.id)
-        val selected = saleLines.associateBy { it.id }
-
         return database.withTransaction {
+            val persistedSale = database.saleDao().getSale(storeId, originalSale.id)
+                ?: throw IllegalArgumentException("Original sale does not belong to this store or no longer exists.")
+            ReturnRules.validateRefundMethod(persistedSale.paymentMethod, refundMethod)?.let { throw IllegalArgumentException(it) }
+            if (persistedSale.paymentMethod == "CREDIT" && !persistedSale.customerId.isNullOrBlank()) {
+                check(database.customerDao().getById(persistedSale.customerId, storeId) != null) {
+                    "Original sale customer does not belong to this store."
+                }
+            }
+
+            val saleLines = database.saleDao().getSaleLines(persistedSale.id)
+            val selected = saleLines.associateBy { it.id }
             val returnId = UUID.randomUUID().toString()
             val returnLines = mutableListOf<ReturnLineEntity>()
             var refundTotal = 0.0
@@ -42,7 +50,7 @@ class ReturnRepository(private val database: RetailDatabase) {
                 val refundAmount = saleLine.lineTotal * (requestedQuantity / saleLine.quantity)
                 ReturnRules.validateRefundAmount(refundAmount, saleLine.lineTotal)?.let { throw IllegalArgumentException(it) }
 
-                val allocations = database.saleDao().getSaleCostAllocations(originalSale.id).filter { it.saleLineId == saleLineId }
+                val allocations = database.saleDao().getSaleCostAllocations(persistedSale.id).filter { it.saleLineId == saleLineId }
                 var restoredCost = 0.0
                 if (allocations.isNotEmpty()) {
                     val totalAllocatedQuantity = allocations.sumOf { it.quantity }.coerceAtLeast(0.0)
@@ -70,16 +78,16 @@ class ReturnRepository(private val database: RetailDatabase) {
                 refundTotal += refundAmount
             }
 
-            ReturnRules.validateRefundAmount(refundTotal, originalSale.total)?.let { throw IllegalArgumentException(it) }
-            val returnEntity = ReturnEntity(returnId, storeId, originalSale.id, refundMethod, refundTotal, reason.trim(), staffRole.name, now)
+            ReturnRules.validateRefundAmount(refundTotal, persistedSale.total)?.let { throw IllegalArgumentException(it) }
+            val returnEntity = ReturnEntity(returnId, storeId, persistedSale.id, refundMethod, refundTotal, reason.trim(), staffRole.name, now)
             database.returnDao().insert(returnEntity)
             database.returnDao().insertLines(returnLines)
 
-            if (originalSale.paymentMethod == "CREDIT" && !originalSale.customerId.isNullOrBlank()) {
+            if (persistedSale.paymentMethod == "CREDIT" && !persistedSale.customerId.isNullOrBlank()) {
                 database.khataDao().insert(
                     CustomerLedgerEntry(
-                        UUID.randomUUID().toString(), storeId, originalSale.customerId,
-                        -refundTotal, "RETURN", "Return against sale ${originalSale.id}",
+                        UUID.randomUUID().toString(), storeId, persistedSale.customerId,
+                        -refundTotal, "RETURN", "Return against sale ${persistedSale.id}",
                         "RETURN", returnId, now
                     )
                 )
