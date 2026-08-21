@@ -7,8 +7,8 @@ private val OCR_METADATA_PATTERN = Regex(
 private val OCR_NUMBER_ONLY_PATTERN = Regex("[0-9 .₹$€£,/:%#*+()\\-]+")
 private val OCR_SYMBOL_PATTERN = Regex("[^\\p{L}\\p{N}\\s&+.-]")
 private val MRP_PATTERNS = listOf(
-    Regex("(?:MRP|M\\.?R\\.?P\\.?)\\s*[:\\-]?\\s*(?:₹|Rs\\.?|INR)?\\s*([0-9]+(?:[.,][0-9]{1,2})?)", RegexOption.IGNORE_CASE),
-    Regex("(?:₹|Rs\\.?|INR)\\s*([0-9]+(?:[.,][0-9]{1,2})?)\\s*(?:MRP|M\\.?R\\.?P\\.?)\\b", RegexOption.IGNORE_CASE)
+    Regex("(?:₹|Rs\\.?|INR)\\s*([0-9]+(?:[.,][0-9]{1,2})?)\\s*(?:MRP|M\\.?R\\.?P\\.?)\\b", RegexOption.IGNORE_CASE),
+    Regex("(?:MRP|M\\.?R\\.?P\\.?)\\s*[:\\-]?\\s*(?:₹|Rs\\.?|INR)?\\s*([0-9]+(?:[.,][0-9]{1,2})?)", RegexOption.IGNORE_CASE)
 )
 private val BRAND_PATTERN = Regex("^brand\\s*[:\\-]\\s*(.+)$", RegexOption.IGNORE_CASE)
 private val PRODUCT_PATTERN = Regex("^(?:product|product name|name)\\s*[:\\-]\\s*(.+)$", RegexOption.IGNORE_CASE)
@@ -56,7 +56,7 @@ object ProductCaptureParser {
             .sortedByDescending { it.count(Char::isLetter) }
             .firstOrNull()
 
-        val flattened = rawText.replace('\n', ' ')
+        val flattened = rawText.replace('\\n', ' ')
         val mrp = MRP_PATTERNS.firstNotNullOfOrNull { pattern ->
             pattern.find(flattened)
                 ?.groupValues
