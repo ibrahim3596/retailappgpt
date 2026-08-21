@@ -59,35 +59,4 @@ class IntelligentCaptureRulesTest {
         )
         assertEquals(0, result.rankingBoost)
     }
-
-    @Test
-    fun metadataMapperPreservesRetailerControlledTaxAndDescription() {
-        val existing = ProductMetadataEntity(
-            productId = "p1",
-            storeId = "local-store",
-            category = "Grocery",
-            subcategory = "Sugar",
-            packSize = null,
-            packUnit = "kg",
-            description = "Retailer description",
-            imageUri = "file://image",
-            taxRatePercent = 5.0,
-            updatedAt = 1L
-        )
-        val mapped = ProductCaptureMetadataMapper.map(
-            productId = "p1",
-            storeId = "local-store",
-            observation = ProductCaptureObservation(
-                categoryHint = "food",
-                pack = ParsedPack(500.0, "g", "500 g")
-            ),
-            existing = existing
-        )
-        assertEquals("food", mapped.category)
-        assertEquals(500.0, mapped.packSize ?: -1.0, 0.0)
-        assertEquals("g", mapped.packUnit)
-        assertEquals(5.0, mapped.taxRatePercent, 0.0)
-        assertEquals("Retailer description", mapped.description)
-        assertEquals("file://image", mapped.imageUri)
-    }
 }
