@@ -48,7 +48,8 @@ fun CustomerKhataScreen(storeId: String, customerId: String, onBack: () -> Unit)
     val customer by produceState<CustomerEntity?>(initialValue = null, customerId) {
         value = database.customerDao().getById(customerId, storeId)
     }
-    if (customer != null) CustomerKhataScreen(storeId, customer, database.khataDao(), onBack)
+    val currentCustomer = customer
+    if (currentCustomer != null) CustomerKhataScreen(storeId, currentCustomer, database.khataDao(), onBack)
     else Scaffold(topBar = { TopAppBar(title = { Text("KHATA", fontWeight = FontWeight.Black) }) }) { padding ->
         Text("Customer not found.", Modifier.fillMaxSize().padding(padding).padding(24.dp), color = MaterialTheme.colorScheme.error)
     }
