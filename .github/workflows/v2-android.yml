@@ -1,8 +1,9 @@
 name: RetailPOS V2 Android CI
 
+# CI is the primary validation loop for the V2 development branch.
 on:
   push:
-    branches: ["retailpos-v2"]
+    branches: ["retailpos-v2", "retailpos-v2-dev"]
   pull_request:
     branches: ["retailpos-v2"]
 
@@ -32,6 +33,15 @@ jobs:
       - name: Run unit tests
         run: gradle :app:testDebugUnitTest
 
+      - name: Run instrumentation tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: Pixel_2
+          script: gradle :app:connectedDebugAndroidTest
+
       - name: Run lint
         run: gradle :app:lintDebug
 
@@ -40,3 +50,11 @@ jobs:
 
       - name: Verify debug APK exists
         run: test -s app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: retailpos-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14

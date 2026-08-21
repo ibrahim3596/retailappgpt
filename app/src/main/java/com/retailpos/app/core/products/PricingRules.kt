@@ -57,5 +57,7 @@ object PricingRules {
         )
     }
 
-    private fun roundCurrency(value: Double): Double = kotlin.math.round(value * 100.0) / 100.0
+    /** Currency rounding must use decimal half-up semantics, not binary floating-point rounding. */
+    private fun roundCurrency(value: Double): Double =
+        java.math.BigDecimal.valueOf(value).setScale(2, java.math.RoundingMode.HALF_UP).toDouble()
 }

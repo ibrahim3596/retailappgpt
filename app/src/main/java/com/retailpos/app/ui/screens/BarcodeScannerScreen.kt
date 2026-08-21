@@ -6,6 +6,7 @@ import android.view.ViewGroup
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -62,7 +63,7 @@ import java.util.concurrent.Executors
 
 private enum class ScannerState { REQUESTING_PERMISSION, READY, DENIED }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalGetImage::class)
 @Composable
 fun BarcodeScannerScreen(
     title: String,
@@ -145,6 +146,7 @@ fun BarcodeScannerScreen(
                                 .build()
                                 .also { useCase ->
                                     useCase.setAnalyzer(executor) { imageProxy ->
+                                        @Suppress("UnsafeOptInUsageError")
                                         val mediaImage = imageProxy.image
                                         if (mediaImage == null) {
                                             imageProxy.close()

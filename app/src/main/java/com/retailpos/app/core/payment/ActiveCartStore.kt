@@ -17,6 +17,7 @@ object ActiveCartStore {
     }
 
     fun save(lines: List<CartLine>) {
+        val targetPrefs = prefs ?: return
         val json = JSONArray()
         lines.forEach { line ->
             json.put(JSONObject().apply {
@@ -30,7 +31,7 @@ object ActiveCartStore {
                 put("itemDiscountAmount", line.itemDiscountAmount)
             })
         }
-        prefs?.edit()?.putString(KEY_LINES, json.toString())?.apply()
+        targetPrefs.edit().putString(KEY_LINES, json.toString()).apply()
     }
 
     fun load(): List<CartLine> {

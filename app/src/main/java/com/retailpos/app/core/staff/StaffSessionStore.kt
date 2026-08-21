@@ -1,5 +1,9 @@
 package com.retailpos.app.core.staff
 
+import com.retailpos.app.core.permissions.StaffRole as PermissionStaffRole
+
+typealias StaffRole = PermissionStaffRole
+
 /** Process-local authenticated staff session. It is intentionally cleared when the app process dies. */
 object StaffSessionStore {
     @Volatile

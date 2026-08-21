@@ -131,7 +131,7 @@ fun PurchaseEntryScreen(
                     Text("Paid ${fmt(line.orderedQuantity)} ${line.product.unit} + free ${fmt(line.freeQuantity)} = stock ${fmt(line.stockQuantity)} ${line.product.unit}")
                     Text("Rate ₹${fmtMoney(line.purchaseRate)} • Net ₹${fmtMoney(line.net)} • Effective ₹${fmtMoney(line.effectiveCost)}")
                     if (line.batchNumber != null) Text("Batch ${line.batchNumber}")
-                    line.expiryDate?.let { Text("Expiry ${LocalDate.ofInstant(java.time.Instant.ofEpochMilli(it), ZoneId.systemDefault())}") }
+                    line.expiryDate?.let { Text("Expiry ${java.time.Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate()}") }
                 } }
             }
             item {

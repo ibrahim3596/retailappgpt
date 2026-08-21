@@ -48,7 +48,8 @@ fun CustomerKhataScreen(storeId: String, customerId: String, onBack: () -> Unit)
     val customer by produceState<CustomerEntity?>(initialValue = null, customerId) {
         value = database.customerDao().getById(customerId, storeId)
     }
-    if (customer != null) CustomerKhataScreen(storeId, customer, database.khataDao(), onBack)
+    val currentCustomer = customer
+    if (currentCustomer != null) CustomerKhataScreen(storeId, currentCustomer, database.khataDao(), onBack)
     else Scaffold(topBar = { TopAppBar(title = { Text("KHATA", fontWeight = FontWeight.Black) }) }) { padding ->
         Text("Customer not found.", Modifier.fillMaxSize().padding(padding).padding(24.dp), color = MaterialTheme.colorScheme.error)
     }
@@ -56,7 +57,7 @@ fun CustomerKhataScreen(storeId: String, customerId: String, onBack: () -> Unit)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun CustomerKhataScreen(storeId: String, customer: CustomerEntity, dao: KhataDao, onBack: () -> Unit) {
+fun CustomerKhataScreen(storeId: String, customer: CustomerEntity, dao: KhataDao, onBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val balance by dao.observeBalance(storeId, customer.id).collectAsState(initial = 0.0)

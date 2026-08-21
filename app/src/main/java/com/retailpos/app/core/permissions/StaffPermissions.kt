@@ -1,7 +1,5 @@
 package com.retailpos.app.core.permissions
 
-import com.retailpos.app.core.staff.StaffRole
-
 enum class StaffPermission {
     APPLY_BILL_DISCOUNT,
     APPLY_ITEM_DISCOUNT,
