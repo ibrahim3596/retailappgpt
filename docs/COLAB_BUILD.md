@@ -10,36 +10,30 @@ Builds the `retailpos-v2` debug APK in a temporary Google Colab runtime. The PC 
 
 1. Open Google Colab.
 2. Create a new notebook.
-3. Upload a ZIP of the repository branch `retailpos-v2`.
-4. Run the setup/build cells below.
+3. Download the ZIP for branch `retailpos-v2` from GitHub while signed in.
+4. Upload that ZIP to Colab.
+5. Extract it and run the setup/build cells below.
+
+### Java 17 + Gradle 8.13
 
 ```bash
-# Java 17
 !apt-get update -qq
 !apt-get install -y -qq openjdk-17-jdk unzip wget
-
-# Gradle 8.13
 !wget -q https://services.gradle.org/distributions/gradle-8.13-bin.zip
 !unzip -q gradle-8.13-bin.zip -d /opt
-a! /opt/gradle-8.13/bin/gradle --version
-```
-
-Remove the accidental `a!` if copying manually; the correct command is:
-
-```bash
 !/opt/gradle-8.13/bin/gradle --version
 ```
 
 ### Android SDK
 
-Colab images normally include Android SDK tooling, but verify it before building:
+Verify the Android SDK tooling:
 
 ```bash
 !ls -la $ANDROID_HOME || true
 !sdkmanager --version
 ```
 
-Install the required SDK packages if necessary:
+Install required SDK packages if necessary:
 
 ```bash
 !yes | sdkmanager --licenses >/dev/null || true
@@ -54,23 +48,19 @@ After extracting the uploaded repository ZIP and changing into the repository di
 !/opt/gradle-8.13/bin/gradle --no-daemon :app:assembleDebug :app:testDebugUnitTest
 ```
 
-The APK should be at:
+APK location:
 
 ```text
 app/build/outputs/apk/debug/app-debug.apk
 ```
 
-Download that file from the Colab file browser and install it on the Android phone.
+Download that APK from the Colab file browser and install it on the Android phone.
 
-## Private repository option
+## Private repository safety
 
-Do not paste a GitHub personal access token into a shared notebook. Prefer downloading the branch ZIP from GitHub in the browser while signed in, then uploading that ZIP to Colab.
+Do not paste a GitHub personal access token into a shared notebook. Prefer downloading the branch ZIP through the signed-in GitHub web UI, then uploading that ZIP to Colab.
 
-## Device testing
-
-Install the debug APK on the phone. If Android blocks installation, enable installation from the browser/file manager used to open the APK. Disable that permission again after installation if desired.
-
-First test order:
+## Device testing order
 
 1. Fresh install → owner setup
 2. Staff PIN/login
@@ -89,4 +79,4 @@ First test order:
 15. Camera/barcode
 16. Voice billing
 
-Record every crash, incorrect total, incorrect stock value, navigation failure and permission problem. Fixes should be made against the real device result rather than guessed from static code.
+Record every crash, incorrect total, incorrect stock value, navigation failure and permission problem. Fix against real device results rather than guessing from static code.
