@@ -2,7 +2,7 @@ name: RetailPOS V2 Android CI
 
 on:
   push:
-    branches: ["retailpos-v2"]
+    branches: ["retailpos-v2", "retailpos-v2-dev"]
   pull_request:
     branches: ["retailpos-v2"]
 
