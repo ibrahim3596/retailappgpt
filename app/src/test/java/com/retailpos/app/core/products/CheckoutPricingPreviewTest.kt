@@ -45,7 +45,9 @@ class CheckoutPricingPreviewTest {
 
         assertEquals(200.0, preview.subtotal, 0.0001)
         assertEquals(20.0, preview.discountAmount, 0.0001)
-        assertEquals(11.5, preview.taxAmount, 0.0001)
-        assertEquals(191.5, preview.total, 0.0001)
+        // Discount is allocated 10/10 across the two equal-value lines,
+        // so tax is 90*5% + 90*18% = 20.70.
+        assertEquals(20.7, preview.taxAmount, 0.0001)
+        assertEquals(200.7, preview.total, 0.0001)
     }
 }
