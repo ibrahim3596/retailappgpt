@@ -21,10 +21,16 @@ object PurchaseRules {
         if (draft.supplierId.isBlank()) errors += "Supplier is required"
         if (draft.lines.isEmpty()) errors += "At least one purchase line is required"
         if (!draft.paidAmount.isFinite() || draft.paidAmount < 0.0) errors += "Paid amount must be non-negative"
-        draft.lines.forEachIndexed { index, line ->
-            try { lineEconomics(line) } catch (e: IllegalArgumentException) { errors += "Line ${index + 1}: ${e.message}" }
+
+        val validEconomics = draft.lines.mapIndexedNotNull { index, line ->
+            try {
+                lineEconomics(line)
+            } catch (e: IllegalArgumentException) {
+                errors += "Line ${index + 1}: ${e.message}"
+                null
+            }
         }
-        val total = draft.lines.sumOf { lineEconomics(it).netCost }
+        val total = validEconomics.sumOf { it.netCost }
         if (draft.paidAmount > total + 1e-9) errors += "Paid amount cannot exceed purchase total"
         return errors
     }
