@@ -1,5 +1,6 @@
 name: RetailPOS V2 Android CI
 
+# CI is the primary validation loop for the V2 development branch.
 on:
   push:
     branches: ["retailpos-v2", "retailpos-v2-dev"]
