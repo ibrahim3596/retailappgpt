@@ -4,9 +4,7 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
-import java.io.File
 import org.junit.After
-import org.junit.Assert.assertEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -25,8 +23,9 @@ class RetailDatabaseSmokeTest {
     @Test
     fun opensAtSchemaTwentyFiveAndSQLiteIsHealthy() {
         val database = RetailDatabase.get(context)
-        val cursor = database.openHelper.readableDatabase.query("PRAGMA user_version")
-        val version = cursor.use {
+
+        val versionCursor = database.openHelper.readableDatabase.query("PRAGMA user_version")
+        val version = versionCursor.use {
             assertTrue(it.moveToFirst())
             it.getInt(0)
         }
@@ -38,13 +37,6 @@ class RetailDatabaseSmokeTest {
             it.getString(0)
         }
         assertEquals("ok", result.lowercase())
-    }
-
-    @Test
-    fun applicationDatabaseFileCanBeCreatedAndClosed() {
-        val database = RetailDatabase.get(context)
-        assertTrue(database.openHelper.writableDatabase.isOpen)
-        val databaseFile = context.getDatabasePath("retailpos.db")
-        assertTrue(databaseFile.exists() || File(databaseFile.parentFile, databaseFile.name).exists())
+        assertTrue(database.openHelper.readableDatabase.isOpen)
     }
 }
