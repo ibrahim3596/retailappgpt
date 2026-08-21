@@ -11,7 +11,7 @@ class BackupEnvelopeTest {
             appSchemaVersion = 24,
             storeId = "local-store",
             createdAt = 123L,
-            sections = listOf("PRODUCTS", "SALES")
+            sections = listOf(BackupSection.PRODUCTS, BackupSection.SALES)
         )
         assertEquals(manifest, BackupManifest.fromJson(manifest.toJson()))
     }
@@ -19,20 +19,33 @@ class BackupEnvelopeTest {
     @Test
     fun payloadRoundTripsWithChecksum() {
         val payload = BackupPayload(
-            BackupManifest(24, "local-store", 123L, listOf("PRODUCTS")),
-            mapOf("PRODUCTS" to JSONObject().put("count", 2))
+            BackupManifest(
+                appSchemaVersion = 24,
+                storeId = "local-store",
+                createdAt = 123L,
+                sections = listOf(BackupSection.PRODUCTS)
+            ),
+            mapOf(BackupSection.PRODUCTS to JSONObject().put("count", 2))
         )
         val restored = BackupPayload.fromJson(payload.toJson())
-        assertEquals(2, restored.sections["PRODUCTS"]?.getInt("count"))
+        assertEquals(2, restored.sections[BackupSection.PRODUCTS]?.getInt("count"))
     }
 
     @Test(expected = IllegalArgumentException::class)
     fun tamperedPayloadIsRejected() {
         val payload = BackupPayload(
-            BackupManifest(24, "local-store", 123L, listOf("PRODUCTS")),
-            mapOf("PRODUCTS" to JSONObject().put("count", 2))
+            BackupManifest(
+                appSchemaVersion = 24,
+                storeId = "local-store",
+                createdAt = 123L,
+                sections = listOf(BackupSection.PRODUCTS)
+            ),
+            mapOf(BackupSection.PRODUCTS to JSONObject().put("count", 2))
         )
-        val json = payload.toJson().put("data", JSONObject().put("PRODUCTS", JSONObject().put("count", 999)))
+        val json = payload.toJson().put(
+            "data",
+            JSONObject().put(BackupSection.PRODUCTS, JSONObject().put("count", 999))
+        )
         BackupPayload.fromJson(json)
     }
 }
