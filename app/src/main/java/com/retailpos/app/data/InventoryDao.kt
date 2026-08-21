@@ -62,7 +62,8 @@ abstract class InventoryDao {
         requireInventoryPermission(StaffPermission.ADJUST_INVENTORY, "This staff role cannot receive inventory.")
         InventoryRules.validateReceive(quantity, purchasePrice, expiryDate, now)?.let { throw IllegalArgumentException(it) }
         check(updateProductStock(storeId, productId, quantity, now) == 1) { "Product could not be updated" }
-        insertBatch(InventoryBatchEntity(UUID.randomUUID().toString(), storeId, productId, batchNumber?.trim()?.ifBlank { null }, expiryDate, quantity, purchasePrice, now))
-        insertMovement(InventoryMovementEntity(UUID.randomUUID().toString(), storeId, productId, null, quantity, InventoryMovementReason.RECEIVE.name, "RECEIVING", null, now))
+        val batchId = UUID.randomUUID().toString()
+        insertBatch(InventoryBatchEntity(batchId, storeId, productId, batchNumber?.trim()?.ifBlank { null }, expiryDate, quantity, purchasePrice, now))
+        insertMovement(InventoryMovementEntity(UUID.randomUUID().toString(), storeId, productId, batchId, quantity, InventoryMovementReason.RECEIVE.name, "RECEIVING", batchId, now))
     }
 }
