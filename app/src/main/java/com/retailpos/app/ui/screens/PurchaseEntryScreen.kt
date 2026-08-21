@@ -63,66 +63,60 @@ private data class PurchaseUiLine(
     val gross: Double get() = orderedQuantity * purchaseRate
     val net: Double get() = gross - schemeDiscount
     val stockQuantity: Double get() = orderedQuantity + freeQuantity
-    val effectiveCost: Double get() = if (stockQuantity > 0) net / stockQuantity else 0.0
+    val effectiveCost: Double get() = if (stockQuantity > 0.0) net / stockQuantity else 0.0
 }
-
-private fun formatExpiryDate(epochMillis: Long): LocalDate =
-    java.time.Instant.ofEpochMilli(epochMillis).atZone(ZoneId.systemDefault()).toLocalDate()
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PurchaseEntryScreen(
-    repository: PurchaseRepository,
+    storeId: String,
+    repository: ProductRepository,
     supplierDao: SupplierDao,
-    productRepository: ProductRepository,
+    purchaseRepository: PurchaseRepository,
     onBack: () -> Unit,
-    onSaved: () -> Unit
+    onSaved: () -> Unit,
+    onOpenHistory: () -> Unit
 ) {
-    val suppliers by supplierDao.observeAll().collectAsState(initial = emptyList())
-    val products by productRepository.observeAll().collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
-    var supplierExpanded by remember { mutableStateOf(false) }
+    var suppliers by remember { mutableStateOf<List<SupplierEntity>>(emptyList()) }
+    val products by repository.observeProducts(storeId).collectAsState(initial = emptyList())
     var selectedSupplier by remember { mutableStateOf<SupplierEntity?>(null) }
+    val lines = remember { mutableStateListOf<PurchaseUiLine>() }
     var invoiceNumber by remember { mutableStateOf("") }
     var paidAmount by remember { mutableStateOf("") }
-    var showLineDialog by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    val lines = remember { mutableStateListOf<PurchaseUiLine>() }
+    var showSupplierDialog by remember { mutableStateOf(false) }
+    var showLineDialog by remember { mutableStateOf(false) }
+
+    fun loadSuppliers() { scope.launch { suppliers = supplierDao.getAll(storeId) } }
+    LaunchedEffect(Unit) { loadSuppliers() }
 
     val gross = lines.sumOf { it.gross }
     val scheme = lines.sumOf { it.schemeDiscount }
     val net = lines.sumOf { it.net }
-    val paid = paidAmount.toDoubleOrNull() ?: 0.0
+    val paid = paidAmount.replace(',', '.').toDoubleOrNull() ?: 0.0
     val outstanding = (net - paid).coerceAtLeast(0.0)
 
-    Scaffold(
-        topBar = { TopAppBar(title = { Text("Purchase Entry") }, navigationIcon = { TextButton(onClick = onBack) { Text("BACK") } }) }
-    ) { padding ->
+    Scaffold(topBar = { TopAppBar(title = { Text("PURCHASE", fontWeight = FontWeight.Black) }, navigationIcon = { TextButton(onClick = onBack) { Text("BACK") } }) }) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
-                Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("SUPPLIER", fontWeight = FontWeight.Bold)
-                    ExposedDropdownMenuBox(expanded = supplierExpanded, onExpandedChange = { supplierExpanded = !supplierExpanded }) {
-                        OutlinedTextField(
-                            value = selectedSupplier?.name ?: "",
-                            onValueChange = {},
-                            readOnly = true,
-                            modifier = Modifier.fillMaxWidth().menuAnchor(),
-                            label = { Text("Supplier") },
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = supplierExpanded) }
-                        )
-                        DropdownMenu(expanded = supplierExpanded, onDismissRequest = { supplierExpanded = false }) {
-                            suppliers.forEach { supplier ->
-                                DropdownMenuItem(text = { Text(supplier.name) }, onClick = { selectedSupplier = supplier; supplierExpanded = false })
-                            }
-                        }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = onOpenHistory, modifier = Modifier.weight(1f)) { Text("SUPPLIERS / HISTORY") }
+                    OutlinedButton(onClick = { showSupplierDialog = true }, modifier = Modifier.weight(1f)) { Text("ADD SUPPLIER") }
+                }
+            }
+            item {
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("SUPPLIER", fontWeight = FontWeight.Bold)
+                        SupplierPicker(selectedSupplier, suppliers, onSelect = { selectedSupplier = it })
+                        OutlinedTextField(value = invoiceNumber, onValueChange = { invoiceNumber = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Invoice number (optional)") })
                     }
-                    OutlinedTextField(value = invoiceNumber, onValueChange = { invoiceNumber = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Invoice number") })
-                } }
+                }
             }
             item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -137,7 +131,7 @@ fun PurchaseEntryScreen(
                     Text("Paid ${fmt(line.orderedQuantity)} ${line.product.unit} + free ${fmt(line.freeQuantity)} = stock ${fmt(line.stockQuantity)} ${line.product.unit}")
                     Text("Rate ₹${fmtMoney(line.purchaseRate)} • Net ₹${fmtMoney(line.net)} • Effective ₹${fmtMoney(line.effectiveCost)}")
                     if (line.batchNumber != null) Text("Batch ${line.batchNumber}")
-                    line.expiryDate?.let { Text("Expiry ${formatExpiryDate(it)}") }
+                    line.expiryDate?.let { Text("Expiry ${java.time.Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate()}") }
                 } }
             }
             item {
@@ -149,145 +143,98 @@ fun PurchaseEntryScreen(
                     OutlinedTextField(value = paidAmount, onValueChange = { paidAmount = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Paid to supplier") })
                     Text("Outstanding ₹${fmtMoney(outstanding)}", fontWeight = FontWeight.Bold)
                     error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-                } }
-            }
-            item {
-                Button(
-                    onClick = {
+                    Button(onClick = {
                         val supplier = selectedSupplier
-                        if (supplier == null) { error = "Select a supplier."; return@Button }
-                        if (lines.isEmpty()) { error = "Add at least one purchase item."; return@Button }
-                        scope.launch {
-                            try {
-                                val purchaseId = UUID.randomUUID().toString()
-                                repository.createPurchase(
-                                    PurchaseEntity(
-                                        id = purchaseId,
-                                        supplierId = supplier.id,
-                                        invoiceNumber = invoiceNumber.trim().ifBlank { null },
-                                        grossAmount = gross,
-                                        schemeDiscount = scheme,
-                                        netAmount = net,
-                                        paidAmount = paid,
-                                        outstandingAmount = outstanding,
-                                        createdAt = System.currentTimeMillis()
-                                    ),
-                                    lines.map { line ->
-                                        PurchaseLineEntity(
-                                            id = UUID.randomUUID().toString(),
-                                            purchaseId = purchaseId,
-                                            productId = line.product.id,
-                                            orderedQuantity = line.orderedQuantity,
-                                            freeQuantity = line.freeQuantity,
-                                            purchaseRate = line.purchaseRate,
-                                            schemeDiscount = line.schemeDiscount,
-                                            netAmount = line.net,
-                                            effectiveCost = line.effectiveCost,
-                                            batchNumber = line.batchNumber,
-                                            expiryDate = line.expiryDate
-                                        )
-                                    },
-                                    lines.map { line ->
-                                        InventoryBatchEntity(
-                                            id = UUID.randomUUID().toString(),
-                                            productId = line.product.id,
-                                            batchNumber = line.batchNumber,
-                                            expiryDate = line.expiryDate,
-                                            quantity = line.stockQuantity,
-                                            purchaseRate = line.effectiveCost,
-                                            createdAt = System.currentTimeMillis()
-                                        )
-                                    }
-                                )
-                                onSaved()
-                            } catch (t: Throwable) {
-                                error = t.message ?: "Unable to save purchase."
+                        val paidValue = paidAmount.replace(',', '.').toDoubleOrNull() ?: 0.0
+                        when {
+                            supplier == null -> error = "Select a supplier."
+                            lines.isEmpty() -> error = "Add at least one purchase item."
+                            lines.map { it.product.id }.distinct().size != lines.size -> error = "Each product can appear only once per purchase."
+                            paidValue < 0.0 -> error = "Paid amount cannot be negative."
+                            paidValue > net + 1e-9 -> error = "Paid amount cannot exceed purchase total."
+                            else -> scope.launch {
+                                runCatching {
+                                    val now = System.currentTimeMillis()
+                                    val purchaseId = UUID.randomUUID().toString()
+                                    val entity = PurchaseEntity(purchaseId, storeId, supplier.id, invoiceNumber.trim().ifBlank { null }, gross, scheme, net, paidValue, outstanding, now)
+                                    val purchaseLines = lines.map { line -> PurchaseLineEntity(purchaseId, storeId, line.product.id, line.orderedQuantity, line.freeQuantity, line.purchaseRate, line.schemeDiscount, line.net, line.effectiveCost, line.batchNumber, line.expiryDate, now) }
+                                    val batches = lines.map { line -> InventoryBatchEntity(UUID.randomUUID().toString(), storeId, line.product.id, line.batchNumber, line.expiryDate, line.stockQuantity, line.effectiveCost, now) }
+                                    purchaseRepository.recordPurchase(entity, purchaseLines, batches, now)
+                                }.onSuccess { onSaved() }.onFailure { error = it.message ?: "Purchase could not be saved." }
                             }
                         }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text("SAVE PURCHASE") }
+                    }, modifier = Modifier.fillMaxWidth(), enabled = selectedSupplier != null && lines.isNotEmpty()) { Text("RECEIVE PURCHASE") }
+                } }
             }
         }
     }
 
-    if (showLineDialog) {
-        PurchaseLineDialog(
-            products = products,
-            onDismiss = { showLineDialog = false },
-            onAdd = { line -> lines.add(line); showLineDialog = false }
-        )
+    if (showSupplierDialog) SupplierDialog(onDismiss = { showSupplierDialog = false }, onSave = { name, phone, address, notes ->
+        scope.launch {
+            val now = System.currentTimeMillis()
+            val supplier = SupplierEntity(UUID.randomUUID().toString(), storeId, name.trim(), phone.trim(), address.trim(), notes.trim(), now, now)
+            supplierDao.insert(supplier); selectedSupplier = supplier; showSupplierDialog = false; loadSuppliers()
+        }
+    })
+
+    if (showLineDialog) PurchaseLineDialog(
+        products = products,
+        alreadySelectedProductIds = lines.map { it.product.id }.toSet(),
+        onDismiss = { showLineDialog = false },
+        onAdd = { product, ordered, free, rate, discount, batch, expiry ->
+            lines += PurchaseUiLine(product, ordered, free, rate, discount, batch.ifBlank { null }, expiry)
+            showLineDialog = false
+        }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SupplierPicker(selected: SupplierEntity?, suppliers: List<SupplierEntity>, onSelect: (SupplierEntity) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
+        OutlinedTextField(value = selected?.name.orEmpty(), onValueChange = {}, readOnly = true, modifier = Modifier.fillMaxWidth().menuAnchor(), label = { Text("Supplier") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) })
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }, modifier = Modifier.heightIn(max = 320.dp)) { suppliers.forEach { supplier -> DropdownMenuItem(text = { Text(supplier.name) }, onClick = { onSelect(supplier); expanded = false }) } }
     }
 }
 
 @Composable
-private fun PurchaseLineDialog(
-    products: List<ProductEntity>,
-    onDismiss: () -> Unit,
-    onAdd: (PurchaseUiLine) -> Unit
-) {
-    var selectedProduct by remember { mutableStateOf<ProductEntity?>(products.firstOrNull()) }
-    var quantity by remember { mutableStateOf("") }
-    var freeQuantity by remember { mutableStateOf("") }
-    var rate by remember { mutableStateOf("") }
-    var discount by remember { mutableStateOf("0") }
-    var batch by remember { mutableStateOf("") }
-    var expiry by remember { mutableStateOf("") }
-    var productExpanded by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Add purchase item") },
-        text = {
-            Column(Modifier.heightIn(max = 520.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                ExposedDropdownMenuBox(expanded = productExpanded, onExpandedChange = { productExpanded = !productExpanded }) {
-                    OutlinedTextField(
-                        value = selectedProduct?.name ?: "",
-                        onValueChange = {},
-                        readOnly = true,
-                        modifier = Modifier.fillMaxWidth().menuAnchor(),
-                        label = { Text("Product") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = productExpanded) }
-                    )
-                    DropdownMenu(expanded = productExpanded, onDismissRequest = { productExpanded = false }) {
-                        products.forEach { product ->
-                            DropdownMenuItem(text = { Text(product.name) }, onClick = { selectedProduct = product; productExpanded = false })
-                        }
-                    }
-                }
-                OutlinedTextField(value = quantity, onValueChange = { quantity = it }, singleLine = true, label = { Text("Ordered quantity") })
-                OutlinedTextField(value = freeQuantity, onValueChange = { freeQuantity = it }, singleLine = true, label = { Text("Free quantity") })
-                OutlinedTextField(value = rate, onValueChange = { rate = it }, singleLine = true, label = { Text("Purchase rate") })
-                OutlinedTextField(value = discount, onValueChange = { discount = it }, singleLine = true, label = { Text("Scheme discount") })
-                OutlinedTextField(value = batch, onValueChange = { batch = it }, singleLine = true, label = { Text("Batch number") })
-                OutlinedTextField(value = expiry, onValueChange = { expiry = it }, singleLine = true, label = { Text("Expiry YYYY-MM-DD") })
-                error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = {
-                val product = selectedProduct
-                val ordered = quantity.toDoubleOrNull()
-                val free = freeQuantity.toDoubleOrNull() ?: 0.0
-                val purchaseRate = rate.toDoubleOrNull()
-                val schemeDiscount = discount.toDoubleOrNull() ?: 0.0
-                if (product == null || ordered == null || ordered <= 0.0 || purchaseRate == null || purchaseRate < 0.0) {
-                    error = "Enter a valid product, quantity and purchase rate."
-                    return@TextButton
-                }
-                val expiryMillis = expiry.trim().takeIf { it.isNotBlank() }?.let {
-                    runCatching { LocalDate.parse(it).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli() }.getOrElse {
-                        error = "Expiry must use YYYY-MM-DD."
-                        return@TextButton
-                    }
-                }
-                onAdd(PurchaseUiLine(product, ordered, free, purchaseRate, schemeDiscount, batch.trim().ifBlank { null }, expiryMillis))
-            }) { Text("ADD") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("CANCEL") } }
-    )
+private fun SupplierDialog(onDismiss: () -> Unit, onSave: (String, String, String, String) -> Unit) {
+    var name by remember { mutableStateOf("") }; var phone by remember { mutableStateOf("") }; var address by remember { mutableStateOf("") }; var notes by remember { mutableStateOf("") }
+    AlertDialog(onDismissRequest = onDismiss, title = { Text("Add supplier") }, text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedTextField(name, { name = it }, singleLine = true, label = { Text("Name") }); OutlinedTextField(phone, { phone = it }, singleLine = true, label = { Text("Phone") }); OutlinedTextField(address, { address = it }, minLines = 2, label = { Text("Address") }); OutlinedTextField(notes, { notes = it }, minLines = 2, label = { Text("Notes") })
+    } }, confirmButton = { Button(onClick = { if (name.isNotBlank()) onSave(name, phone, address, notes) }) { Text("SAVE") } }, dismissButton = { TextButton(onClick = onDismiss) { Text("CANCEL") } })
 }
 
-private fun fmt(value: Double): String = String.format(Locale.US, "%.2f", value).trimEnd('0').trimEnd('.')
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PurchaseLineDialog(products: List<ProductEntity>, alreadySelectedProductIds: Set<String>, onDismiss: () -> Unit, onAdd: (ProductEntity, Double, Double, Double, Double, String, Long?) -> Unit) {
+    var selected by remember { mutableStateOf<ProductEntity?>(null) }; var expanded by remember { mutableStateOf(false) }; var ordered by remember { mutableStateOf("1") }; var free by remember { mutableStateOf("0") }; var rate by remember { mutableStateOf("") }; var discount by remember { mutableStateOf("0") }; var batch by remember { mutableStateOf("") }; var expiry by remember { mutableStateOf("") }; var error by remember { mutableStateOf<String?>(null) }
+    val expiryMillis = expiry.trim().takeIf { it.isNotBlank() }?.let { raw -> runCatching { LocalDate.parse(raw).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli() }.getOrNull() }
+    AlertDialog(onDismissRequest = onDismiss, title = { Text("Add purchase item") }, text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
+            OutlinedTextField(value = selected?.name.orEmpty(), onValueChange = {}, readOnly = true, modifier = Modifier.fillMaxWidth().menuAnchor(), label = { Text("Product") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) })
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }, modifier = Modifier.heightIn(max = 300.dp)) { products.filterNot { it.id in alreadySelectedProductIds }.forEach { product -> DropdownMenuItem(text = { Text("${product.name} • ${product.unit}") }, onClick = { selected = product; expanded = false }) } }
+        }
+        if (products.none { it.id !in alreadySelectedProductIds }) Text("All available products are already on this purchase.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        OutlinedTextField(ordered, { ordered = it }, singleLine = true, label = { Text("Paid quantity") }); OutlinedTextField(free, { free = it }, singleLine = true, label = { Text("Free quantity") }); OutlinedTextField(rate, { rate = it }, singleLine = true, label = { Text("Purchase rate") }); OutlinedTextField(discount, { discount = it }, singleLine = true, label = { Text("Scheme discount") }); OutlinedTextField(batch, { batch = it }, singleLine = true, label = { Text("Batch number") }); OutlinedTextField(expiry, { expiry = it }, singleLine = true, label = { Text("Expiry YYYY-MM-DD") }); error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+    } }, confirmButton = { Button(onClick = {
+        val q = ordered.replace(',', '.').toDoubleOrNull(); val f = free.replace(',', '.').toDoubleOrNull(); val r = rate.replace(',', '.').toDoubleOrNull(); val d = discount.replace(',', '.').toDoubleOrNull()
+        when {
+            selected == null -> error = "Select a product."
+            q == null || q <= 0 -> error = "Paid quantity must be greater than zero."
+            f == null || f < 0 -> error = "Free quantity cannot be negative."
+            r == null || r < 0 -> error = "Purchase rate cannot be negative."
+            d == null || d < 0 -> error = "Scheme discount cannot be negative."
+            d > (q!! * r!! + 1e-9) -> error = "Scheme discount cannot exceed gross cost."
+            expiry.isNotBlank() && expiryMillis == null -> error = "Use expiry format YYYY-MM-DD."
+            expiryMillis != null && expiryMillis < System.currentTimeMillis() -> error = "Expiry date cannot be in the past."
+            expiryMillis != null && batch.isBlank() -> error = "Batch number is required when expiry is entered."
+            selected!!.id in alreadySelectedProductIds -> error = "That product is already on this purchase."
+            else -> onAdd(selected!!, q!!, f!!, r!!, d!!, batch.trim(), expiryMillis)
+        }
+    }) { Text("ADD") } }, dismissButton = { TextButton(onClick = onDismiss) { Text("CANCEL") } })
+}
+
+private fun fmt(value: Double): String = if (value % 1.0 == 0.0) value.toInt().toString() else String.format(Locale.US, "%.2f", value)
 private fun fmtMoney(value: Double): String = String.format(Locale.US, "%.2f", value)
