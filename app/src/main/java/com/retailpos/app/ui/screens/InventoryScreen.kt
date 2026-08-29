@@ -105,7 +105,7 @@ fun InventoryScreen(
             item {
                 val needsAttention = lowStock + outOfStock > 0
                 Card(
-                    Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
                         containerColor = if (needsAttention) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer
                     )
@@ -178,7 +178,7 @@ fun InventoryScreen(
                         else -> "Healthy"
                     }
                     Card(
-                        Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth(),
                         onClick = { onOpenProduct(product.id) },
                         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                     ) {
