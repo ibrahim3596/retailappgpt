@@ -2,6 +2,7 @@ package com.retailpos.app.ui.screens
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -14,9 +15,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -33,9 +34,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -47,14 +47,7 @@ import com.retailpos.app.data.ProductViewModelFactory
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProductListScreen(
-    storeId: String,
-    onBack: () -> Unit,
-    onAddProduct: () -> Unit,
-    onIntelligentCapture: () -> Unit,
-    onEditProduct: (String) -> Unit,
-    onEditDetails: (String) -> Unit = {}
-) {
+fun ProductListScreen(storeId: String, onBack: () -> Unit, onAddProduct: () -> Unit, onIntelligentCapture: () -> Unit, onEditProduct: (String) -> Unit, onEditDetails: (String) -> Unit = {}) {
     val factory = remember(storeId) { ProductViewModelFactory(storeId) }
     val viewModel: ProductViewModel = viewModel(factory = factory)
     val products by viewModel.products.collectAsState()
@@ -62,48 +55,16 @@ fun ProductListScreen(
     val filter by viewModel.filter.collectAsState()
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Column { Text("Products", fontWeight = FontWeight.SemiBold); Text("Catalog", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) } },
-                navigationIcon = { IconButton(onClick = onBack) { Text("‹", style = MaterialTheme.typography.headlineMedium) } },
-                actions = { IconButton(onClick = onAddProduct) { Icon(Icons.Default.Add, contentDescription = "Add product") } }
-            )
-        },
-        floatingActionButton = {
-            FloatingActionButton(onClick = onIntelligentCapture, containerColor = MaterialTheme.colorScheme.secondaryContainer, contentColor = MaterialTheme.colorScheme.onSecondaryContainer) {
-                Text("AI", fontWeight = FontWeight.Bold)
-            }
-        }
+        topBar = { TopAppBar(title = { Column { Text("Products", fontWeight = FontWeight.SemiBold); Text("Catalog", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) } }, navigationIcon = { IconButton(onClick = onBack) { Text("‹", style = MaterialTheme.typography.headlineMedium) } }, actions = { IconButton(onClick = onAddProduct) { Icon(Icons.Default.Add, contentDescription = "Add product") } }) },
+        floatingActionButton = { FloatingActionButton(onClick = onIntelligentCapture, containerColor = MaterialTheme.colorScheme.secondaryContainer, contentColor = MaterialTheme.colorScheme.onSecondaryContainer) { Text("AI", fontWeight = FontWeight.Bold) } }
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp)) {
-            OutlinedTextField(
-                value = query,
-                onValueChange = viewModel::setQuery,
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                singleLine = true,
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                placeholder = { Text("Search name, SKU, barcode") }
-            )
+            OutlinedTextField(value = query, onValueChange = viewModel::setQuery, modifier = Modifier.fillMaxWidth().padding(top = 8.dp), singleLine = true, leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) }, placeholder = { Text("Search name, SKU, barcode") })
             Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 ProductFilterButton("All", ProductListFilter.ALL, filter, viewModel::setFilter, Modifier.weight(1f))
                 ProductFilterButton("Low", ProductListFilter.LOW_STOCK, filter, viewModel::setFilter, Modifier.weight(1f))
                 ProductFilterButton("Out", ProductListFilter.OUT_OF_STOCK, filter, viewModel::setFilter, Modifier.weight(1f))
                 ProductFilterButton("Archived", ProductListFilter.ARCHIVED, filter, viewModel::setFilter, Modifier.weight(1.25f))
-            }
-            if (filter != ProductListFilter.ALL && query.isBlank()) {
-                Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.small, modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        when (filter) {
-                            ProductListFilter.LOW_STOCK -> "Showing products at or below their reorder level."
-                            ProductListFilter.OUT_OF_STOCK -> "Showing products with no sellable stock."
-                            ProductListFilter.ARCHIVED -> "Archived products are excluded from normal billing."
-                            else -> ""
-                        },
-                        Modifier.padding(10.dp),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
             }
             if (products.isEmpty()) {
                 Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.medium, modifier = Modifier.fillMaxWidth().padding(top = 10.dp)) {
@@ -116,9 +77,7 @@ fun ProductListScreen(
                 }
             } else {
                 LazyColumn(contentPadding = PaddingValues(top = 2.dp, bottom = 96.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(products, key = { it.id }) { product ->
-                        ProductRow(product, { onEditProduct(product.id) }, { onEditDetails(product.id) }, { viewModel.archiveProduct(product.id, !product.isArchived) })
-                    }
+                    items(products, key = { it.id }) { product -> ProductRow(product, { onEditProduct(product.id) }, { onEditDetails(product.id) }, { viewModel.archiveProduct(product.id, !product.isArchived) }) }
                 }
             }
         }
@@ -135,12 +94,11 @@ private fun ProductFilterButton(label: String, value: ProductListFilter, selecte
 private fun ProductRow(product: ProductEntity, onClick: () -> Unit, onEditDetails: () -> Unit, onArchive: () -> Unit) {
     Card(Modifier.fillMaxWidth().clickable(onClick = onClick), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Row(Modifier.fillMaxWidth().padding(13.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Surface(Modifier.size(42.dp), shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.surfaceVariant) { BoxLabel(product) }
+            Surface(Modifier.size(42.dp), shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.surfaceVariant) { Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { Text(product.name.take(1).uppercase(), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold) } }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(product.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (product.brand.isNotBlank()) Text(product.brand, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                val stockText = "${fmt(product.stock)} ${product.unit}"
-                Text("${money(product.sellingPrice)}  ·  $stockText", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("${money(product.sellingPrice)}  ·  ${fmt(product.stock)} ${product.unit}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (product.sku?.isNotBlank() == true) Text("SKU ${product.sku}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (product.isArchived) Text("Archived", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
                 else if (product.stock <= 0.0) Text("Out of stock", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
@@ -148,13 +106,9 @@ private fun ProductRow(product: ProductEntity, onClick: () -> Unit, onEditDetail
             }
             TextButton(onClick = onEditDetails, contentPadding = PaddingValues(horizontal = 4.dp)) { Text("Details") }
         }
-        Row(Modifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 7.dp), horizontalArrangement = Arrangement.End) {
-            TextButton(onClick = onArchive) { Text(if (product.isArchived) "Restore" else "Archive") }
-        }
+        Row(Modifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 4.dp), horizontalArrangement = Arrangement.End) { TextButton(onClick = onArchive) { Text(if (product.isArchived) "Restore" else "Archive") } }
     }
 }
 
-@Composable
-private fun BoxLabel(product: ProductEntity) { Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { Text(product.name.take(1).uppercase(), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold) } }
 private fun money(value: Double): String = String.format(java.util.Locale.US, "₹%.2f", value)
 private fun fmt(value: Double): String = if (value % 1.0 == 0.0) value.toInt().toString() else String.format(java.util.Locale.US, "%.2f", value)
