@@ -25,4 +25,16 @@ class PaymentSettlementTest {
     fun electronicPaymentRejectsMismatch() {
         PaymentSettlementRules.settle("UPI", 250.0, 200.0)
     }
+
+    @Test
+    fun exactSplitSettlementIsAcceptedAsPaid() {
+        val result = PaymentSettlementRules.settle("SPLIT:CASH=40,UPI=60", 100.0)
+        assertEquals(100.0, result.amountTendered ?: 0.0, 0.0001)
+        assertEquals(0.0, result.change, 0.0001)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun malformedSplitSettlementCannotComplete() {
+        PaymentSettlementRules.settle("SPLIT:CASH=-40,UPI=140", 100.0)
+    }
 }
