@@ -181,66 +181,102 @@ fun IntelligentProductCaptureScreen(
                                 ).joinToString("|")
                                 if (fingerprint != resultFingerprintRef.get()) {
                                     resultFingerprintRef.set(fingerprint)
-                                    mainHandler.post {
-                                        resultPreview = ProductCaptureResult(
-                                            barcode = consensus.barcode,
-                                            detectedName = consensus.printedName,
-                                            detectedBrand = consensus.printedBrand,
-                                            categoryHint = consensus.categoryHint,
-                                            detectedMrp = consensus.mrp,
-                                            detectedPackSize = consensus.pack?.size,
-                                            detectedPackUnit = consensus.pack?.unit,
-                                            rawText = text,
-                                            labelConfidence = consensus.categoryConfidence,
-                                            frameCount = consensus.frameCount,
-                                            stabilityExplanation = stability.explanation
-                                        )
-                                        if (stability.stable) onResult(resultPreview!!)
-                                    }
+                                    val nextResult = ProductCaptureResult(
+                                        barcode = consensus.barcode,
+                                        detectedName = consensus.printedName,
+                                        detectedBrand = consensus.printedBrand,
+                                        categoryHint = consensus.categoryHint,
+                                        detectedMrp = consensus.mrp,
+                                        detectedPackSize = consensus.pack?.size,
+                                        detectedPackUnit = consensus.pack?.unit,
+                                        rawText = text,
+                                        labelConfidence = consensus.categoryConfidence,
+                                        frameCount = consensus.frameCount,
+                                        stabilityExplanation = stability.explanation
+                                    )
+                                    mainHandler.post { resultPreview = nextResult }
                                 }
+                                closeOnce()
                             }
 
-                            scanner.process(image).addOnSuccessListener { barcodes ->
-                                barcodeRef.set(barcodes.firstOrNull { it.format != Barcode.FORMAT_QR_CODE }?.rawValue?.trim())
-                            }.addOnCompleteListener { completed.incrementAndGet(); recordObservation() }
+                            fun markComplete() {
+                                completed.incrementAndGet()
+                                recordObservation()
+                            }
 
-                            recognizer.process(image).addOnSuccessListener { text ->
-                                textRef.set(text.text)
-                            }.addOnCompleteListener { completed.incrementAndGet(); recordObservation() }
-
-                            labeler.process(image).addOnSuccessListener { labels ->
-                                labels.maxByOrNull { it.confidence }?.let {
-                                    labelRef.set(it.text)
-                                    labelConfidenceRef.set(it.confidence)
+                            scanner.process(image)
+                                .addOnSuccessListener { codes ->
+                                    barcodeRef.set(codes.firstOrNull { it.format != Barcode.FORMAT_QR_CODE && !it.rawValue.isNullOrBlank() }?.rawValue)
                                 }
-                            }.addOnCompleteListener { completed.incrementAndGet(); recordObservation() }
+                                .addOnCompleteListener { markComplete() }
+
+                            recognizer.process(image)
+                                .addOnSuccessListener { recognized -> textRef.set(recognized.text.orEmpty()) }
+                                .addOnCompleteListener { markComplete() }
+
+                            labeler.process(image)
+                                .addOnSuccessListener { labels ->
+                                    val top = labels.maxByOrNull { it.confidence }
+                                    labelRef.set(top?.text)
+                                    labelConfidenceRef.set(top?.confidence)
+                                }
+                                .addOnCompleteListener { markComplete() }
                         }
                     }
-
-                provider.unbindAll()
-                provider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
+                try {
+                    provider.unbindAll()
+                    provider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
+                } catch (_: Exception) { }
             }
 
             providerFuture.addListener(listener, ContextCompat.getMainExecutor(context))
-
             onDispose {
-                runCatching { providerFuture.get().unbindAll() }
+                try { providerFuture.get().unbindAll() } catch (_: Exception) { }
                 scanner.close()
                 recognizer.close()
                 labeler.close()
+                executor.shutdownNow()
                 mainHandler.removeCallbacksAndMessages(null)
             }
         }
 
-        Column(Modifier.fillMaxSize()) {
-            AndroidView(factory = { previewView }, modifier = Modifier.fillMaxWidth().weight(1f))
-            Surface(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    val preview = resultPreview
-                    Text(preview?.detectedName ?: "Point the camera at a product", fontWeight = FontWeight.Bold)
-                    Text(preview?.stabilityExplanation ?: "Hold steady while RetailGPT reads the barcode and packaging.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Column(Modifier.fillMaxSize().padding(padding)) {
+            AndroidView(factory = { previewView }, modifier = Modifier.weight(1f).fillMaxWidth())
+            Surface(Modifier.fillMaxWidth().padding(16.dp), tonalElevation = 6.dp, shadowElevation = 8.dp) {
+                Column(Modifier.padding(16.dp)) {
+                    Text("Point the camera at the front of the product", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(6.dp))
+                    Text("The app samples multiple frames and keeps only consistent evidence. Identity remains a suggestion until review.", style = MaterialTheme.typography.bodySmall)
+                    resultPreview?.let { result ->
+                        Spacer(Modifier.height(10.dp))
+                        Text("Detected: ${result.detectedName ?: result.categoryHint ?: "Unknown product"}", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                        result.detectedBrand?.let { Text("Brand: $it", style = MaterialTheme.typography.bodySmall) }
+                        result.barcode?.let { Text("Barcode: $it", style = MaterialTheme.typography.bodySmall) }
+                        result.detectedMrp?.let { Text("Printed MRP: ₹${formatMoney(it)}", style = MaterialTheme.typography.bodySmall) }
+                        if (result.detectedPackSize != null && !result.detectedPackUnit.isNullOrBlank()) Text("Pack size: ${formatQuantity(result.detectedPackSize)} ${result.detectedPackUnit}", style = MaterialTheme.typography.bodySmall)
+                        result.categoryHint?.let { Text("Category hint: $it", style = MaterialTheme.typography.bodySmall) }
+                        Text("Evidence frames: ${result.frameCount}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(result.stabilityExplanation, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.height(8.dp))
+                        Button(
+                            onClick = { onResult(result) },
+                            enabled = ProductCaptureStabilityRules.evaluate(
+                                ProductCaptureObservation(
+                                    barcode = result.barcode,
+                                    printedName = result.detectedName,
+                                    printedBrand = result.detectedBrand,
+                                    categoryHint = result.categoryHint,
+                                    frameCount = result.frameCount
+                                )
+                            ).stable,
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("USE DETECTED DETAILS") }
+                    }
                 }
             }
         }
     }
 }
+
+private fun formatMoney(value: Double): String = String.format(java.util.Locale.US, "%.2f", value)
+private fun formatQuantity(value: Double): String = if (value % 1.0 == 0.0) value.toInt().toString() else String.format(java.util.Locale.US, "%.2f", value)
