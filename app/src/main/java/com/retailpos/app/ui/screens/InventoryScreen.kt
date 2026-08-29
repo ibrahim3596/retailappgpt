@@ -67,9 +67,9 @@ fun InventoryScreen(
     LaunchedEffect(storeId) { movements = inventoryMovements() }
 
     val visibleProducts = products.filter { product ->
-        val normalizedQuery = query.trim()
-        val matchesQuery = normalizedQuery.isBlank() || listOfNotNull(product.name, product.brand, product.sku, product.barcode)
-            .any { it.contains(normalizedQuery, ignoreCase = true) }
+        val q = query.trim()
+        val matchesQuery = q.isBlank() || listOfNotNull(product.name, product.brand, product.sku, product.barcode)
+            .any { it.contains(q, ignoreCase = true) }
         val matchesFilter = when (filter) {
             StockFilter.ALL -> true
             StockFilter.LOW -> product.stock > 0.0 && product.stock <= product.lowStockThreshold
@@ -103,11 +103,11 @@ fun InventoryScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
+                val needsAttention = lowStock + outOfStock > 0
                 Card(
                     Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
-                        containerColor = if (lowStock + outOfStock > 0) MaterialTheme.colorScheme.errorContainer
-                        else MaterialTheme.colorScheme.primaryContainer
+                        containerColor = if (needsAttention) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer
                     )
                 ) {
                     Row(
@@ -115,22 +115,12 @@ fun InventoryScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Surface(
-                            Modifier.size(44.dp),
-                            shape = MaterialTheme.shapes.small,
-                            color = MaterialTheme.colorScheme.surface.copy(alpha = .75f)
-                        ) { Icon(Icons.Default.Inventory2, contentDescription = null, modifier = Modifier.padding(11.dp)) }
+                        Surface(Modifier.size(44.dp), shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.surface.copy(alpha = .75f)) {
+                            Icon(Icons.Default.Inventory2, contentDescription = null, modifier = Modifier.padding(11.dp))
+                        }
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text(
-                                if (lowStock + outOfStock == 0) "Stock looks healthy"
-                                else "${lowStock + outOfStock} items need attention",
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                if (lowStock + outOfStock == 0) "No low or out-of-stock products."
-                                else "$lowStock low stock · $outOfStock out of stock",
-                                style = MaterialTheme.typography.bodySmall
-                            )
+                            Text(if (needsAttention) "${lowStock + outOfStock} items need attention" else "Stock looks healthy", fontWeight = FontWeight.SemiBold)
+                            Text(if (needsAttention) "$lowStock low stock · $outOfStock out of stock" else "No low or out-of-stock products.", style = MaterialTheme.typography.bodySmall)
                         }
                     }
                 }
@@ -206,7 +196,7 @@ fun InventoryScreen(
                             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f)) {
                                     Text("Value · ₹${money(product.purchasePrice * product.stock.coerceAtLeast(0.0))}", style = MaterialTheme.typography.labelMedium)
-                                    if (product.sku?.isNotBlank() == true) Text("SKU · ${product.sku}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    product.sku?.takeIf { it.isNotBlank() }?.let { Text("SKU · $it", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                                 }
                                 OutlinedButton(onClick = { onReceiveProduct(product.id) }) { Text("Receive") }
                                 Button(onClick = { onAdjustProduct(product.id) }) { Text("Adjust") }
