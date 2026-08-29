@@ -26,11 +26,14 @@ object SplitPaymentRules {
 
     fun decode(value: String): List<SplitPaymentPart> {
         if (!value.startsWith("SPLIT:")) return emptyList()
-        return value.removePrefix("SPLIT:").split(',').mapNotNull { token ->
+        val decoded = value.removePrefix("SPLIT:").split(',').mapNotNull { token ->
             val pair = token.split('=', limit = 2)
             if (pair.size != 2) return@mapNotNull null
+            val method = pair[0]
             val amount = pair[1].toDoubleOrNull() ?: return@mapNotNull null
-            SplitPaymentPart(pair[0], amount)
+            if (method !in methods || !amount.isFinite() || amount <= 0.0) return@mapNotNull null
+            SplitPaymentPart(method, amount)
         }
+        return if (decoded.size >= 2) decoded else emptyList()
     }
 }
