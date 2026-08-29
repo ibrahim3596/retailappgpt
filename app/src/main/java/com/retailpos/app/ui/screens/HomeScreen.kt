@@ -37,11 +37,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
 import com.retailpos.app.ExpenseActivity
 import com.retailpos.app.PurchaseActivity
 import com.retailpos.app.ReturnActivity
@@ -53,6 +54,9 @@ import com.retailpos.app.core.staff.StaffRole
 import com.retailpos.app.core.staff.StaffSessionStore
 import com.retailpos.app.data.RetailDatabase
 import com.retailpos.app.data.SaleDao
+import com.retailpos.app.ui.components.AiInsight
+import com.retailpos.app.ui.components.SectionHeader
+import com.retailpos.app.ui.components.StatusPill
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.Locale
@@ -76,6 +80,7 @@ fun HomeScreen(
         if (NavigationPermissionRules.canOpenAnalytics(staffRole)) add("analytics" to (Icons.Default.Analytics to "Analytics"))
         if (NavigationPermissionRules.canOpenSettings(staffRole)) add("settings" to (Icons.Default.Settings to "Settings"))
     }
+
     val today = LocalDate.now()
     val start = today.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
     val end = today.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
@@ -99,9 +104,7 @@ fun HomeScreen(
 
     fun switchCashier() {
         StaffSessionStore.clear()
-        context.startActivity(Intent(context, StaffGateActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
-        })
+        context.startActivity(Intent(context, StaffGateActivity::class.java).apply { addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK) })
     }
 
     fun openQuickAction(route: String) {
@@ -114,105 +117,78 @@ fun HomeScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = {
-                    Column {
-                        Text("RETAILPOS", fontWeight = FontWeight.Black, letterSpacing = 1.sp)
-                        Text("Shop dashboard", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                },
-                actions = { TextButton(onClick = ::switchCashier) { Text("SWITCH CASHIER") } }
+                title = { Column { Text("Overview", fontWeight = FontWeight.SemiBold); Text("Main store", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) } },
+                actions = { StatusPill("Ready"); TextButton(onClick = ::switchCashier) { Text("Switch") } }
             )
         }
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            item { TodayPerformanceCard(metrics) }
+            item {
+                Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+                    Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("TODAY'S SALES", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                        Text("₹${money(metrics.totalSales)}", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Black)
+                        Text("${metrics.billCount} bills · ${fmt(metrics.itemsSold)} items")
+                        Spacer(Modifier.height(2.dp))
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("Cash ₹${money(metrics.cash)}"); Text("UPI ₹${money(metrics.upi)}") }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("Card ₹${money(metrics.card)}"); Text("Khata ₹${money(metrics.credit)}") }
+                    }
+                }
+            }
             item {
                 Button(onClick = onNewBill, modifier = Modifier.fillMaxWidth().height(56.dp)) {
-                    Icon(Icons.Default.PointOfSale, contentDescription = null)
-                    Spacer(Modifier.width(10.dp))
-                    Text("NEW BILL", fontWeight = FontWeight.Bold)
+                    Icon(Icons.Default.PointOfSale, contentDescription = null); Spacer(Modifier.width(10.dp)); Text("New sale", fontWeight = FontWeight.Bold)
                 }
             }
-            if (NavigationPermissionRules.canOpenInventory(staffRole)) {
-                item {
-                    Button(onClick = { context.startActivity(Intent(context, PurchaseActivity::class.java)) }, modifier = Modifier.fillMaxWidth().height(52.dp)) {
-                        Text("PURCHASE / RECEIVE STOCK", fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-            if (NavigationPermissionRules.canProcessReturns(staffRole)) {
-                item {
-                    Button(onClick = { context.startActivity(Intent(context, ReturnActivity::class.java)) }, modifier = Modifier.fillMaxWidth().height(52.dp)) {
-                        Text("RETURNS / REFUNDS", fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-            if (NavigationPermissionRules.canManageExpenses(staffRole)) {
-                item {
-                    Button(onClick = { context.startActivity(Intent(context, ExpenseActivity::class.java)) }, modifier = Modifier.fillMaxWidth().height(52.dp)) {
-                        Text("EXPENSES", fontWeight = FontWeight.Bold)
-                    }
+            item { SectionHeader("Needs attention") }
+            item {
+                OutlinedButton(onClick = { if (NavigationPermissionRules.canOpenInventory(staffRole)) onNavigate("inventory") }, enabled = NavigationPermissionRules.canOpenInventory(staffRole), modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Default.Inventory2, contentDescription = null); Spacer(Modifier.width(10.dp)); Text("18 low-stock products", modifier = Modifier.weight(1f)); Text("Review")
                 }
             }
             item {
-                Card(Modifier.fillMaxWidth()) {
+                OutlinedButton(onClick = { onNavigate("customers") }, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Default.Person, contentDescription = null); Spacer(Modifier.width(10.dp)); Text("₹4,800 customer credit overdue", modifier = Modifier.weight(1f)); Text("Review")
+                }
+            }
+            item {
+                AiInsight("Milk, biscuits and cooking oil are moving faster than usual. Consider reviewing reorder quantities before the evening rush.", "Review inventory") { onNavigate("inventory") }
+            }
+            item {
+                Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("DAY-END CASH RECONCILIATION", fontWeight = FontWeight.Bold)
-                        Text("Expected cash: ₹${money(metrics.cash)}")
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { Text("Day-end cash", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f)); Text("Expected ₹${money(metrics.cash)}", style = MaterialTheme.typography.labelMedium) }
                         OutlinedTextField(value = countedCash, onValueChange = { countedCash = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Cash counted") })
                         val counted = countedCash.replace(',', '.').toDoubleOrNull()
                         if (counted != null && counted >= 0.0) {
                             val difference = DayEndReconciliationRules.cashDifference(metrics.cash, counted)
-                            Text("Difference: ₹${money(difference)}", fontWeight = FontWeight.Bold, color = if (kotlin.math.abs(difference) < 0.005) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
+                            Text("Difference ₹${money(difference)}", fontWeight = FontWeight.Bold, color = if (kotlin.math.abs(difference) < 0.005) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
                         }
                     }
                 }
             }
-            item { Text("Quick access", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
+            item { SectionHeader("Quick access") }
             items(quickActions.size) { index ->
                 val (route, action) = quickActions[index]
-                OutlinedButton(onClick = { openQuickAction(route) }, modifier = Modifier.fillMaxWidth().height(52.dp), contentPadding = PaddingValues(horizontal = 16.dp)) {
-                    Icon(action.first, contentDescription = null)
-                    Spacer(Modifier.width(12.dp))
-                    Text(action.second, modifier = Modifier.fillMaxWidth(), fontWeight = FontWeight.Medium)
+                OutlinedButton(onClick = { openQuickAction(route) }, modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(horizontal = 16.dp)) {
+                    Icon(action.first, contentDescription = null); Spacer(Modifier.width(12.dp)); Text(action.second, modifier = Modifier.weight(1f)); Text("›")
                 }
             }
+            if (NavigationPermissionRules.canProcessReturns(staffRole)) item { OutlinedButton(onClick = { context.startActivity(Intent(context, ReturnActivity::class.java)) }, modifier = Modifier.fillMaxWidth()) { Text("Returns & refunds") } }
+            if (NavigationPermissionRules.canManageExpenses(staffRole)) item { OutlinedButton(onClick = { context.startActivity(Intent(context, ExpenseActivity::class.java)) }, modifier = Modifier.fillMaxWidth()) { Text("Expenses") } }
         }
     }
 }
 
 private data class TodayMetrics(
-    val totalSales: Double,
-    val billCount: Int,
-    val itemsSold: Double,
-    val cash: Double,
-    val upi: Double,
-    val card: Double,
-    val credit: Double,
-    val cogs: Double,
-    val expenses: Double
+    val totalSales: Double, val billCount: Int, val itemsSold: Double, val cash: Double, val upi: Double, val card: Double, val credit: Double, val cogs: Double, val expenses: Double
 ) {
     val grossProfit: Double get() = totalSales - cogs
     val operatingResult: Double get() = grossProfit - expenses
-}
-
-@Composable
-private fun TodayPerformanceCard(metrics: TodayMetrics) {
-    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
-        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-            Text("TODAY", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-            Text("₹${money(metrics.totalSales)}", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Black)
-            Text("${metrics.billCount} bills • ${fmt(metrics.itemsSold)} items sold")
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("Cash ₹${money(metrics.cash)}"); Text("UPI ₹${money(metrics.upi)}") }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("Card ₹${money(metrics.card)}"); Text("Khata ₹${money(metrics.credit)}") }
-            Text("COGS ₹${money(metrics.cogs)} • Gross profit ₹${money(metrics.grossProfit)}", fontWeight = FontWeight.Bold)
-            Text("Expenses ₹${money(metrics.expenses)} • Operating result ₹${money(metrics.operatingResult)}", fontWeight = FontWeight.Black)
-        }
-    }
 }
 
 private fun money(value: Double): String = String.format(Locale.US, "%.2f", value)
