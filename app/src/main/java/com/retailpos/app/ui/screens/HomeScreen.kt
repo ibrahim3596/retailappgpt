@@ -20,9 +20,9 @@ import androidx.compose.material.icons.filled.PointOfSale
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Storefront
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -37,11 +37,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
 import com.retailpos.app.ExpenseActivity
 import com.retailpos.app.PurchaseActivity
 import com.retailpos.app.ReturnActivity
@@ -53,6 +54,9 @@ import com.retailpos.app.core.staff.StaffRole
 import com.retailpos.app.core.staff.StaffSessionStore
 import com.retailpos.app.data.RetailDatabase
 import com.retailpos.app.data.SaleDao
+import com.retailpos.app.ui.components.AiInsight
+import com.retailpos.app.ui.components.MetricLine
+import com.retailpos.app.ui.components.SectionHeader
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.Locale
@@ -68,30 +72,24 @@ fun HomeScreen(
     val staffRole = StaffSessionStore.current()?.role ?: StaffRole.CASHIER
     val database = remember(context) { RetailDatabase.get(context) }
     val actualSaleDao = saleDao ?: database.saleDao()
-    val quickActions = buildList {
-        if (NavigationPermissionRules.canOpenProducts(staffRole)) add("products" to (Icons.Default.Storefront to "Products"))
-        if (NavigationPermissionRules.canOpenInventory(staffRole)) add("inventory" to (Icons.Default.Inventory2 to "Inventory"))
-        if (NavigationPermissionRules.canOpenInventory(staffRole)) add("purchases" to (Icons.Default.ShoppingCart to "Purchases"))
-        add("customers" to (Icons.Default.Person to "Customers"))
-        if (NavigationPermissionRules.canOpenAnalytics(staffRole)) add("analytics" to (Icons.Default.Analytics to "Analytics"))
-        if (NavigationPermissionRules.canOpenSettings(staffRole)) add("settings" to (Icons.Default.Settings to "Settings"))
-    }
     val today = LocalDate.now()
     val start = today.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
     val end = today.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
     val metricsState by produceState<TodayMetrics?>(initialValue = null, actualSaleDao, database, start, end) {
         val payments = PaymentSummaryRules.normalize(actualSaleDao.getPaymentSummary(storeId, start, end)).associateBy { it.paymentMethod.uppercase() }
-        val total = actualSaleDao.getSalesTotal(storeId, start, end)
+        val sales = actualSaleDao.getSalesTotal(storeId, start, end)
+        val cogs = actualSaleDao.getCogsTotal(storeId, start, end)
+        val expenses = database.expenseDao().totalBetween(storeId, start, end)
         value = TodayMetrics(
-            totalSales = total,
+            totalSales = sales,
             billCount = actualSaleDao.getSalesCount(storeId, start, end),
             itemsSold = actualSaleDao.getItemsSold(storeId, start, end),
             cash = payments["CASH"]?.total ?: 0.0,
             upi = payments["UPI"]?.total ?: 0.0,
             card = payments["CARD"]?.total ?: 0.0,
             credit = payments["CREDIT"]?.total ?: 0.0,
-            cogs = actualSaleDao.getCogsTotal(storeId, start, end),
-            expenses = database.expenseDao().totalBetween(storeId, start, end)
+            cogs = cogs,
+            expenses = expenses
         )
     }
     val metrics = metricsState ?: TodayMetrics(0.0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
@@ -111,74 +109,119 @@ fun HomeScreen(
         }
     }
 
+    val quickActions = buildList {
+        if (NavigationPermissionRules.canOpenProducts(staffRole)) add("products" to (Icons.Default.Storefront to "Products"))
+        if (NavigationPermissionRules.canOpenInventory(staffRole)) add("inventory" to (Icons.Default.Inventory2 to "Inventory"))
+        if (NavigationPermissionRules.canOpenInventory(staffRole)) add("purchases" to (Icons.Default.ShoppingCart to "Purchases"))
+        add("customers" to (Icons.Default.Person to "Customers"))
+        if (NavigationPermissionRules.canOpenAnalytics(staffRole)) add("analytics" to (Icons.Default.Analytics to "Analytics"))
+        if (NavigationPermissionRules.canOpenSettings(staffRole)) add("settings" to (Icons.Default.Settings to "Settings"))
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
                     Column {
-                        Text("RETAILPOS", fontWeight = FontWeight.Black, letterSpacing = 1.sp)
-                        Text("Shop dashboard", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("Overview", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                        Text("Main counter · Today", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 },
-                actions = { TextButton(onClick = ::switchCashier) { Text("SWITCH CASHIER") } }
+                actions = { TextButton(onClick = ::switchCashier) { Text("SWITCH") } }
             )
         }
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            item { TodayPerformanceCard(metrics) }
             item {
-                Button(onClick = onNewBill, modifier = Modifier.fillMaxWidth().height(56.dp)) {
+                Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+                    Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Text("Today's sales", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("₹${money(metrics.totalSales)}", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
+                        Text("${metrics.billCount} bills · ${fmt(metrics.itemsSold)} items sold", color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    }
+                }
+            }
+            item {
+                Button(onClick = onNewBill, modifier = Modifier.fillMaxWidth().height(54.dp)) {
                     Icon(Icons.Default.PointOfSale, contentDescription = null)
-                    Spacer(Modifier.width(10.dp))
+                    Spacer(Modifier.width(9.dp))
                     Text("NEW BILL", fontWeight = FontWeight.Bold)
                 }
             }
+            item {
+                SectionHeader("Payment mix")
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(horizontal = 14.dp, vertical = 6.dp)) {
+                        MetricLine("Cash", "₹${money(metrics.cash)}")
+                        MetricLine("UPI", "₹${money(metrics.upi)}")
+                        MetricLine("Card", "₹${money(metrics.card)}")
+                        MetricLine("Khata", "₹${money(metrics.credit)}")
+                    }
+                }
+            }
+            item {
+                SectionHeader("Needs attention")
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(horizontal = 14.dp, vertical = 6.dp)) {
+                        MetricLine("Inventory", "Review", "Low-stock and reorder candidates")
+                        MetricLine("Customer credit", "₹${money(metrics.credit)}", "Outstanding sales recorded today")
+                    }
+                }
+            }
+            item {
+                AiInsight(
+                    "RetailGPT can surface reorder opportunities, unusual sales patterns and customer-credit risks as your store data changes.",
+                    "Open analytics",
+                    onAction = { onNavigate("analytics") }
+                )
+            }
             if (NavigationPermissionRules.canOpenInventory(staffRole)) {
                 item {
-                    Button(onClick = { context.startActivity(Intent(context, PurchaseActivity::class.java)) }, modifier = Modifier.fillMaxWidth().height(52.dp)) {
-                        Text("PURCHASE / RECEIVE STOCK", fontWeight = FontWeight.Bold)
+                    OutlinedButton(onClick = { context.startActivity(Intent(context, PurchaseActivity::class.java)) }, modifier = Modifier.fillMaxWidth()) {
+                        Text("PURCHASE / RECEIVE STOCK")
                     }
                 }
             }
             if (NavigationPermissionRules.canProcessReturns(staffRole)) {
                 item {
-                    Button(onClick = { context.startActivity(Intent(context, ReturnActivity::class.java)) }, modifier = Modifier.fillMaxWidth().height(52.dp)) {
-                        Text("RETURNS / REFUNDS", fontWeight = FontWeight.Bold)
+                    OutlinedButton(onClick = { context.startActivity(Intent(context, ReturnActivity::class.java)) }, modifier = Modifier.fillMaxWidth()) {
+                        Text("RETURNS / REFUNDS")
                     }
                 }
             }
             if (NavigationPermissionRules.canManageExpenses(staffRole)) {
                 item {
-                    Button(onClick = { context.startActivity(Intent(context, ExpenseActivity::class.java)) }, modifier = Modifier.fillMaxWidth().height(52.dp)) {
-                        Text("EXPENSES", fontWeight = FontWeight.Bold)
+                    OutlinedButton(onClick = { context.startActivity(Intent(context, ExpenseActivity::class.java)) }, modifier = Modifier.fillMaxWidth()) {
+                        Text("EXPENSES")
                     }
                 }
             }
             item {
+                SectionHeader("Day-end cash")
                 Card(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("DAY-END CASH RECONCILIATION", fontWeight = FontWeight.Bold)
-                        Text("Expected cash: ₹${money(metrics.cash)}")
+                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Expected cash · ₹${money(metrics.cash)}", style = MaterialTheme.typography.bodyMedium)
                         OutlinedTextField(value = countedCash, onValueChange = { countedCash = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Cash counted") })
-                        val counted = countedCash.replace(',', '.').toDoubleOrNull()
-                        if (counted != null && counted >= 0.0) {
+                        countedCash.replace(',', '.').toDoubleOrNull()?.takeIf { it >= 0.0 }?.let { counted ->
                             val difference = DayEndReconciliationRules.cashDifference(metrics.cash, counted)
-                            Text("Difference: ₹${money(difference)}", fontWeight = FontWeight.Bold, color = if (kotlin.math.abs(difference) < 0.005) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
+                            Text("Difference · ₹${money(difference)}", fontWeight = FontWeight.SemiBold, color = if (kotlin.math.abs(difference) < 0.005) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
                         }
                     }
                 }
             }
-            item { Text("Quick access", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
-            items(quickActions.size) { index ->
-                val (route, action) = quickActions[index]
-                OutlinedButton(onClick = { openQuickAction(route) }, modifier = Modifier.fillMaxWidth().height(52.dp), contentPadding = PaddingValues(horizontal = 16.dp)) {
-                    Icon(action.first, contentDescription = null)
-                    Spacer(Modifier.width(12.dp))
-                    Text(action.second, modifier = Modifier.fillMaxWidth(), fontWeight = FontWeight.Medium)
+            item {
+                SectionHeader("Quick access")
+                quickActions.forEach { (route, action) ->
+                    OutlinedButton(onClick = { openQuickAction(route) }, modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp), contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp)) {
+                        Icon(action.first, contentDescription = null)
+                        Spacer(Modifier.width(10.dp))
+                        Text(action.second, modifier = Modifier.weight(1f), fontWeight = FontWeight.Medium)
+                        Text("›", fontSize = 20.sp)
+                    }
                 }
             }
         }
@@ -195,25 +238,7 @@ private data class TodayMetrics(
     val credit: Double,
     val cogs: Double,
     val expenses: Double
-) {
-    val grossProfit: Double get() = totalSales - cogs
-    val operatingResult: Double get() = grossProfit - expenses
-}
-
-@Composable
-private fun TodayPerformanceCard(metrics: TodayMetrics) {
-    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
-        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-            Text("TODAY", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-            Text("₹${money(metrics.totalSales)}", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Black)
-            Text("${metrics.billCount} bills • ${fmt(metrics.itemsSold)} items sold")
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("Cash ₹${money(metrics.cash)}"); Text("UPI ₹${money(metrics.upi)}") }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("Card ₹${money(metrics.card)}"); Text("Khata ₹${money(metrics.credit)}") }
-            Text("COGS ₹${money(metrics.cogs)} • Gross profit ₹${money(metrics.grossProfit)}", fontWeight = FontWeight.Bold)
-            Text("Expenses ₹${money(metrics.expenses)} • Operating result ₹${money(metrics.operatingResult)}", fontWeight = FontWeight.Black)
-        }
-    }
-}
+)
 
 private fun money(value: Double): String = String.format(Locale.US, "%.2f", value)
 private fun fmt(value: Double): String = if (value % 1.0 == 0.0) value.toInt().toString() else String.format(Locale.US, "%.2f", value)
