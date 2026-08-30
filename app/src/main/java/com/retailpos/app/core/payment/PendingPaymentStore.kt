@@ -24,6 +24,7 @@ object PendingPaymentStore {
         applicationContext = context.applicationContext
         prefs = applicationContext?.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         amountTendered = prefs?.getString(KEY_AMOUNT_TENDERED, null)?.toDoubleOrNull()
+            ?.takeIf { it.isFinite() && it >= 0.0 }
         amountCartFingerprint = prefs?.getString(KEY_AMOUNT_CART_FINGERPRINT, null)?.takeIf { it.isNotBlank() }
         idempotencyKey = prefs?.getString(KEY_IDEMPOTENCY, null)?.takeIf { it.isNotBlank() }
         idempotencyFingerprint = prefs?.getString(KEY_IDEMPOTENCY_FINGERPRINT, null)?.takeIf { it.isNotBlank() }
@@ -38,10 +39,11 @@ object PendingPaymentStore {
     }
 
     fun set(amount: Double?, cartFingerprint: String?) {
-        amountTendered = amount
-        amountCartFingerprint = cartFingerprint?.takeIf { it.isNotBlank() }
+        val sanitizedAmount = amount?.takeIf { it.isFinite() && it >= 0.0 }
+        amountTendered = sanitizedAmount
+        amountCartFingerprint = sanitizedAmount?.let { cartFingerprint?.takeIf { it.isNotBlank() } }
         prefs?.edit()?.apply {
-            if (amount == null) remove(KEY_AMOUNT_TENDERED) else putString(KEY_AMOUNT_TENDERED, amount.toString())
+            if (sanitizedAmount == null) remove(KEY_AMOUNT_TENDERED) else putString(KEY_AMOUNT_TENDERED, sanitizedAmount.toString())
             if (amountCartFingerprint == null) remove(KEY_AMOUNT_CART_FINGERPRINT) else putString(KEY_AMOUNT_CART_FINGERPRINT, amountCartFingerprint)
         }?.apply()
     }
