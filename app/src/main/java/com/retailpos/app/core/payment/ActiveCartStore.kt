@@ -38,34 +38,32 @@ object ActiveCartStore {
         val raw = prefs?.getString(KEY_LINES, null) ?: return emptyList()
         return runCatching {
             val json = JSONArray(raw)
-            buildList {
-                for (index in 0 until json.length()) {
-                    val item = json.getJSONObject(index)
-                    val quantity = item.getDouble("quantity")
-                    val unitPrice = item.getDouble("unitPrice")
-                    val override = if (item.isNull("overrideUnitPrice")) null else item.getDouble("overrideUnitPrice")
-                    val discount = item.optDouble("itemDiscountAmount", 0.0)
-                    if (!quantity.isFinite() || quantity <= 0.0 ||
-                        !unitPrice.isFinite() || unitPrice < 0.0 ||
-                        (override != null && (!override.isFinite() || override < 0.0)) ||
-                        !discount.isFinite() || discount < 0.0
-                    ) {
-                        return@runCatching emptyList()
-                    }
-                    add(
-                        CartLine(
-                            item.getString("productId"),
-                            item.getString("name"),
-                            if (item.isNull("sku")) null else item.getString("sku"),
-                            item.getString("unit"),
-                            unitPrice,
-                            quantity,
-                            override,
-                            discount
-                        )
-                    )
+            val lines = mutableListOf<CartLine>()
+            for (index in 0 until json.length()) {
+                val item = json.getJSONObject(index)
+                val quantity = item.getDouble("quantity")
+                val unitPrice = item.getDouble("unitPrice")
+                val override = if (item.isNull("overrideUnitPrice")) null else item.getDouble("overrideUnitPrice")
+                val discount = item.optDouble("itemDiscountAmount", 0.0)
+                if (!quantity.isFinite() || quantity <= 0.0 ||
+                    !unitPrice.isFinite() || unitPrice < 0.0 ||
+                    (override != null && (!override.isFinite() || override < 0.0)) ||
+                    !discount.isFinite() || discount < 0.0
+                ) {
+                    return@runCatching emptyList()
                 }
+                lines += CartLine(
+                    item.getString("productId"),
+                    item.getString("name"),
+                    if (item.isNull("sku")) null else item.getString("sku"),
+                    item.getString("unit"),
+                    unitPrice,
+                    quantity,
+                    override,
+                    discount
+                )
             }
+            lines
         }.getOrDefault(emptyList())
     }
 
