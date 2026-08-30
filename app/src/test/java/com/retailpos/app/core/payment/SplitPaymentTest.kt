@@ -25,6 +25,15 @@ class SplitPaymentTest {
     }
 
     @Test
+    fun rejectsPositiveSplitAgainstZeroPayable() {
+        val parts = listOf(
+            SplitPaymentPart("CASH", 0.004),
+            SplitPaymentPart("UPI", 0.004)
+        )
+        assertNotNull(SplitPaymentRules.validate(0.0, parts))
+    }
+
+    @Test
     fun encodeDecodeRoundTrip() {
         val original = listOf(
             SplitPaymentPart("CASH", 40.0),
