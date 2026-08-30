@@ -29,4 +29,15 @@ class PaymentSummaryRulesTest {
         assertEquals(listOf("CASH"), result.map { it.paymentMethod })
         assertEquals(100.0, result.single().total, 0.001)
     }
+
+    @Test
+    fun breaksEqualTotalTiesByPaymentMethod() {
+        val result = PaymentSummaryRules.normalize(
+            listOf(
+                PaymentSummary("UPI", 1, 100.0),
+                PaymentSummary("CASH", 1, 100.0)
+            )
+        )
+        assertEquals(listOf("CASH", "UPI"), result.map { it.paymentMethod })
+    }
 }
