@@ -19,7 +19,7 @@ object CheckoutRecoveryFingerprint {
     )
 
     private fun canonicalCart(lines: List<CartLine>): String = lines
-        .sortedBy { it.productId }
+        .sortedWith(compareBy<CartLine> { it.productId }.thenBy { it.name }.thenBy { it.sku.orEmpty() }.thenBy { it.unit }.thenBy { format(it.unitPrice) }.thenBy { format(it.quantity) }.thenBy { it.overrideUnitPrice?.let(::format).orEmpty() }.thenBy { format(it.itemDiscountAmount) })
         .joinToString("\n") { line ->
             listOf(
                 line.productId,
