@@ -23,6 +23,6 @@ object PaymentSummaryRules {
 
         return totals.entries
             .map { (method, value) -> PaymentSummary(method, value.first, value.second) }
-            .sortedByDescending { it.total }
+            .sortedWith(compareByDescending<PaymentSummary> { it.total }.thenBy { it.paymentMethod })
     }
 }
