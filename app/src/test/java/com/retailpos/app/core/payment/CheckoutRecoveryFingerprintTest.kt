@@ -53,4 +53,11 @@ class CheckoutRecoveryFingerprintTest {
             CheckoutRecoveryFingerprint.of(listOf(rice, sugar))
         )
     }
+
+    @Test
+    fun signedZeroDoesNotChangeFingerprint() {
+        val positiveZero = CheckoutRecoveryFingerprint.of(listOf(line(discount = 0.0)))
+        val negativeZero = CheckoutRecoveryFingerprint.of(listOf(line(discount = -0.0)))
+        assertEquals(positiveZero, negativeZero)
+    }
 }

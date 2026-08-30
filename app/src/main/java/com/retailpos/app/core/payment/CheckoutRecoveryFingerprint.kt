@@ -38,5 +38,5 @@ object CheckoutRecoveryFingerprint {
         return digest.joinToString("") { byte -> "%02x".format(Locale.US, byte.toInt() and 0xff) }
     }
 
-    private fun format(value: Double): String = java.lang.Double.toString(value)
+    private fun format(value: Double): String = java.lang.Double.toString(if (value == 0.0) 0.0 else value)
 }
