@@ -45,11 +45,25 @@ object ActiveCartStore {
                     val unitPrice = item.getDouble("unitPrice")
                     val override = if (item.isNull("overrideUnitPrice")) null else item.getDouble("overrideUnitPrice")
                     val discount = item.optDouble("itemDiscountAmount", 0.0)
-                    if (quantity.isFinite() && quantity > 0.0 && unitPrice.isFinite() && unitPrice >= 0.0 &&
-                        (override == null || (override.isFinite() && override >= 0.0)) && discount.isFinite() && discount >= 0.0
+                    if (!quantity.isFinite() || quantity <= 0.0 ||
+                        !unitPrice.isFinite() || unitPrice < 0.0 ||
+                        (override != null && (!override.isFinite() || override < 0.0)) ||
+                        !discount.isFinite() || discount < 0.0
                     ) {
-                        add(CartLine(item.getString("productId"), item.getString("name"), if (item.isNull("sku")) null else item.getString("sku"), item.getString("unit"), unitPrice, quantity, override, discount))
+                        return@runCatching emptyList()
                     }
+                    add(
+                        CartLine(
+                            item.getString("productId"),
+                            item.getString("name"),
+                            if (item.isNull("sku")) null else item.getString("sku"),
+                            item.getString("unit"),
+                            unitPrice,
+                            quantity,
+                            override,
+                            discount
+                        )
+                    )
                 }
             }
         }.getOrDefault(emptyList())
