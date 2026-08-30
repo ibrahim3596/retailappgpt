@@ -54,7 +54,12 @@ fun AiInsight(text: String, action: String? = null, onAction: (() -> Unit)? = nu
         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("RETAILGPT INSIGHT", color = RetailTokens.Ai, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
             Text(text, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-            if (action != null) androidx.compose.material3.TextButton(onClick = { onAction?.invoke() }) { Text(action) }
+            if (action != null) {
+                androidx.compose.material3.TextButton(
+                    onClick = { onAction?.invoke() },
+                    enabled = onAction != null
+                ) { Text(action) }
+            }
         }
     }
 }
