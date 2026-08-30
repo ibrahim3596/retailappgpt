@@ -15,7 +15,7 @@ object CheckoutRecoveryFingerprint {
         customerId: String?,
         billDiscountAmount: Double
     ): String = hash(
-        canonicalCart(lines) + "\nTRANSACTION|$paymentMethod|${customerId.orEmpty()}|${format(billDiscountAmount)}"
+        canonicalCart(lines) + "\nTRANSACTION|${field(paymentMethod)}|${field(customerId.orEmpty())}|${format(billDiscountAmount)}"
     )
 
     private fun canonicalCart(lines: List<CartLine>): String = lines
@@ -30,13 +30,15 @@ object CheckoutRecoveryFingerprint {
                 format(line.quantity),
                 line.overrideUnitPrice?.let(::format).orEmpty(),
                 format(line.itemDiscountAmount)
-            ).joinToString("|")
+            ).joinToString("|") { field(it) }
         }
 
     private fun hash(value: String): String {
         val digest = MessageDigest.getInstance("SHA-256").digest(value.toByteArray(StandardCharsets.UTF_8))
         return digest.joinToString("") { byte -> "%02x".format(Locale.US, byte.toInt() and 0xff) }
     }
+
+    private fun field(value: String): String = "${value.length}:$value"
 
     private fun format(value: Double): String = java.lang.Double.toString(if (value == 0.0) 0.0 else value)
 }
