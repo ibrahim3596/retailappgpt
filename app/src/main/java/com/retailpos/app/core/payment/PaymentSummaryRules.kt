@@ -13,7 +13,9 @@ object PaymentSummaryRules {
         summaries.forEach { summary ->
             val split = SplitPaymentRules.decode(summary.paymentMethod)
             if (split.isEmpty()) {
-                add(summary.paymentMethod, summary.transactionCount, summary.total)
+                if (!summary.paymentMethod.startsWith("SPLIT:")) {
+                    add(summary.paymentMethod, summary.transactionCount, summary.total)
+                }
             } else {
                 split.forEach { part -> add(part.method, summary.transactionCount, part.amount) }
             }
