@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddShoppingCart
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Remove
@@ -128,7 +129,24 @@ fun PosScreen(
         Column(Modifier.fillMaxSize().padding(padding)) {
             LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 item {
-                    OutlinedTextField(value = query, onValueChange = { query = it; onSearchQueryChanged(it) }, modifier = Modifier.fillMaxWidth().height(58.dp), singleLine = true, leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) }, placeholder = { Text("Search name, barcode or SKU") }, trailingIcon = { IconButton(onClick = onOpenScanner) { Icon(Icons.Default.CameraAlt, contentDescription = "Scan") } })
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = { query = it; onSearchQueryChanged(it) },
+                        modifier = Modifier.fillMaxWidth().height(58.dp),
+                        singleLine = true,
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                        placeholder = { Text("Search name, barcode or SKU") },
+                        trailingIcon = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (query.isNotEmpty()) {
+                                    IconButton(onClick = { query = ""; onSearchQueryChanged("") }) {
+                                        Icon(Icons.Default.Close, contentDescription = "Clear search")
+                                    }
+                                }
+                                IconButton(onClick = onOpenScanner) { Icon(Icons.Default.CameraAlt, contentDescription = "Scan") }
+                            }
+                        }
+                    )
                 }
                 if (recoveryIssues.isNotEmpty()) item {
                     Surface(color = MaterialTheme.colorScheme.errorContainer, shape = MaterialTheme.shapes.medium) { Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) { Text("Bill needs attention", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onErrorContainer); recoveryIssues.forEach { Text("• ${ActiveCartRecovery.message(it)}", color = MaterialTheme.colorScheme.onErrorContainer) }; TextButton(onClick = onClearBill) { Text("Clear affected bill") } } }
