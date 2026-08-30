@@ -22,4 +22,14 @@ class PaymentSettlementEdgeCasesTest {
     fun rejectsNonFiniteElectronicTender() {
         PaymentSettlementRules.settle("CARD", 100.0, Double.NaN)
     }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun rejectsNegativeCashTenderEvenWithinTolerance() {
+        PaymentSettlementRules.settle("CASH", 0.0, -0.0000005)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun rejectsNegativeElectronicTenderForZeroTotal() {
+        PaymentSettlementRules.settle("CARD", 0.0, -0.005)
+    }
 }
