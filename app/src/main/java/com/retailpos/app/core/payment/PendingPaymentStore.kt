@@ -56,6 +56,8 @@ object PendingPaymentStore {
     fun getAmountTenderedForCart(cartFingerprint: String): Double? =
         if (amountCartFingerprint == cartFingerprint) amountTendered else null
 
+    /** Serializes key creation so concurrent checkout attempts cannot mint two keys for one fingerprint. */
+    @Synchronized
     fun getOrCreateIdempotencyKey(fingerprint: String, create: () -> String): String {
         val existing = idempotencyKey
         if (!existing.isNullOrBlank() && idempotencyFingerprint == fingerprint) return existing
@@ -73,12 +75,14 @@ object PendingPaymentStore {
         return getOrCreateIdempotencyKey(fingerprint, create)
     }
 
+    @Synchronized
     fun clearIdempotencyKey() {
         idempotencyKey = null
         idempotencyFingerprint = null
         prefs?.edit()?.remove(KEY_IDEMPOTENCY)?.remove(KEY_IDEMPOTENCY_FINGERPRINT)?.apply()
     }
 
+    @Synchronized
     fun clear() {
         amountTendered = null
         amountCartFingerprint = null
