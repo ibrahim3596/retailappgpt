@@ -19,6 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.retailpos.app.ui.theme.RetailTokens
@@ -35,7 +36,11 @@ fun SectionHeader(title: String, action: String? = null, onAction: (() -> Unit)?
 fun StatusPill(label: String, positive: Boolean = true) {
     val bg = if (positive) RetailTokens.Success.copy(alpha = .10f) else RetailTokens.Warning.copy(alpha = .12f)
     val fg = if (positive) RetailTokens.Success else RetailTokens.Warning
-    Surface(color = bg, shape = MaterialTheme.shapes.small) {
+    Surface(
+        color = bg,
+        shape = MaterialTheme.shapes.small,
+        modifier = Modifier.clearAndSetSemantics { contentDescription = label }
+    ) {
         Row(Modifier.padding(horizontal = 9.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Box(Modifier.size(6.dp).clip(CircleShape).background(fg))
             Text(label, color = fg, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
