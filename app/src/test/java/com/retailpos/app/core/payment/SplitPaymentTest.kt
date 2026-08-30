@@ -38,5 +38,7 @@ class SplitPaymentTest {
         assertEquals(emptyList<SplitPaymentPart>(), SplitPaymentRules.decode("SPLIT:CASH=-40,UPI=140"))
         assertEquals(emptyList<SplitPaymentPart>(), SplitPaymentRules.decode("SPLIT:CRYPTO=50,UPI=50"))
         assertEquals(emptyList<SplitPaymentPart>(), SplitPaymentRules.decode("SPLIT:CASH=NaN,UPI=100"))
+        assertEquals(emptyList<SplitPaymentPart>(), SplitPaymentRules.decode("SPLIT:CASH=40,UPI=60,BROKEN"))
+        assertEquals(emptyList<SplitPaymentPart>(), SplitPaymentRules.decode("SPLIT:CASH=40,CRYPTO=60"))
     }
 }
