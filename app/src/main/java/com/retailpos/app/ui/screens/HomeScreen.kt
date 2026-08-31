@@ -98,7 +98,20 @@ fun HomeScreen(
             lowStock = lowStock
         )
     }
-    val metrics = metricsState ?: TodayMetrics(0.0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0, 0)
+    val metrics = metricsState ?: TodayMetrics(
+        totalSales = 0.0,
+        billCount = 0,
+        itemsSold = 0.0,
+        cash = 0.0,
+        upi = 0.0,
+        card = 0.0,
+        credit = 0.0,
+        cogs = 0.0,
+        expenses = 0.0,
+        outstandingReceivables = 0.0,
+        outOfStock = 0,
+        lowStock = 0
+    )
     var countedCash by remember { mutableStateOf("") }
 
     fun switchCashier() {
