@@ -11,7 +11,8 @@ class StaffManagementRepository(private val dao: StaffDao) {
     suspend fun setActive(storeId: String, staffId: String, active: Boolean, now: Long = System.currentTimeMillis()): Boolean {
         if (!active) {
             val member = dao.getById(storeId, staffId) ?: return false
-            if (!StaffManagementRules.canDeactivate(member.role, member.active, active, dao.countActiveOwners(storeId))) return false
+            val role = runCatching { StaffRole.valueOf(member.role) }.getOrNull() ?: return false
+            if (!StaffManagementRules.canDeactivate(role, member.active, active, dao.countActiveOwners(storeId))) return false
         }
         return dao.setActive(storeId, staffId, active, now) == 1
     }
@@ -24,7 +25,8 @@ class StaffManagementRepository(private val dao: StaffDao) {
 
     suspend fun changeRole(storeId: String, staffId: String, role: StaffRole, now: Long = System.currentTimeMillis()): Boolean {
         val member = dao.getById(storeId, staffId) ?: return false
-        if (!StaffManagementRules.canChangeRole(member.role, member.active, role, dao.countActiveOwners(storeId))) return false
+        val currentRole = runCatching { StaffRole.valueOf(member.role) }.getOrNull() ?: return false
+        if (!StaffManagementRules.canChangeRole(currentRole, member.active, role, dao.countActiveOwners(storeId))) return false
         return dao.updateRole(storeId, staffId, role.name, now) == 1
     }
 }
