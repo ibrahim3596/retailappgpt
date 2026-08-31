@@ -13,11 +13,12 @@ class CartManager {
 
     fun addQuantity(product: ProductEntity, requestedQuantity: Double): AddToCartResult {
         if (requestedQuantity <= 0.0 || !requestedQuantity.isFinite()) return AddToCartResult.InvalidQuantity
-        if (product.stock <= 0.0) return AddToCartResult.OutOfStock
+        if (!product.stock.isFinite() || product.stock <= 0.0) return AddToCartResult.OutOfStock
+        if (!product.sellingPrice.isFinite() || product.sellingPrice < 0.0) return AddToCartResult.OutOfStock
 
         val existing = _lines.firstOrNull { it.productId == product.id }
         val newQuantity = (existing?.quantity ?: 0.0) + requestedQuantity
-        if (newQuantity > product.stock + 1e-9) return AddToCartResult.InsufficientStock
+        if (!newQuantity.isFinite() || newQuantity > product.stock + 1e-9) return AddToCartResult.InsufficientStock
 
         if (existing != null) {
             val index = _lines.indexOf(existing)
@@ -31,7 +32,7 @@ class CartManager {
 
     fun setQuantity(productId: String, requestedQuantity: Double, availableStock: Double): AddToCartResult {
         if (requestedQuantity <= 0.0 || !requestedQuantity.isFinite()) return AddToCartResult.InvalidQuantity
-        if (availableStock <= 0.0) return AddToCartResult.OutOfStock
+        if (!availableStock.isFinite() || availableStock <= 0.0) return AddToCartResult.OutOfStock
         if (requestedQuantity > availableStock + 1e-9) return AddToCartResult.InsufficientStock
         val index = _lines.indexOfFirst { it.productId == productId }
         if (index < 0) return AddToCartResult.InvalidQuantity
