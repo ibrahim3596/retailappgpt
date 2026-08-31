@@ -97,7 +97,35 @@ private fun PaymentDialog(outstanding: Double, onDismiss: () -> Unit, onSave: (D
     var amount by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("Record payment") }, text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { Text("Outstanding: ${money(outstanding)}", color = MaterialTheme.colorScheme.onSurfaceVariant); OutlinedTextField(value = amount, onValueChange = { amount = it.filter { c -> c.isDigit() || c == '.' || c == ',' } }, singleLine = true, label = { Text("Amount") }); OutlinedTextField(value = note, onValueChange = { note = it }, singleLine = true, label = { Text("Note (optional)") }); error?.let { Text(it, color = MaterialTheme.colorScheme.error) } } }, confirmButton = { Button(onClick = { val value = amount.replace(',', '.').toDoubleOrNull(); val validation = value?.let { KhataRules.validatePayment(outstanding, it) } ?: "Payment must be a valid number"; if (validation != null) error = validation else onSave(value!!, note.trim()) }) { Text("SAVE PAYMENT") } }, dismissButton = { TextButton(onClick = onDismiss) { Text("CANCEL") } })
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Record payment") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Outstanding: ${money(outstanding)}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                OutlinedTextField(
+                    value = amount,
+                    onValueChange = { amount = it.filter { c -> c.isDigit() || c == '.' || c == ',' }; error = null },
+                    singleLine = true,
+                    label = { Text("Amount") }
+                )
+                OutlinedTextField(value = note, onValueChange = { note = it }, singleLine = true, label = { Text("Note (optional)") })
+                error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            }
+        },
+        confirmButton = {
+            Button(onClick = {
+                val value = amount.replace(',', '.').toDoubleOrNull()
+                if (value == null) {
+                    error = "Payment must be a valid number"
+                } else {
+                    val validation = KhataRules.validatePayment(outstanding, value)
+                    if (validation != null) error = validation else onSave(value, note.trim())
+                }
+            }) { Text("SAVE PAYMENT") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("CANCEL") } }
+    )
 }
 
 private fun money(value: Double): String = String.format(Locale.US, "₹%.2f", value)
