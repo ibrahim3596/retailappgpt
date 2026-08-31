@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -14,8 +13,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AddShoppingCart
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteOutline
@@ -116,11 +115,10 @@ fun PosScreen(
         topBar = {
             TopAppBar(
                 title = { Column { Text("Sell", style = MaterialTheme.typography.titleLarge); Text("Counter 01", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) } },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = "Back to home") } },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back to home") } },
                 actions = {
                     StatusPill("Ready", true)
                     VoiceBillingButton(onTranscript = onVoiceInput, onError = onVoiceError)
-                    IconButton(onClick = onOpenScanner) { Icon(Icons.Default.CameraAlt, contentDescription = "Scan barcode") }
                     IconButton(onClick = onOpenHeldBills) { Icon(Icons.Default.MoreHoriz, contentDescription = "More selling options") }
                 }
             )
@@ -143,7 +141,7 @@ fun PosScreen(
                                         Icon(Icons.Default.Close, contentDescription = "Clear search")
                                     }
                                 }
-                                IconButton(onClick = onOpenScanner) { Icon(Icons.Default.CameraAlt, contentDescription = "Scan") }
+                                IconButton(onClick = onOpenScanner) { Icon(Icons.Default.CameraAlt, contentDescription = "Scan barcode") }
                             }
                         }
                     )
