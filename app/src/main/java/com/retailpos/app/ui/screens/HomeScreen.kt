@@ -137,7 +137,7 @@ fun HomeScreen(
         if (NavigationPermissionRules.canOpenSettings(staffRole)) add("settings" to (Icons.Default.Settings to "Settings"))
     }
 
-    val grossProfit = (metrics.totalSales - metrics.cogs).coerceAtLeast(0.0)
+    val grossProfit = metrics.totalSales - metrics.cogs
     val marginPercent = if (metrics.totalSales > 0.0) grossProfit / metrics.totalSales * 100.0 else 0.0
     val priorityText = when {
         metrics.outOfStock > 0 -> "${metrics.outOfStock} product${if (metrics.outOfStock == 1) "" else "s"} out of stock. Replenish before the next sale."
