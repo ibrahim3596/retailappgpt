@@ -49,6 +49,17 @@ class ActiveCartRecoveryTest {
     }
 
     @Test
+    fun duplicateProductLinesAreReportedAsInvalidPricing() {
+        val lines = listOf(
+            CartLine("p1", "Sugar", "P1", "kg", 70.0, 1.0),
+            CartLine("p1", "Sugar", "P1", "kg", 70.0, 1.0)
+        )
+        val issues = ActiveCartRecovery.validate(lines, mapOf("p1" to product("p1", 10.0)))
+        assertEquals(2, issues.size)
+        assertTrue(issues.all { it is ActiveCartRecoveryIssue.InvalidPricing })
+    }
+
+    @Test
     fun nonPositiveQuantityIsReportedEvenWhenDiscountClampsTotal() {
         val line = CartLine(
             "p1", "Sugar", "P1", "kg", 70.0, quantity = -1.0, itemDiscountAmount = 100.0
