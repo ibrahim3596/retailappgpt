@@ -83,7 +83,9 @@ object PendingPaymentStore {
         val activeCartFingerprint = ActiveCartStore.load()
             .takeIf { it.isNotEmpty() }
             ?.let(CheckoutRecoveryFingerprint::of)
-        if (!matchesCartFingerprint(idempotencyCartFingerprint, activeCartFingerprint)) {
+        val cartBindingMatches = matchesCartFingerprint(idempotencyCartFingerprint, activeCartFingerprint) ||
+            (activeCartFingerprint == null && idempotencyCartFingerprint == null)
+        if (!cartBindingMatches) {
             idempotencyKey = null
             idempotencyFingerprint = null
             idempotencyCartFingerprint = null
