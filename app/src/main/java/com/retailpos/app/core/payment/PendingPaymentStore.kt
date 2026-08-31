@@ -28,7 +28,22 @@ object PendingPaymentStore {
         amountCartFingerprint = prefs?.getString(KEY_AMOUNT_CART_FINGERPRINT, null)?.takeIf { it.isNotBlank() }
         idempotencyKey = prefs?.getString(KEY_IDEMPOTENCY, null)?.takeIf { it.isNotBlank() }
         idempotencyFingerprint = prefs?.getString(KEY_IDEMPOTENCY_FINGERPRINT, null)?.takeIf { it.isNotBlank() }
+
+        val activeCartFingerprint = ActiveCartStore.load()
+            .takeIf { it.isNotEmpty() }
+            ?.let(CheckoutRecoveryFingerprint::of)
+        if (!matchesCartFingerprint(amountCartFingerprint, activeCartFingerprint)) {
+            amountTendered = null
+            amountCartFingerprint = null
+            prefs?.edit()
+                ?.remove(KEY_AMOUNT_TENDERED)
+                ?.remove(KEY_AMOUNT_CART_FINGERPRINT)
+                ?.commit()
+        }
     }
+
+    internal fun matchesCartFingerprint(storedFingerprint: String?, activeFingerprint: String?): Boolean =
+        !storedFingerprint.isNullOrBlank() && storedFingerprint == activeFingerprint
 
     fun context(): Context = applicationContext ?: error("PendingPaymentStore has not been configured")
 
