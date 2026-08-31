@@ -37,4 +37,19 @@ class PaymentSettlementTest {
     fun malformedSplitSettlementCannotComplete() {
         PaymentSettlementRules.settle("SPLIT:CASH=-40,UPI=140", 100.0)
     }
+
+    @Test
+    fun zeroPayableAcceptsOnlyZeroCashTender() {
+        assertEquals(0.0, PaymentSettlementRules.settle("CASH", 0.0, 0.0).change, 0.0001)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun zeroPayableRejectsPositiveCashTender() {
+        PaymentSettlementRules.settle("CASH", 0.0, 0.009)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun zeroPayableRejectsPositiveElectronicTender() {
+        PaymentSettlementRules.settle("UPI", 0.0, 0.009)
+    }
 }
