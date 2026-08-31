@@ -47,4 +47,27 @@ class ActiveCartRecoveryTest {
         assertTrue(issue is ActiveCartRecoveryIssue.InsufficientStock)
         assertEquals(1.0, (issue as ActiveCartRecoveryIssue.InsufficientStock).available, 0.0001)
     }
+
+    @Test
+    fun nonPositiveQuantityIsReportedEvenWhenDiscountClampsTotal() {
+        val line = CartLine(
+            "p1", "Sugar", "P1", "kg", 70.0, quantity = -1.0, itemDiscountAmount = 100.0
+        )
+        val issues = ActiveCartRecovery.validate(listOf(line), mapOf("p1" to product("p1", 10.0)))
+        assertTrue(issues.single() is ActiveCartRecoveryIssue.InvalidPricing)
+    }
+
+    @Test
+    fun nonFiniteProductStockIsReportedAsInvalidPricing() {
+        val line = CartLine("p1", "Sugar", "P1", "kg", 70.0, 1.0)
+        val issues = ActiveCartRecovery.validate(listOf(line), mapOf("p1" to product("p1", Double.NaN)))
+        assertTrue(issues.single() is ActiveCartRecoveryIssue.InvalidPricing)
+    }
+
+    @Test
+    fun negativeProductStockIsReportedAsInvalidPricing() {
+        val line = CartLine("p1", "Sugar", "P1", "kg", 70.0, 1.0)
+        val issues = ActiveCartRecovery.validate(listOf(line), mapOf("p1" to product("p1", -1.0)))
+        assertTrue(issues.single() is ActiveCartRecoveryIssue.InvalidPricing)
+    }
 }

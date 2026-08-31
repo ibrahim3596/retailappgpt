@@ -17,7 +17,16 @@ object ActiveCartRecovery {
         lines.mapNotNull { line ->
             val product = products[line.productId] ?: return@mapNotNull ActiveCartRecoveryIssue.Missing(line)
             if (product.isArchived) return@mapNotNull ActiveCartRecoveryIssue.Archived(line)
-            if (!line.lineTotal.isFinite() || line.lineTotal < 0.0) return@mapNotNull ActiveCartRecoveryIssue.InvalidPricing(line)
+            if (!line.quantity.isFinite() || line.quantity <= 0.0 ||
+                !line.unitPrice.isFinite() || line.unitPrice < 0.0 ||
+                (line.overrideUnitPrice != null &&
+                    (!line.overrideUnitPrice.isFinite() || line.overrideUnitPrice < 0.0)) ||
+                !line.itemDiscountAmount.isFinite() || line.itemDiscountAmount < 0.0 ||
+                !line.lineTotal.isFinite() || line.lineTotal < 0.0 ||
+                !product.stock.isFinite() || product.stock < 0.0
+            ) {
+                return@mapNotNull ActiveCartRecoveryIssue.InvalidPricing(line)
+            }
             if (line.quantity > product.stock + 1e-9) return@mapNotNull ActiveCartRecoveryIssue.InsufficientStock(line, product.stock)
             null
         }
