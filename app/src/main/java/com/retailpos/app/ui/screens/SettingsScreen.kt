@@ -113,6 +113,8 @@ fun SettingsScreen(context: Context, onBack: () -> Unit) {
     var saving by remember { mutableStateOf(false) }
     var backupStatus by remember { mutableStateOf<String?>(null) }
     var validationError by remember { mutableStateOf<String?>(null) }
+    var restoreRequiresRestart by remember { mutableStateOf(false) }
+    val controlsEnabled = !saving && !restoreRequiresRestart
 
     LaunchedEffect(database) {
         runCatching { database.storeSettingsDao().get(LOCAL_STORE_ID) }
@@ -125,7 +127,7 @@ fun SettingsScreen(context: Context, onBack: () -> Unit) {
     }
 
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
-        if (uri != null && backupPassword.length >= 8) {
+        if (uri != null && backupPassword.length >= 8 && !restoreRequiresRestart) {
             scope.launch {
                 backupStatus = "Creating encrypted backup…"
                 runCatching {
@@ -139,14 +141,18 @@ fun SettingsScreen(context: Context, onBack: () -> Unit) {
     }
 
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null && backupPassword.length >= 8) {
+        if (uri != null && backupPassword.length >= 8 && !restoreRequiresRestart) {
             scope.launch {
                 backupStatus = "Restoring encrypted backup…"
                 runCatching {
                     context.contentResolver.openInputStream(uri)?.use { input -> DatabaseBackupManager.importEncrypted(context, input, backupPassword.toCharArray()) }
                         ?: error("Could not open the selected backup.")
                 }.onSuccess {
-                    backupStatus = "Backup restored. Restart the app before continuing to use it."
+                    backupPassword = ""
+                    saved = false
+                    validationError = null
+                    restoreRequiresRestart = true
+                    backupStatus = "Backup restored safely. Close and reopen RetailGPT before continuing. Settings are locked until restart."
                 }.onFailure { backupStatus = it.message ?: "Backup restore failed." }
             }
         }
@@ -155,56 +161,67 @@ fun SettingsScreen(context: Context, onBack: () -> Unit) {
     Scaffold(topBar = { TopAppBar(title = { Text("SETTINGS", fontWeight = FontWeight.Black) }) }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("Store profile", fontWeight = FontWeight.Bold)
-            OutlinedTextField(storeName, { storeName = it; saved = false }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Store name") })
-            OutlinedTextField(storePhone, { storePhone = it; saved = false }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Store phone") })
+            OutlinedTextField(storeName, { storeName = it; saved = false }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Store name") }, enabled = controlsEnabled)
+            OutlinedTextField(storePhone, { storePhone = it; saved = false }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Store phone") }, enabled = controlsEnabled)
 
             Text("Billing", fontWeight = FontWeight.Bold)
-            OutlinedTextField(currency, { currency = it; saved = false }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Currency code") })
+            OutlinedTextField(currency, { currency = it; saved = false }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Currency code") }, enabled = controlsEnabled)
             Text("GST status", fontWeight = FontWeight.Bold)
             GstMode.entries.forEach { mode ->
-                OutlinedButton(onClick = { gstMode = mode; saved = false; validationError = null }, modifier = Modifier.fillMaxWidth(), enabled = !saving) {
+                OutlinedButton(onClick = { gstMode = mode; saved = false; validationError = null }, modifier = Modifier.fillMaxWidth(), enabled = controlsEnabled) {
                     Text(if (gstMode == mode) "✓ ${mode.label}" else mode.label)
                 }
             }
             Text(gstMode.description, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            OutlinedTextField(taxRate, { value -> taxRate = value.filter { it.isDigit() || it == '.' || it == ',' }; saved = false }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Default tax rate (%)") }, enabled = gstMode == GstMode.REGULAR && !saving)
-            OutlinedTextField(upiVpa, { upiVpa = it; saved = false }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Merchant UPI VPA") }, enabled = !saving)
+            OutlinedTextField(taxRate, { value -> taxRate = value.filter { it.isDigit() || it == '.' || it == ',' }; saved = false; validationError = null }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Default tax rate (%)") }, enabled = gstMode == GstMode.REGULAR && controlsEnabled)
+            OutlinedTextField(upiVpa, { upiVpa = it; saved = false }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Merchant UPI VPA") }, enabled = controlsEnabled)
 
             Text("Receipt", fontWeight = FontWeight.Bold)
-            OutlinedTextField(receiptHeader, { receiptHeader = it; saved = false }, Modifier.fillMaxWidth(), label = { Text("Receipt header") }, enabled = !saving)
-            OutlinedTextField(receiptFooter, { receiptFooter = it; saved = false }, Modifier.fillMaxWidth(), label = { Text("Receipt footer") }, enabled = !saving)
+            OutlinedTextField(receiptHeader, { receiptHeader = it; saved = false }, Modifier.fillMaxWidth(), label = { Text("Receipt header") }, enabled = controlsEnabled)
+            OutlinedTextField(receiptFooter, { receiptFooter = it; saved = false }, Modifier.fillMaxWidth(), label = { Text("Receipt footer") }, enabled = controlsEnabled)
 
             Text("Device", fontWeight = FontWeight.Bold)
-            OutlinedTextField(density, { density = it; saved = false }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Display density") }, enabled = !saving)
+            OutlinedTextField(density, { density = it; saved = false }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Display density") }, enabled = controlsEnabled)
 
             Button(onClick = {
-                val parsedRate = taxRate.replace(',', '.').toDoubleOrNull() ?: 0.0
-                if (!parsedRate.isFinite() || parsedRate !in 0.0..100.0) {
-                    validationError = "Tax rate must be between 0 and 100."
-                    saved = false
-                } else {
-                    saving = true
-                    val effectiveRate = if (gstMode == GstMode.REGULAR) parsedRate else 0.0
-                    val normalized = LocalStoreSettings(storeName, storePhone, currency.ifBlank { "INR" }, effectiveRate.toString(), gstMode, receiptHeader, receiptFooter, density.ifBlank { "Standard" }, upiVpa)
-                    context.saveStoreSettings(normalized)
-                    scope.launch {
-                        runCatching {
-                            database.storeSettingsDao().upsert(StoreSettingsEntity(LOCAL_STORE_ID, gstMode.storageValue, effectiveRate, normalized.currency, System.currentTimeMillis(), normalized.upiVpa))
-                        }.onSuccess { validationError = null; saved = true }.onFailure { validationError = "Settings could not be persisted locally." }
-                        saving = false
+                val parsedRate = taxRate.replace(',', '.').toDoubleOrNull()
+                when {
+                    parsedRate == null -> {
+                        validationError = "Tax rate must be a valid number."
+                        saved = false
+                    }
+                    !parsedRate.isFinite() || parsedRate !in 0.0..100.0 -> {
+                        validationError = "Tax rate must be between 0 and 100."
+                        saved = false
+                    }
+                    else -> {
+                        saving = true
+                        val effectiveRate = if (gstMode == GstMode.REGULAR) parsedRate else 0.0
+                        val normalized = LocalStoreSettings(storeName, storePhone, currency.ifBlank { "INR" }, effectiveRate.toString(), gstMode, receiptHeader, receiptFooter, density.ifBlank { "Standard" }, upiVpa)
+                        context.saveStoreSettings(normalized)
+                        scope.launch {
+                            runCatching {
+                                database.storeSettingsDao().upsert(StoreSettingsEntity(LOCAL_STORE_ID, gstMode.storageValue, effectiveRate, normalized.currency, System.currentTimeMillis(), normalized.upiVpa))
+                            }.onSuccess { validationError = null; saved = true }.onFailure { validationError = "Settings could not be persisted locally." }
+                            saving = false
+                        }
                     }
                 }
-            }, modifier = Modifier.fillMaxWidth(), enabled = !saving) { Text(if (saving) "SAVING…" else "SAVE SETTINGS") }
+            }, modifier = Modifier.fillMaxWidth(), enabled = controlsEnabled) { Text(if (saving) "SAVING…" else "SAVE SETTINGS") }
+
+            Text("Data & reliability", fontWeight = FontWeight.Bold)
+            Text("Offline-first: sales, stock, customers and Khata are stored locally on this device.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Cloud sync is not configured in this build. Use encrypted backup for recovery or transfer.", color = MaterialTheme.colorScheme.onSurfaceVariant)
 
             Text("BACKUP & RESTORE", fontWeight = FontWeight.Bold)
-            OutlinedTextField(backupPassword, { backupPassword = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Backup password (8+ characters)") })
+            OutlinedTextField(backupPassword, { backupPassword = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Backup password (8+ characters)") }, enabled = controlsEnabled)
             RowButtons(
-                exportEnabled = backupPassword.length >= 8,
+                exportEnabled = backupPassword.length >= 8 && controlsEnabled,
                 onExport = { exportLauncher.launch("retailpos-backup-${System.currentTimeMillis()}.rpbak") },
                 onImport = { importLauncher.launch(arrayOf("application/octet-stream", "application/*")) }
             )
             Text("Backups are encrypted before leaving the device. Keep the password safe; it is required to restore the backup.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            backupStatus?.let { Text(it, fontWeight = FontWeight.Bold) }
+            backupStatus?.let { Text(it, fontWeight = FontWeight.Bold, color = if (restoreRequiresRestart) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface) }
 
             validationError?.let { Text(it, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold) }
             if (saved) Text("Saved locally on this device.")
