@@ -1,6 +1,7 @@
 package com.retailpos.app.data
 
 import com.retailpos.app.core.permissions.StaffRole
+import com.retailpos.app.core.staff.StaffManagementRules
 import com.retailpos.app.core.staff.StaffPinHasher
 import com.retailpos.app.core.staff.StaffPinPolicy
 
@@ -10,7 +11,7 @@ class StaffManagementRepository(private val dao: StaffDao) {
     suspend fun setActive(storeId: String, staffId: String, active: Boolean, now: Long = System.currentTimeMillis()): Boolean {
         if (!active) {
             val member = dao.getById(storeId, staffId) ?: return false
-            if (member.active && member.role == StaffRole.OWNER && dao.countActiveOwners(storeId) <= 1) return false
+            if (!StaffManagementRules.canDeactivate(member.role, member.active, active, dao.countActiveOwners(storeId))) return false
         }
         return dao.setActive(storeId, staffId, active, now) == 1
     }
@@ -23,7 +24,7 @@ class StaffManagementRepository(private val dao: StaffDao) {
 
     suspend fun changeRole(storeId: String, staffId: String, role: StaffRole, now: Long = System.currentTimeMillis()): Boolean {
         val member = dao.getById(storeId, staffId) ?: return false
-        if (member.role == StaffRole.OWNER && role != StaffRole.OWNER && member.active && dao.countActiveOwners(storeId) <= 1) return false
+        if (!StaffManagementRules.canChangeRole(member.role, member.active, role, dao.countActiveOwners(storeId))) return false
         return dao.updateRole(storeId, staffId, role.name, now) == 1
     }
 }
