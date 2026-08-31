@@ -32,4 +32,24 @@ class PendingPaymentStoreConcurrencyTest {
         assertEquals(keys[0], keys[1])
         PendingPaymentStore.clear()
     }
+
+    @Test
+    fun sequentialRequestsReuseKeyWhenNoActiveCartIsPresent() {
+        PendingPaymentStore.clear()
+        val createCount = AtomicInteger(0)
+
+        val first = PendingPaymentStore.getOrCreateIdempotencyKey("fingerprint") {
+            createCount.incrementAndGet()
+            "checkout-key"
+        }
+        val second = PendingPaymentStore.getOrCreateIdempotencyKey("fingerprint") {
+            createCount.incrementAndGet()
+            "unexpected-key"
+        }
+
+        assertEquals("checkout-key", first)
+        assertEquals("checkout-key", second)
+        assertEquals(1, createCount.get())
+        PendingPaymentStore.clear()
+    }
 }
