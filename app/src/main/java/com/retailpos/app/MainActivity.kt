@@ -317,6 +317,13 @@ fun RetailPosApp(staffSession: StaffSession) {
         dismissButton = { TextButton(onClick = { showRecoveryDialog = false }) { Text("REVIEW MANUALLY") } }
     )
 
+    if (cartError != null) AlertDialog(
+        onDismissRequest = { cartError = null },
+        title = { Text("SELLING UPDATE") },
+        text = { Text(cartError.orEmpty()) },
+        confirmButton = { TextButton(onClick = { cartError = null }) { Text("OK") } }
+    )
+
     if (completedSale != null) AlertDialog(onDismissRequest = { completedSale = null }, title = { Text("SALE COMPLETE") }, text = { Text("Sale ${completedSale.orEmpty()} was recorded successfully.") }, confirmButton = { TextButton(onClick = { val id = completedSale.orEmpty(); completedSale = null; openReceipt(id) }) { Text("VIEW RECEIPT") } }, dismissButton = { TextButton(onClick = { completedSale = null }) { Text("DONE") } })
 }
 
