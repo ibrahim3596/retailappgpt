@@ -20,9 +20,9 @@ import androidx.compose.material.icons.filled.PointOfSale
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Storefront
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -80,6 +80,9 @@ fun HomeScreen(
         val sales = actualSaleDao.getSalesTotal(storeId, start, end)
         val cogs = actualSaleDao.getCogsTotal(storeId, start, end)
         val expenses = database.expenseDao().totalBetween(storeId, start, end)
+        val outstandingReceivables = database.khataDao().totalReceivables(storeId).coerceAtLeast(0.0)
+        val outOfStock = database.productDao().getOutOfStockCount(storeId)
+        val lowStock = database.productDao().getLowStockCount(storeId)
         value = TodayMetrics(
             totalSales = sales,
             billCount = actualSaleDao.getSalesCount(storeId, start, end),
@@ -89,10 +92,13 @@ fun HomeScreen(
             card = payments["CARD"]?.total ?: 0.0,
             credit = payments["CREDIT"]?.total ?: 0.0,
             cogs = cogs,
-            expenses = expenses
+            expenses = expenses,
+            outstandingReceivables = outstandingReceivables,
+            outOfStock = outOfStock,
+            lowStock = lowStock
         )
     }
-    val metrics = metricsState ?: TodayMetrics(0.0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+    val metrics = metricsState ?: TodayMetrics(0.0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0, 0)
     var countedCash by remember { mutableStateOf("") }
 
     fun switchCashier() {
@@ -116,6 +122,16 @@ fun HomeScreen(
         add("customers" to (Icons.Default.Person to "Customers"))
         if (NavigationPermissionRules.canOpenAnalytics(staffRole)) add("analytics" to (Icons.Default.Analytics to "Analytics"))
         if (NavigationPermissionRules.canOpenSettings(staffRole)) add("settings" to (Icons.Default.Settings to "Settings"))
+    }
+
+    val grossProfit = (metrics.totalSales - metrics.cogs).coerceAtLeast(0.0)
+    val marginPercent = if (metrics.totalSales > 0.0) grossProfit / metrics.totalSales * 100.0 else 0.0
+    val priorityText = when {
+        metrics.outOfStock > 0 -> "${metrics.outOfStock} product${if (metrics.outOfStock == 1) "" else "s"} out of stock. Replenish before the next sale."
+        metrics.lowStock > 0 -> "${metrics.lowStock} product${if (metrics.lowStock == 1) "" else "s"} running low on stock. Review reorder needs."
+        metrics.outstandingReceivables > 0.0 -> "₹${money(metrics.outstandingReceivables)} is currently outstanding in Khata."
+        metrics.totalSales > 0.0 && marginPercent < 15.0 -> "Today's gross margin is ${fmtPercent(marginPercent)}. Review low-margin products in Analytics."
+        else -> "No urgent store-level issue detected from today's local data."
     }
 
     Scaffold(
@@ -167,16 +183,39 @@ fun HomeScreen(
                 SectionHeader("Needs attention")
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(horizontal = 14.dp, vertical = 6.dp)) {
-                        MetricLine("Inventory", "Review", "Low-stock and reorder candidates")
-                        MetricLine("Customer credit", "₹${money(metrics.credit)}", "Outstanding sales recorded today")
+                        MetricLine(
+                            "Stock",
+                            if (metrics.outOfStock > 0) "${metrics.outOfStock} out" else "${metrics.lowStock} low",
+                            when {
+                                metrics.outOfStock > 0 -> "Items unavailable for sale"
+                                metrics.lowStock > 0 -> "Items at or below their low-stock threshold"
+                                else -> "No low-stock items"
+                            }
+                        )
+                        MetricLine(
+                            "Khata receivables",
+                            "₹${money(metrics.outstandingReceivables)}",
+                            "Current outstanding customer credit"
+                        )
                     }
                 }
             }
             item {
                 AiInsight(
-                    "RetailGPT can surface reorder opportunities, unusual sales patterns and customer-credit risks as your store data changes.",
-                    "Open analytics",
-                    onAction = { onNavigate("analytics") }
+                    priorityText,
+                    when {
+                        metrics.outOfStock > 0 || metrics.lowStock > 0 -> "Open inventory"
+                        metrics.outstandingReceivables > 0.0 -> "Open customers"
+                        metrics.totalSales > 0.0 && marginPercent < 15.0 -> "Open analytics"
+                        else -> null
+                    },
+                    onAction = {
+                        when {
+                            metrics.outOfStock > 0 || metrics.lowStock > 0 -> onNavigate("inventory")
+                            metrics.outstandingReceivables > 0.0 -> onNavigate("customers")
+                            else -> onNavigate("analytics")
+                        }
+                    }
                 )
             }
             if (NavigationPermissionRules.canOpenInventory(staffRole)) {
@@ -237,8 +276,12 @@ private data class TodayMetrics(
     val card: Double,
     val credit: Double,
     val cogs: Double,
-    val expenses: Double
+    val expenses: Double,
+    val outstandingReceivables: Double,
+    val outOfStock: Int,
+    val lowStock: Int
 )
 
 private fun money(value: Double): String = String.format(Locale.US, "%.2f", value)
 private fun fmt(value: Double): String = if (value % 1.0 == 0.0) value.toInt().toString() else String.format(Locale.US, "%.2f", value)
+private fun fmtPercent(value: Double): String = String.format(Locale.US, "%.1f%%", value)
