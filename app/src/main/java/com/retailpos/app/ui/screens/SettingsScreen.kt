@@ -32,7 +32,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.retailpos.app.core.backup.DatabaseBackupManager
 import com.retailpos.app.core.products.StoreTaxMode
+import com.retailpos.app.core.staff.StaffSessionStore
 import com.retailpos.app.data.RetailDatabase
+import com.retailpos.app.data.StaffManagementRepository
+import com.retailpos.app.data.StaffRepository
 import com.retailpos.app.data.StoreSettingsEntity
 import kotlinx.coroutines.launch
 
@@ -98,6 +101,8 @@ private fun Context.saveStoreSettings(settings: LocalStoreSettings) {
 fun SettingsScreen(context: Context, onBack: () -> Unit) {
     val initial = remember(context) { context.loadStoreSettings() }
     val database = remember(context) { RetailDatabase.get(context) }
+    val staffManager = remember(database) { StaffManagementRepository(database.staffDao()) }
+    val staffRepository = remember(database) { StaffRepository(database.staffDao()) }
     val scope = rememberCoroutineScope()
     var storeName by remember { mutableStateOf(initial.storeName) }
     var storePhone by remember { mutableStateOf(initial.storePhone) }
@@ -114,7 +119,24 @@ fun SettingsScreen(context: Context, onBack: () -> Unit) {
     var backupStatus by remember { mutableStateOf<String?>(null) }
     var validationError by remember { mutableStateOf<String?>(null) }
     var restoreRequiresRestart by remember { mutableStateOf(false) }
+    var showStaffManagement by remember { mutableStateOf(false) }
     val controlsEnabled = !saving && !restoreRequiresRestart
+
+    if (showStaffManagement) {
+        val session = StaffSessionStore.current()
+        if (session == null || session.role != com.retailpos.app.core.permissions.StaffRole.OWNER) {
+            showStaffManagement = false
+        } else {
+            StaffManagementScreen(
+                storeId = LOCAL_STORE_ID,
+                manager = staffManager,
+                staffRepository = staffRepository,
+                canManage = true,
+                onBack = { showStaffManagement = false }
+            )
+            return
+        }
+    }
 
     LaunchedEffect(database) {
         runCatching { database.storeSettingsDao().get(LOCAL_STORE_ID) }
@@ -131,9 +153,8 @@ fun SettingsScreen(context: Context, onBack: () -> Unit) {
             scope.launch {
                 backupStatus = "Creating encrypted backup…"
                 runCatching {
-                    context.contentResolver.openOutputStream(uri)?.use { output ->
-                        DatabaseBackupManager.exportEncrypted(context, output, backupPassword.toCharArray())
-                    } ?: error("Could not open the selected backup destination.")
+                    context.contentResolver.openOutputStream(uri)?.use { output -> DatabaseBackupManager.exportEncrypted(context, output, backupPassword.toCharArray()) }
+                        ?: error("Could not open the selected backup destination.")
                 }.onSuccess { backupStatus = "Encrypted backup exported successfully." }
                     .onFailure { backupStatus = it.message ?: "Backup export failed." }
             }
@@ -168,9 +189,7 @@ fun SettingsScreen(context: Context, onBack: () -> Unit) {
             OutlinedTextField(currency, { currency = it; saved = false }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Currency code") }, enabled = controlsEnabled)
             Text("GST status", fontWeight = FontWeight.Bold)
             GstMode.entries.forEach { mode ->
-                OutlinedButton(onClick = { gstMode = mode; saved = false; validationError = null }, modifier = Modifier.fillMaxWidth(), enabled = controlsEnabled) {
-                    Text(if (gstMode == mode) "✓ ${mode.label}" else mode.label)
-                }
+                OutlinedButton(onClick = { gstMode = mode; saved = false; validationError = null }, modifier = Modifier.fillMaxWidth(), enabled = controlsEnabled) { Text(if (gstMode == mode) "✓ ${mode.label}" else mode.label) }
             }
             Text(gstMode.description, color = MaterialTheme.colorScheme.onSurfaceVariant)
             OutlinedTextField(taxRate, { value -> taxRate = value.filter { it.isDigit() || it == '.' || it == ',' }; saved = false; validationError = null }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Default tax rate (%)") }, enabled = gstMode == GstMode.REGULAR && controlsEnabled)
@@ -186,28 +205,27 @@ fun SettingsScreen(context: Context, onBack: () -> Unit) {
             Button(onClick = {
                 val parsedRate = taxRate.replace(',', '.').toDoubleOrNull()
                 when {
-                    parsedRate == null -> {
-                        validationError = "Tax rate must be a valid number."
-                        saved = false
-                    }
-                    !parsedRate.isFinite() || parsedRate !in 0.0..100.0 -> {
-                        validationError = "Tax rate must be between 0 and 100."
-                        saved = false
-                    }
+                    parsedRate == null -> { validationError = "Tax rate must be a valid number."; saved = false }
+                    !parsedRate.isFinite() || parsedRate !in 0.0..100.0 -> { validationError = "Tax rate must be between 0 and 100."; saved = false }
                     else -> {
                         saving = true
                         val effectiveRate = if (gstMode == GstMode.REGULAR) parsedRate else 0.0
                         val normalized = LocalStoreSettings(storeName, storePhone, currency.ifBlank { "INR" }, effectiveRate.toString(), gstMode, receiptHeader, receiptFooter, density.ifBlank { "Standard" }, upiVpa)
                         context.saveStoreSettings(normalized)
                         scope.launch {
-                            runCatching {
-                                database.storeSettingsDao().upsert(StoreSettingsEntity(LOCAL_STORE_ID, gstMode.storageValue, effectiveRate, normalized.currency, System.currentTimeMillis(), normalized.upiVpa))
-                            }.onSuccess { validationError = null; saved = true }.onFailure { validationError = "Settings could not be persisted locally." }
+                            runCatching { database.storeSettingsDao().upsert(StoreSettingsEntity(LOCAL_STORE_ID, gstMode.storageValue, effectiveRate, normalized.currency, System.currentTimeMillis(), normalized.upiVpa)) }
+                                .onSuccess { validationError = null; saved = true }
+                                .onFailure { validationError = "Settings could not be persisted locally." }
                             saving = false
                         }
                     }
                 }
             }, modifier = Modifier.fillMaxWidth(), enabled = controlsEnabled) { Text(if (saving) "SAVING…" else "SAVE SETTINGS") }
+
+            if (StaffSessionStore.current()?.role == com.retailpos.app.core.permissions.StaffRole.OWNER) {
+                Text("Staff", fontWeight = FontWeight.Bold)
+                OutlinedButton(onClick = { showStaffManagement = true }, modifier = Modifier.fillMaxWidth(), enabled = controlsEnabled) { Text("MANAGE STAFF") }
+            }
 
             Text("Data & reliability", fontWeight = FontWeight.Bold)
             Text("Offline-first: sales, stock, customers and Khata are stored locally on this device.", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -215,14 +233,9 @@ fun SettingsScreen(context: Context, onBack: () -> Unit) {
 
             Text("BACKUP & RESTORE", fontWeight = FontWeight.Bold)
             OutlinedTextField(backupPassword, { backupPassword = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Backup password (8+ characters)") }, enabled = controlsEnabled)
-            RowButtons(
-                exportEnabled = backupPassword.length >= 8 && controlsEnabled,
-                onExport = { exportLauncher.launch("retailpos-backup-${System.currentTimeMillis()}.rpbak") },
-                onImport = { importLauncher.launch(arrayOf("application/octet-stream", "application/*")) }
-            )
+            RowButtons(backupPassword.length >= 8 && controlsEnabled, { exportLauncher.launch("retailpos-backup-${System.currentTimeMillis()}.rpbak") }, { importLauncher.launch(arrayOf("application/octet-stream", "application/*")) })
             Text("Backups are encrypted before leaving the device. Keep the password safe; it is required to restore the backup.", color = MaterialTheme.colorScheme.onSurfaceVariant)
             backupStatus?.let { Text(it, fontWeight = FontWeight.Bold, color = if (restoreRequiresRestart) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface) }
-
             validationError?.let { Text(it, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold) }
             if (saved) Text("Saved locally on this device.")
             TextButton(onClick = onBack, modifier = Modifier.fillMaxWidth(), enabled = !saving) { Text("BACK") }
