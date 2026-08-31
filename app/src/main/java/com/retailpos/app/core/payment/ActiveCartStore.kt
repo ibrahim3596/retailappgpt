@@ -37,7 +37,7 @@ object ActiveCartStore {
                 }
             })
         }
-        targetPrefs.edit().putString(KEY_LINES, json.toString()).apply()
+        targetPrefs.edit().putString(KEY_LINES, json.toString()).commit()
     }
 
     fun load(): List<CartLine> {
@@ -88,6 +88,6 @@ object ActiveCartStore {
     }
 
     fun clear() {
-        prefs?.edit()?.remove(KEY_LINES)?.apply()
+        prefs?.edit()?.remove(KEY_LINES)?.commit()
     }
 }
