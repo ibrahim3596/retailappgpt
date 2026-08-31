@@ -17,4 +17,11 @@ class PendingPaymentStoreFingerprintTest {
         assertFalse(PendingPaymentStore.matchesCartFingerprint(null, "cart-a"))
         assertFalse(PendingPaymentStore.matchesCartFingerprint("", "cart-a"))
     }
+
+    @Test
+    fun idempotencyCartFingerprintRequiresExactMatch() {
+        assertTrue(PendingPaymentStore.matchesCartFingerprint("cart-a", "cart-a"))
+        assertFalse(PendingPaymentStore.matchesCartFingerprint("cart-a", "cart-b"))
+        assertFalse(PendingPaymentStore.matchesCartFingerprint("cart-a", null))
+    }
 }
