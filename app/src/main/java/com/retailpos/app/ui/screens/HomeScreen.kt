@@ -146,6 +146,18 @@ fun HomeScreen(
         metrics.totalSales > 0.0 && marginPercent < 15.0 -> "Today's gross margin is ${fmtPercent(marginPercent)}. Review low-margin products in Analytics."
         else -> "No urgent store-level issue detected from today's local data."
     }
+    val priorityRoute = when {
+        metrics.outOfStock > 0 || metrics.lowStock > 0 -> "inventory"
+        metrics.outstandingReceivables > 0.0 -> "customers"
+        metrics.totalSales > 0.0 && marginPercent < 15.0 -> "analytics"
+        else -> null
+    }
+    val priorityActionAllowed = when (priorityRoute) {
+        "inventory" -> NavigationPermissionRules.canOpenInventory(staffRole)
+        "analytics" -> NavigationPermissionRules.canOpenAnalytics(staffRole)
+        "customers" -> true
+        else -> false
+    }
 
     Scaffold(
         topBar = {
@@ -216,18 +228,16 @@ fun HomeScreen(
             item {
                 AiInsight(
                     priorityText,
-                    when {
-                        metrics.outOfStock > 0 || metrics.lowStock > 0 -> "Open inventory"
-                        metrics.outstandingReceivables > 0.0 -> "Open customers"
-                        metrics.totalSales > 0.0 && marginPercent < 15.0 -> "Open analytics"
-                        else -> null
-                    },
-                    onAction = {
-                        when {
-                            metrics.outOfStock > 0 || metrics.lowStock > 0 -> onNavigate("inventory")
-                            metrics.outstandingReceivables > 0.0 -> onNavigate("customers")
-                            else -> onNavigate("analytics")
+                    if (priorityActionAllowed) {
+                        when (priorityRoute) {
+                            "inventory" -> "Open inventory"
+                            "customers" -> "Open customers"
+                            "analytics" -> "Open analytics"
+                            else -> null
                         }
+                    } else null,
+                    onAction = {
+                        if (priorityActionAllowed && priorityRoute != null) onNavigate(priorityRoute)
                     }
                 )
             }
