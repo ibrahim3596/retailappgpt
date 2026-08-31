@@ -94,7 +94,8 @@ fun PurchaseEntryScreen(
     val gross = lines.sumOf { it.gross }
     val scheme = lines.sumOf { it.schemeDiscount }
     val net = lines.sumOf { it.net }
-    val paid = paidAmount.replace(',', '.').toDoubleOrNull() ?: 0.0
+    val paidInput = paidAmount.trim()
+    val paid = paidInput.replace(',', '.').toDoubleOrNull() ?: 0.0
     val outstanding = (net - paid).coerceAtLeast(0.0)
 
     Scaffold(topBar = { TopAppBar(title = { Text("PURCHASE", fontWeight = FontWeight.Black) }, navigationIcon = { TextButton(onClick = onBack) { Text("BACK") } }) }) { padding ->
@@ -140,23 +141,34 @@ fun PurchaseEntryScreen(
                     Text("Gross ₹${fmtMoney(gross)}")
                     Text("Scheme ₹${fmtMoney(scheme)}")
                     Text("NET ₹${fmtMoney(net)}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
-                    OutlinedTextField(value = paidAmount, onValueChange = { paidAmount = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Paid to supplier") })
+                    OutlinedTextField(
+                        value = paidAmount,
+                        onValueChange = { value ->
+                            paidAmount = value.filter { it.isDigit() || it == '.' || it == ',' }
+                            error = null
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text("Paid to supplier") }
+                    )
                     Text("Outstanding ₹${fmtMoney(outstanding)}", fontWeight = FontWeight.Bold)
                     error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                     Button(onClick = {
                         val supplier = selectedSupplier
-                        val paidValue = paidAmount.replace(',', '.').toDoubleOrNull() ?: 0.0
+                        val parsedPaid = paidInput.replace(',', '.').toDoubleOrNull()
+                        val paidValue = parsedPaid ?: 0.0
                         when {
                             supplier == null -> error = "Select a supplier."
                             lines.isEmpty() -> error = "Add at least one purchase item."
                             lines.map { it.product.id }.distinct().size != lines.size -> error = "Each product can appear only once per purchase."
+                            paidInput.isNotEmpty() && parsedPaid == null -> error = "Paid amount must be a valid number."
                             paidValue < 0.0 -> error = "Paid amount cannot be negative."
                             paidValue > net + 1e-9 -> error = "Paid amount cannot exceed purchase total."
                             else -> scope.launch {
                                 runCatching {
                                     val now = System.currentTimeMillis()
                                     val purchaseId = UUID.randomUUID().toString()
-                                    val entity = PurchaseEntity(purchaseId, storeId, supplier.id, invoiceNumber.trim().ifBlank { null }, gross, scheme, net, paidValue, outstanding, now)
+                                    val entity = PurchaseEntity(purchaseId, storeId, supplier.id, invoiceNumber.trim().ifBlank { null }, gross, scheme, net, paidValue, (net - paidValue).coerceAtLeast(0.0), now)
                                     val purchaseLines = lines.map { line -> PurchaseLineEntity(purchaseId, storeId, line.product.id, line.orderedQuantity, line.freeQuantity, line.purchaseRate, line.schemeDiscount, line.net, line.effectiveCost, line.batchNumber, line.expiryDate, now) }
                                     val batches = lines.map { line -> InventoryBatchEntity(UUID.randomUUID().toString(), storeId, line.product.id, line.batchNumber, line.expiryDate, line.stockQuantity, line.effectiveCost, now) }
                                     purchaseRepository.recordPurchase(entity, purchaseLines, batches, now)
