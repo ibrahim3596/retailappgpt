@@ -45,7 +45,7 @@ object PendingPaymentStore {
         prefs?.edit()?.apply {
             if (sanitizedAmount == null) remove(KEY_AMOUNT_TENDERED) else putString(KEY_AMOUNT_TENDERED, sanitizedAmount.toString())
             if (amountCartFingerprint == null) remove(KEY_AMOUNT_CART_FINGERPRINT) else putString(KEY_AMOUNT_CART_FINGERPRINT, amountCartFingerprint)
-        }?.apply()
+        }?.commit()
     }
 
     fun get(): Double? {
@@ -64,7 +64,7 @@ object PendingPaymentStore {
         val created = create().takeIf { it.isNotBlank() } ?: error("Invalid checkout idempotency key")
         idempotencyKey = created
         idempotencyFingerprint = fingerprint
-        prefs?.edit()?.putString(KEY_IDEMPOTENCY, created)?.putString(KEY_IDEMPOTENCY_FINGERPRINT, fingerprint)?.apply()
+        prefs?.edit()?.putString(KEY_IDEMPOTENCY, created)?.putString(KEY_IDEMPOTENCY_FINGERPRINT, fingerprint)?.commit()
         return created
     }
 
@@ -79,7 +79,7 @@ object PendingPaymentStore {
     fun clearIdempotencyKey() {
         idempotencyKey = null
         idempotencyFingerprint = null
-        prefs?.edit()?.remove(KEY_IDEMPOTENCY)?.remove(KEY_IDEMPOTENCY_FINGERPRINT)?.apply()
+        prefs?.edit()?.remove(KEY_IDEMPOTENCY)?.remove(KEY_IDEMPOTENCY_FINGERPRINT)?.commit()
     }
 
     @Synchronized
@@ -93,6 +93,6 @@ object PendingPaymentStore {
             ?.remove(KEY_AMOUNT_CART_FINGERPRINT)
             ?.remove(KEY_IDEMPOTENCY)
             ?.remove(KEY_IDEMPOTENCY_FINGERPRINT)
-            ?.apply()
+            ?.commit()
     }
 }
