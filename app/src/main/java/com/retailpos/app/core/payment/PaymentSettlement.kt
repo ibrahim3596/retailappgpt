@@ -25,12 +25,18 @@ object PaymentSettlementRules {
         return when (method) {
             "CASH" -> {
                 val tendered = amountTendered ?: 0.0
-                require(tendered.isFinite() && tendered >= 0.0 && tendered >= total - EPSILON) { "Cash received must cover the payable amount" }
+                require(tendered.isFinite() && tendered >= 0.0 &&
+                    (total > 0.0 || tendered == 0.0) && tendered >= total - EPSILON) {
+                    "Cash received must cover the payable amount"
+                }
                 PaymentSettlement(method, total, tendered, (tendered - total).coerceAtLeast(0.0))
             }
             "UPI", "CARD" -> {
                 val paid = amountTendered ?: total
-                require(paid.isFinite() && paid >= 0.0 && kotlin.math.abs(paid - total) <= 0.01) { "Electronic payment must match the payable amount" }
+                require(paid.isFinite() && paid >= 0.0 &&
+                    (total > 0.0 || paid == 0.0) && kotlin.math.abs(paid - total) <= 0.01) {
+                    "Electronic payment must match the payable amount"
+                }
                 PaymentSettlement(method, total, paid, 0.0)
             }
             "CREDIT" -> PaymentSettlement(method, total, null, 0.0)
