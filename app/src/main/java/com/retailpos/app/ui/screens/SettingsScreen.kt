@@ -211,11 +211,13 @@ fun SettingsScreen(context: Context, onBack: () -> Unit) {
                         saving = true
                         val effectiveRate = if (gstMode == GstMode.REGULAR) parsedRate else 0.0
                         val normalized = LocalStoreSettings(storeName, storePhone, currency.ifBlank { "INR" }, effectiveRate.toString(), gstMode, receiptHeader, receiptFooter, density.ifBlank { "Standard" }, upiVpa)
-                        context.saveStoreSettings(normalized)
                         scope.launch {
-                            runCatching { database.storeSettingsDao().upsert(StoreSettingsEntity(LOCAL_STORE_ID, gstMode.storageValue, effectiveRate, normalized.currency, System.currentTimeMillis(), normalized.upiVpa)) }
+                            runCatching {
+                                database.storeSettingsDao().upsert(StoreSettingsEntity(LOCAL_STORE_ID, gstMode.storageValue, effectiveRate, normalized.currency, System.currentTimeMillis(), normalized.upiVpa))
+                                context.saveStoreSettings(normalized)
+                            }
                                 .onSuccess { validationError = null; saved = true }
-                                .onFailure { validationError = "Settings could not be persisted locally." }
+                                .onFailure { validationError = "Settings could not be persisted locally: ${it.message ?: "unknown error"}" }
                             saving = false
                         }
                     }
