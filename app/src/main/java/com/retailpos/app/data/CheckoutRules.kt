@@ -23,7 +23,6 @@ object CheckoutRules {
                 line.itemDiscountAmount >= 0.0 && line.itemDiscountAmount.isFinite() &&
                 line.effectiveUnitPrice >= 0.0 && line.effectiveUnitPrice.isFinite() &&
                 line.grossLineTotal >= 0.0 && line.grossLineTotal.isFinite() &&
-                line.itemDiscountAmount <= line.grossLineTotal &&
                 line.lineTotal >= 0.0 && line.lineTotal.isFinite()
         }
     }

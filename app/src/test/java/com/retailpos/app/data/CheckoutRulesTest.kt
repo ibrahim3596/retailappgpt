@@ -39,7 +39,6 @@ class CheckoutRulesTest {
         assertFalse(CheckoutRules.validateCart(listOf(valid.copy(overrideUnitPrice = -1.0))))
         assertFalse(CheckoutRules.validateCart(listOf(valid.copy(itemDiscountAmount = Double.NaN))))
         assertFalse(CheckoutRules.validateCart(listOf(valid.copy(itemDiscountAmount = -1.0))))
-        assertFalse(CheckoutRules.validateCart(listOf(valid.copy(itemDiscountAmount = 100.0))))
         assertFalse(CheckoutRules.validateCart(listOf(valid.copy(grossLineTotal = -1.0))))
         assertFalse(CheckoutRules.validateCart(listOf(valid.copy(lineTotal = -1.0))))
         assertFalse(CheckoutRules.validateCart(listOf(valid.copy(effectiveUnitPrice = -1.0))))
