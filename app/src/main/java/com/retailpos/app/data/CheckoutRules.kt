@@ -21,7 +21,7 @@ object CheckoutRules {
                 (line.overrideUnitPrice == null ||
                     (line.overrideUnitPrice >= 0.0 && line.overrideUnitPrice.isFinite())) &&
                 line.itemDiscountAmount >= 0.0 && line.itemDiscountAmount.isFinite() &&
-                line.effectiveUnitPrice >= 0.0 && line.effectiveUnitPrice.isFinite() &&
+                line.effectiveUnitPrice.isFinite() &&
                 line.grossLineTotal >= 0.0 && line.grossLineTotal.isFinite() &&
                 line.lineTotal >= 0.0 && line.lineTotal.isFinite()
         }

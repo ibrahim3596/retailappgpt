@@ -41,8 +41,15 @@ class CheckoutRulesTest {
         assertFalse(CheckoutRules.validateCart(listOf(valid.copy(itemDiscountAmount = -1.0))))
         assertFalse(CheckoutRules.validateCart(listOf(valid.copy(grossLineTotal = -1.0))))
         assertFalse(CheckoutRules.validateCart(listOf(valid.copy(lineTotal = -1.0))))
-        assertFalse(CheckoutRules.validateCart(listOf(valid.copy(effectiveUnitPrice = -1.0))))
         assertFalse(CheckoutRules.validateCart(listOf(valid.copy(unitPrice = Double.MAX_VALUE, quantity = 2.0))))
+    }
+
+    @Test
+    fun cartPreservesExistingDiscountClampingBehavior() {
+        val discounted = CartLine("p1", "Milk", "SKU-1", "pcs", 30.0, 2.0, itemDiscountAmount = 100.0)
+        assertTrue(discounted.effectiveUnitPrice < 0.0)
+        assertTrue(discounted.lineTotal == 0.0)
+        assertTrue(CheckoutRules.validateCart(listOf(discounted)))
     }
 
     @Test
