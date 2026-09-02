@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -27,9 +28,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
 import com.retailpos.app.core.payment.PaymentSummaryRules
 import com.retailpos.app.data.PaymentSummary
 import com.retailpos.app.data.ReceiptFormatter
@@ -37,11 +38,15 @@ import com.retailpos.app.data.RetailDatabase
 import com.retailpos.app.data.SaleDao
 import com.retailpos.app.data.SaleEntity
 import com.retailpos.app.data.TopProductSales
+import com.retailpos.app.ui.components.AiInsight
+import com.retailpos.app.ui.components.MetricLine
+import com.retailpos.app.ui.components.SectionHeader
+import kotlinx.coroutines.launch
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
-import kotlinx.coroutines.launch
+import kotlin.math.abs
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -64,8 +69,9 @@ fun AnalyticsScreen(
     var topProducts by remember { mutableStateOf<List<TopProductSales>>(emptyList()) }
     var recentSales by remember { mutableStateOf<List<SaleEntity>>(emptyList()) }
     var reprintError by remember { mutableStateOf<String?>(null) }
+
     val currency = remember { NumberFormat.getCurrencyInstance(Locale.getDefault()) }
-    val timeFormatter = remember { SimpleDateFormat("dd MMM, HH:mm", Locale.getDefault()) }
+    val timeFormatter = remember { SimpleDateFormat("dd MMM · HH:mm", Locale.getDefault()) }
 
     LaunchedEffect(storeId) {
         val calendar = Calendar.getInstance().apply {
@@ -81,7 +87,6 @@ fun AnalyticsScreen(
         val grossSales = saleDao.getSalesTotal(storeId, start, end)
         val returnedRevenue = database.returnDao().getRefundTotal(storeId, start, end)
         salesTotal = (grossSales - returnedRevenue).coerceAtLeast(0.0)
-
         salesCount = saleDao.getSalesCount(storeId, start, end)
 
         val grossItems = saleDao.getItemsSold(storeId, start, end)
@@ -91,7 +96,6 @@ fun AnalyticsScreen(
         val grossCogs = saleDao.getCogsTotal(storeId, start, end)
         val restoredCost = database.returnDao().getRestoredCostTotal(storeId, start, end)
         cogs = (grossCogs - restoredCost).coerceAtLeast(0.0)
-
         expenses = database.expenseDao().totalBetween(storeId, start, end)
         receivables = database.khataDao().totalReceivables(storeId).coerceAtLeast(0.0)
         payables = database.supplierLedgerDao().totalPayables(storeId).coerceAtLeast(0.0)
@@ -111,13 +115,16 @@ fun AnalyticsScreen(
                 quantity = (product.quantity - (returned?.quantity ?: 0.0)).coerceAtLeast(0.0),
                 revenue = (product.revenue - (returned?.revenue ?: 0.0)).coerceAtLeast(0.0)
             )
-        }.filter { it.quantity > 0.0 || it.revenue > 0.0 }.sortedWith(compareByDescending<TopProductSales> { it.quantity }.thenByDescending { it.revenue }).take(10)
+        }.filter { it.quantity > 0.0 || it.revenue > 0.0 }
+            .sortedWith(compareByDescending<TopProductSales> { it.revenue }.thenByDescending { it.quantity })
+            .take(5)
 
-        recentSales = saleDao.getRecentSales(storeId, 10)
+        recentSales = saleDao.getRecentSales(storeId, 6)
     }
 
     val grossProfit = salesTotal - cogs
     val operatingResult = grossProfit - expenses
+    val marginPct = if (salesTotal > 0.0) (grossProfit / salesTotal) * 100.0 else 0.0
 
     fun reprint(sale: SaleEntity) {
         scope.launch {
@@ -134,73 +141,109 @@ fun AnalyticsScreen(
         }
     }
 
-    Scaffold(topBar = { TopAppBar(title = { Text("ANALYTICS", fontWeight = FontWeight.Black) }) }) { padding ->
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Column {
+                        Text("Analytics", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                        Text("Today · Store performance", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                },
+                navigationIcon = { TextButton(onClick = onBack) { Text("Back") } }
+            )
+        }
+    ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(16.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            item { Text("Today", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black) }
             item {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    AnalyticsStat("NET SALES", currency.format(salesTotal), Modifier.weight(1f))
-                    AnalyticsStat("BILLS", salesCount.toString(), Modifier.weight(1f))
-                    AnalyticsStat("NET ITEMS", String.format(Locale.getDefault(), "%.2f", itemsSold), Modifier.weight(1f))
+                Card(
+                    Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                ) {
+                    Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Text("Net sales", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(currency.format(salesTotal), style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
+                        Text("$salesCount bills · ${fmt(itemsSold)} items sold", color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    }
                 }
             }
             item {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SummaryTile("Avg bill", if (salesCount == 0) currency.format(0) else currency.format(salesTotal / salesCount), Modifier.weight(1f))
+                    SummaryTile("Gross margin", "${String.format(Locale.getDefault(), "%.1f", marginPct)}%", Modifier.weight(1f))
+                    SummaryTile("Operating", currency.format(operatingResult), Modifier.weight(1f))
+                }
+            }
+            item {
+                SectionHeader("Profitability")
                 Card(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                        Text("Profitability", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
-                        Text("COGS ${currency.format(cogs)}")
-                        Text("Gross profit ${currency.format(grossProfit)}", fontWeight = FontWeight.Bold)
-                        Text("Expenses ${currency.format(expenses)}")
-                        Text("Operating result ${currency.format(operatingResult)}", fontWeight = FontWeight.Black)
+                    Column(Modifier.padding(horizontal = 14.dp, vertical = 6.dp)) {
+                        MetricLine("COGS", currency.format(cogs))
+                        MetricLine("Gross profit", currency.format(grossProfit))
+                        MetricLine("Expenses", currency.format(expenses))
+                        MetricLine("Operating result", currency.format(operatingResult), if (operatingResult < 0.0) "Loss after expenses" else "After expenses")
                     }
                 }
             }
             item {
+                SectionHeader("Cash & credit")
                 Card(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                        Text("Business balances", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
-                        Text("Customer receivables ${currency.format(receivables)}")
-                        Text("Supplier payables ${currency.format(payables)}")
+                    Column(Modifier.padding(horizontal = 14.dp, vertical = 6.dp)) {
+                        MetricLine("Customer receivables", currency.format(receivables), if (receivables > 0.0) "Outstanding Khata" else "No outstanding receivables")
+                        MetricLine("Supplier payables", currency.format(payables), if (payables > 0.0) "Outstanding supplier balance" else "No supplier balance")
                     }
                 }
             }
-            item { Text("Payment mix", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black) }
-            if (paymentSummary.isEmpty()) {
-                item { Text("No net sales recorded today.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
-            } else {
-                items(paymentSummary, key = { it.paymentMethod }) { summary ->
-                    Card(Modifier.fillMaxWidth()) {
-                        Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                Text(summary.paymentMethod, fontWeight = FontWeight.Bold)
-                                Text("${summary.transactionCount} gross bill${if (summary.transactionCount == 1) "" else "s"}", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            Text(currency.format(summary.total), fontWeight = FontWeight.Black)
+            item {
+                SectionHeader("RetailGPT")
+                AiInsight(
+                    when {
+                        salesTotal <= 0.0 -> "There are no net sales yet today. Keep this view focused on activity once the first bills are recorded."
+                        marginPct < 10.0 -> "Sales are coming in, but gross margin is under 10%. Review high-volume, low-margin products before the next reorder."
+                        receivables > 0.0 -> "Customer credit is still outstanding. Prioritize the oldest balances before extending more Khata."
+                        else -> "Sales and margin are in a healthy range. Review your top products to decide what to keep readily available."
+                    }
+                )
+            }
+            item {
+                SectionHeader("Payment mix")
+                if (paymentSummary.isEmpty()) {
+                    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                        Text("No net payments recorded today.", Modifier.padding(14.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+            items(paymentSummary, key = { it.paymentMethod }) { summary ->
+                Card(Modifier.fillMaxWidth()) {
+                    MetricLine(summary.paymentMethod, currency.format(summary.total), "${summary.transactionCount} gross bill${if (summary.transactionCount == 1) "" else "s"}")
+                }
+            }
+            item {
+                SectionHeader("Top products", if (topProducts.isNotEmpty()) "Top 5" else null)
+                if (topProducts.isEmpty()) {
+                    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                        Text("No net product sales yet today.", Modifier.padding(14.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+            items(topProducts, key = { it.productId }) { top ->
+                Card(Modifier.fillMaxWidth()) {
+                    Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text(top.name, fontWeight = FontWeight.SemiBold)
+                            Text("${fmt(top.quantity)} units", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
+                        Text(currency.format(top.revenue), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     }
                 }
             }
-            item { Text("Top sellers today", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black) }
-            if (topProducts.isEmpty()) {
-                item { Text("No net product sales recorded today.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
-            } else {
-                items(topProducts, key = { it.productId }) { top ->
-                    Card(Modifier.fillMaxWidth()) {
-                        Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                Text(top.name, fontWeight = FontWeight.Bold)
-                                Text("${String.format(Locale.getDefault(), "%.2f", top.quantity)} units", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            Text(currency.format(top.revenue), fontWeight = FontWeight.Black)
-                        }
-                    }
-                }
+            item {
+                SectionHeader("Recent sales")
             }
-            item { Text("Recent sales", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, modifier = Modifier.padding(top = 8.dp)) }
             if (recentSales.isEmpty()) {
                 item { Text("No sales yet.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
             } else {
@@ -208,19 +251,38 @@ fun AnalyticsScreen(
                     Card(Modifier.fillMaxWidth()) {
                         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                    Text(if (sale.paymentMethod.startsWith("SPLIT:")) "SPLIT PAYMENT" else sale.paymentMethod, fontWeight = FontWeight.Bold)
+                                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Text(if (sale.paymentMethod.startsWith("SPLIT:")) "Split payment" else sale.paymentMethod, fontWeight = FontWeight.SemiBold)
                                     Text(timeFormatter.format(sale.createdAt), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
-                                Text(currency.format(sale.total), fontWeight = FontWeight.Black)
+                                Text(currency.format(sale.total), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                             }
-                            OutlinedButton(onClick = { reprint(sale) }, modifier = Modifier.fillMaxWidth()) { Text("REPRINT / SHARE RECEIPT") }
+                            OutlinedButton(onClick = { reprint(sale) }, modifier = Modifier.fillMaxWidth()) { Text("Share receipt") }
                         }
                     }
                 }
             }
-            reprintError?.let { message -> item { Text(message, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold) } }
-            item { OutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text("BACK") } }
+            reprintError?.let { message -> item { Text(message, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.SemiBold) } }
+            item {
+                val difference = operatingResult
+                if (abs(difference) > 0.0 && salesTotal > 0.0) {
+                    Text(
+                        if (difference >= 0.0) "Today is currently operating above expenses." else "Today is currently below expenses.",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SummaryTile(label: String, value: String, modifier: Modifier) {
+    Card(modifier) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(value, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -229,15 +291,8 @@ private fun shareReceipt(context: Context, receipt: String) {
     context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
         type = "text/plain"
         putExtra(Intent.EXTRA_TEXT, receipt)
-    }, "Share / Reprint receipt"))
+    }, "Share receipt"))
 }
 
-@Composable
-private fun AnalyticsStat(label: String, value: String, modifier: Modifier) {
-    Card(modifier = modifier) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(label, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-            Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
-        }
-    }
-}
+private fun fmt(value: Double): String =
+    if (value % 1.0 == 0.0) value.toInt().toString() else String.format(Locale.getDefault(), "%.2f", value)

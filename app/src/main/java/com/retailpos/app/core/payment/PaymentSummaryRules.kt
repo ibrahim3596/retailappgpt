@@ -2,6 +2,8 @@ package com.retailpos.app.core.payment
 
 import com.retailpos.app.data.PaymentSummary
 
+private const val SPLIT_EPSILON = 0.01
+
 object PaymentSummaryRules {
     fun normalize(summaries: List<PaymentSummary>): List<PaymentSummary> {
         val totals = linkedMapOf<String, Pair<Int, Double>>()
@@ -13,14 +15,19 @@ object PaymentSummaryRules {
         summaries.forEach { summary ->
             val split = SplitPaymentRules.decode(summary.paymentMethod)
             if (split.isEmpty()) {
-                add(summary.paymentMethod, summary.transactionCount, summary.total)
-            } else {
+                if (!summary.paymentMethod.startsWith("SPLIT:")) {
+                    add(summary.paymentMethod, summary.transactionCount, summary.total)
+                }
+            } else if (
+                summary.total.isFinite() &&
+                kotlin.math.abs(split.sumOf { it.amount } - summary.total) <= SPLIT_EPSILON
+            ) {
                 split.forEach { part -> add(part.method, summary.transactionCount, part.amount) }
             }
         }
 
         return totals.entries
             .map { (method, value) -> PaymentSummary(method, value.first, value.second) }
-            .sortedByDescending { it.total }
+            .sortedWith(compareByDescending<PaymentSummary> { it.total }.thenBy { it.paymentMethod })
     }
 }

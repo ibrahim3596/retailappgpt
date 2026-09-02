@@ -10,6 +10,20 @@ object CheckoutRules {
 
     fun validateIdempotencyKey(idempotencyKey: String): Boolean = idempotencyKey.isNotBlank()
 
-    fun validateCart(cart: List<CartLine>): Boolean =
-        cart.isNotEmpty() && cart.all { it.quantity > 0.0 && it.quantity.isFinite() && it.unitPrice >= 0.0 && it.unitPrice.isFinite() }
+    fun validateCart(cart: List<CartLine>): Boolean {
+        if (cart.isEmpty()) return false
+        val productIds = HashSet<String>(cart.size)
+        return cart.all { line ->
+            productIds.add(line.productId) &&
+                line.productId.isNotBlank() &&
+                line.quantity > 0.0 && line.quantity.isFinite() &&
+                line.unitPrice >= 0.0 && line.unitPrice.isFinite() &&
+                (line.overrideUnitPrice == null ||
+                    (line.overrideUnitPrice >= 0.0 && line.overrideUnitPrice.isFinite())) &&
+                line.itemDiscountAmount >= 0.0 && line.itemDiscountAmount.isFinite() &&
+                line.effectiveUnitPrice.isFinite() &&
+                line.grossLineTotal >= 0.0 && line.grossLineTotal.isFinite() &&
+                line.lineTotal >= 0.0 && line.lineTotal.isFinite()
+        }
+    }
 }

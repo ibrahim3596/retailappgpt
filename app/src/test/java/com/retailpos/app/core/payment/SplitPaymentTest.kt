@@ -25,11 +25,29 @@ class SplitPaymentTest {
     }
 
     @Test
+    fun rejectsPositiveSplitAgainstZeroPayable() {
+        val parts = listOf(
+            SplitPaymentPart("CASH", 0.004),
+            SplitPaymentPart("UPI", 0.004)
+        )
+        assertNotNull(SplitPaymentRules.validate(0.0, parts))
+    }
+
+    @Test
     fun encodeDecodeRoundTrip() {
         val original = listOf(
             SplitPaymentPart("CASH", 40.0),
             SplitPaymentPart("CARD", 60.0)
         )
         assertEquals(original, SplitPaymentRules.decode(SplitPaymentRules.encode(original)))
+    }
+
+    @Test
+    fun rejectsMalformedDecodedSettlement() {
+        assertEquals(emptyList<SplitPaymentPart>(), SplitPaymentRules.decode("SPLIT:CASH=-40,UPI=140"))
+        assertEquals(emptyList<SplitPaymentPart>(), SplitPaymentRules.decode("SPLIT:CRYPTO=50,UPI=50"))
+        assertEquals(emptyList<SplitPaymentPart>(), SplitPaymentRules.decode("SPLIT:CASH=NaN,UPI=100"))
+        assertEquals(emptyList<SplitPaymentPart>(), SplitPaymentRules.decode("SPLIT:CASH=40,UPI=60,BROKEN"))
+        assertEquals(emptyList<SplitPaymentPart>(), SplitPaymentRules.decode("SPLIT:CASH=40,CRYPTO=60"))
     }
 }

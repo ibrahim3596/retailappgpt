@@ -22,4 +22,17 @@ class ActiveCartRecoveryTest {
         assertEquals(3, result.issues.size)
         assertEquals(setOf(CartRecoveryIssueType.MISSING_PRODUCT, CartRecoveryIssueType.ARCHIVED_PRODUCT, CartRecoveryIssueType.INSUFFICIENT_STOCK), result.issues.map { it.type }.toSet())
     }
+
+    @Test fun rejects_non_finite_or_negative_current_stock() {
+        val result = ActiveCartRecovery.evaluate(
+            listOf(line("nan"), line("infinite"), line("negative")),
+            mapOf(
+                "nan" to RecoveryProduct("Rice", "kg", Double.NaN, false),
+                "infinite" to RecoveryProduct("Oil", "litre", Double.POSITIVE_INFINITY, false),
+                "negative" to RecoveryProduct("Sugar", "kg", -1.0, false)
+            )
+        )
+        assertEquals(3, result.issues.size)
+        assertTrue(result.issues.all { it.type == CartRecoveryIssueType.INVALID_PRICING })
+    }
 }

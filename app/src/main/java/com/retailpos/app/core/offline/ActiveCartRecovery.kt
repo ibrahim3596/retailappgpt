@@ -34,6 +34,10 @@ object ActiveCartRecovery {
                 issues += CartRecoveryIssue(line.productId, product.name, CartRecoveryIssueType.INVALID_PRICING, "Saved quantity or pricing is invalid.")
                 return@forEach
             }
+            if (!product.stock.isFinite() || product.stock < 0.0) {
+                issues += CartRecoveryIssue(line.productId, product.name, CartRecoveryIssueType.INVALID_PRICING, "Current inventory quantity is invalid.")
+                return@forEach
+            }
             if (line.quantity > product.stock + 1e-9) {
                 issues += CartRecoveryIssue(line.productId, product.name, CartRecoveryIssueType.INSUFFICIENT_STOCK, "Only ${product.stock} ${product.unit} is available.")
                 return@forEach

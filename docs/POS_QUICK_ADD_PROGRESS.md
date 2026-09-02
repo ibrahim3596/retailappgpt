@@ -1,17 +1,23 @@
 # POS Quick-Add Progress
 
-## Implemented in this batch
+## Current implementation
 
 - Deterministic recent-product deduplication and limit rules.
 - Addable-product filtering; zero/invalid stock is never presented as addable.
-- Process-local favorites with toggle semantics.
+- Store-scoped favorites persisted in Room via `favorite_products`.
 - Reusable Compose quick-add surface for recently sold/favorite products.
-- Unit tests for deduplication, zero-stock filtering, favorites and recent-product ordering.
+- Current POS loads recently sold products and Room-backed favorites from the local store.
+- Quick-add UI uses larger operational tiles with clear price hierarchy and accessible add/favorite semantics.
+- Unit tests cover deduplication, zero-stock filtering, favorites and recent-product ordering.
 
 ## Current boundary
 
-The existing Room database currently remains version 17. The Room write path for the held-bill persistence migration has been unreliable through the repository contents endpoint, so favorites remain process-local and the new quick-add component is not yet connected to persistent store-scoped favorite data.
+- The quick-add surface remains horizontally scrollable rather than a dense fixed grid to preserve mobile cashier ergonomics.
+- POS still has a duplicated scanner affordance in the top bar and search field; this should be consolidated in a later focused UX pass.
+- Voice input has deterministic parsing and safe no-partial-add behavior, but its review/retry UX can still be refined.
 
-The next POS integration pass should connect the reusable quick-add surface to recent `SaleEntity`/`SaleLineEntity` data in `MainActivity`/`PosScreen`, then move favorites into Room once the database file can be updated safely.
+## Data / platform state
 
-No GitHub Actions were triggered.
+- Room schema is currently version 25.
+- Favorites are store-scoped and persisted locally.
+- Existing checkout, held-bill, cart-recovery and payment logic should be preserved rather than reimplemented during UI refinement.

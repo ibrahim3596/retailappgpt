@@ -1,6 +1,7 @@
 package com.retailpos.app.ui.screens
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.pm.PackageManager
 import android.os.Handler
 import android.os.Looper
@@ -74,6 +75,7 @@ data class ProductCaptureResult(
     val stabilityExplanation: String
 )
 
+@SuppressLint("UnsafeOptInUsageError")
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalGetImage::class)
 @Composable
 fun IntelligentProductCaptureScreen(

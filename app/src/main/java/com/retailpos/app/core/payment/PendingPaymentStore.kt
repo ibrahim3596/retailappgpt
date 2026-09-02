@@ -12,6 +12,7 @@ object PendingPaymentStore {
     private const val KEY_AMOUNT_CART_FINGERPRINT = "amount_cart_fingerprint"
     private const val KEY_IDEMPOTENCY = "checkout_idempotency"
     private const val KEY_IDEMPOTENCY_FINGERPRINT = "idempotency_fingerprint"
+    private const val KEY_IDEMPOTENCY_CART_FINGERPRINT = "idempotency_cart_fingerprint"
 
     @Volatile private var prefs: android.content.SharedPreferences? = null
     @Volatile private var applicationContext: Context? = null
@@ -19,15 +20,36 @@ object PendingPaymentStore {
     @Volatile private var amountCartFingerprint: String? = null
     @Volatile private var idempotencyKey: String? = null
     @Volatile private var idempotencyFingerprint: String? = null
+    @Volatile private var idempotencyCartFingerprint: String? = null
 
     fun configure(context: Context) {
         applicationContext = context.applicationContext
         prefs = applicationContext?.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         amountTendered = prefs?.getString(KEY_AMOUNT_TENDERED, null)?.toDoubleOrNull()
+            ?.takeIf { it.isFinite() && it >= 0.0 }
         amountCartFingerprint = prefs?.getString(KEY_AMOUNT_CART_FINGERPRINT, null)?.takeIf { it.isNotBlank() }
         idempotencyKey = prefs?.getString(KEY_IDEMPOTENCY, null)?.takeIf { it.isNotBlank() }
         idempotencyFingerprint = prefs?.getString(KEY_IDEMPOTENCY_FINGERPRINT, null)?.takeIf { it.isNotBlank() }
+        idempotencyCartFingerprint = prefs?.getString(KEY_IDEMPOTENCY_CART_FINGERPRINT, null)?.takeIf { it.isNotBlank() }
+
+        val activeCartFingerprint = ActiveCartStore.load()
+            .takeIf { it.isNotEmpty() }
+            ?.let(CheckoutRecoveryFingerprint::of)
+        if (!matchesCartFingerprint(amountCartFingerprint, activeCartFingerprint)) {
+            amountTendered = null
+            amountCartFingerprint = null
+            prefs?.edit()
+                ?.remove(KEY_AMOUNT_TENDERED)
+                ?.remove(KEY_AMOUNT_CART_FINGERPRINT)
+                ?.commit()
+        }
+        if (!matchesCartFingerprint(idempotencyCartFingerprint, activeCartFingerprint)) {
+            clearIdempotencyKey()
+        }
     }
+
+    internal fun matchesCartFingerprint(storedFingerprint: String?, activeFingerprint: String?): Boolean =
+        !storedFingerprint.isNullOrBlank() && storedFingerprint == activeFingerprint
 
     fun context(): Context = applicationContext ?: error("PendingPaymentStore has not been configured")
 
@@ -38,12 +60,13 @@ object PendingPaymentStore {
     }
 
     fun set(amount: Double?, cartFingerprint: String?) {
-        amountTendered = amount
-        amountCartFingerprint = cartFingerprint?.takeIf { it.isNotBlank() }
+        val sanitizedAmount = amount?.takeIf { it.isFinite() && it >= 0.0 }
+        amountTendered = sanitizedAmount
+        amountCartFingerprint = sanitizedAmount?.let { cartFingerprint?.takeIf { it.isNotBlank() } }
         prefs?.edit()?.apply {
-            if (amount == null) remove(KEY_AMOUNT_TENDERED) else putString(KEY_AMOUNT_TENDERED, amount.toString())
+            if (sanitizedAmount == null) remove(KEY_AMOUNT_TENDERED) else putString(KEY_AMOUNT_TENDERED, sanitizedAmount.toString())
             if (amountCartFingerprint == null) remove(KEY_AMOUNT_CART_FINGERPRINT) else putString(KEY_AMOUNT_CART_FINGERPRINT, amountCartFingerprint)
-        }?.apply()
+        }?.commit()
     }
 
     fun get(): Double? {
@@ -54,13 +77,31 @@ object PendingPaymentStore {
     fun getAmountTenderedForCart(cartFingerprint: String): Double? =
         if (amountCartFingerprint == cartFingerprint) amountTendered else null
 
+    /** Serializes key creation so concurrent checkout attempts cannot mint two keys for one fingerprint. */
+    @Synchronized
     fun getOrCreateIdempotencyKey(fingerprint: String, create: () -> String): String {
+        val activeCartFingerprint = ActiveCartStore.load()
+            .takeIf { it.isNotEmpty() }
+            ?.let(CheckoutRecoveryFingerprint::of)
+        val cartBindingMatches = matchesCartFingerprint(idempotencyCartFingerprint, activeCartFingerprint) ||
+            (activeCartFingerprint == null && idempotencyCartFingerprint == null)
+        if (!cartBindingMatches) {
+            idempotencyKey = null
+            idempotencyFingerprint = null
+            idempotencyCartFingerprint = null
+        }
         val existing = idempotencyKey
         if (!existing.isNullOrBlank() && idempotencyFingerprint == fingerprint) return existing
         val created = create().takeIf { it.isNotBlank() } ?: error("Invalid checkout idempotency key")
         idempotencyKey = created
         idempotencyFingerprint = fingerprint
-        prefs?.edit()?.putString(KEY_IDEMPOTENCY, created)?.putString(KEY_IDEMPOTENCY_FINGERPRINT, fingerprint)?.apply()
+        idempotencyCartFingerprint = activeCartFingerprint
+        prefs?.edit()?.apply {
+            putString(KEY_IDEMPOTENCY, created)
+            putString(KEY_IDEMPOTENCY_FINGERPRINT, fingerprint)
+            if (activeCartFingerprint == null) remove(KEY_IDEMPOTENCY_CART_FINGERPRINT)
+            else putString(KEY_IDEMPOTENCY_CART_FINGERPRINT, activeCartFingerprint)
+        }?.commit()
         return created
     }
 
@@ -71,22 +112,31 @@ object PendingPaymentStore {
         return getOrCreateIdempotencyKey(fingerprint, create)
     }
 
+    @Synchronized
     fun clearIdempotencyKey() {
         idempotencyKey = null
         idempotencyFingerprint = null
-        prefs?.edit()?.remove(KEY_IDEMPOTENCY)?.remove(KEY_IDEMPOTENCY_FINGERPRINT)?.apply()
+        idempotencyCartFingerprint = null
+        prefs?.edit()
+            ?.remove(KEY_IDEMPOTENCY)
+            ?.remove(KEY_IDEMPOTENCY_FINGERPRINT)
+            ?.remove(KEY_IDEMPOTENCY_CART_FINGERPRINT)
+            ?.commit()
     }
 
+    @Synchronized
     fun clear() {
         amountTendered = null
         amountCartFingerprint = null
         idempotencyKey = null
         idempotencyFingerprint = null
+        idempotencyCartFingerprint = null
         prefs?.edit()
             ?.remove(KEY_AMOUNT_TENDERED)
             ?.remove(KEY_AMOUNT_CART_FINGERPRINT)
             ?.remove(KEY_IDEMPOTENCY)
             ?.remove(KEY_IDEMPOTENCY_FINGERPRINT)
-            ?.apply()
+            ?.remove(KEY_IDEMPOTENCY_CART_FINGERPRINT)
+            ?.commit()
     }
 }

@@ -34,6 +34,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -43,6 +44,8 @@ import com.retailpos.app.data.CustomerDao
 import com.retailpos.app.data.CustomerEntity
 import com.retailpos.app.data.KhataDao
 import com.retailpos.app.data.RetailDatabase
+import com.retailpos.app.ui.components.SectionHeader
+import com.retailpos.app.ui.components.StatusPill
 import kotlinx.coroutines.launch
 import java.util.Locale
 import java.util.UUID
@@ -51,24 +54,12 @@ import java.util.UUID
 fun CustomersScreen(storeId: String, onBack: () -> Unit, onOpenKhata: (String) -> Unit) {
     val context = LocalContext.current
     val database = remember(context) { RetailDatabase.get(context) }
-    CustomersScreen(
-        storeId = storeId,
-        dao = database.customerDao(),
-        khataDao = database.khataDao(),
-        onOpenCustomer = { onOpenKhata(it.id) },
-        onBack = onBack
-    )
+    CustomersScreen(storeId, database.customerDao(), database.khataDao(), { onOpenKhata(it.id) }, onBack)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CustomersScreen(
-    storeId: String,
-    dao: CustomerDao,
-    khataDao: KhataDao,
-    onOpenCustomer: (CustomerEntity) -> Unit,
-    onBack: () -> Unit
-) {
+fun CustomersScreen(storeId: String, dao: CustomerDao, khataDao: KhataDao, onOpenCustomer: (CustomerEntity) -> Unit, onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
     var query by remember { mutableStateOf("") }
     var showAdd by remember { mutableStateOf(false) }
@@ -79,18 +70,23 @@ fun CustomersScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("CUSTOMERS", fontWeight = FontWeight.Black) },
-                navigationIcon = { IconButton(onClick = onBack) { Text("‹", style = MaterialTheme.typography.headlineMedium) } },
+                title = {
+                    Column {
+                        Text("Customers", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                        Text("Customers · Khata · credit", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                },
+                navigationIcon = { TextButton(onClick = onBack) { Text("Back") } },
                 actions = { IconButton(onClick = { showAdd = true }) { Icon(Icons.Default.Add, contentDescription = "Add customer") } }
             )
         }
     ) { padding ->
         LazyColumn(
             Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(16.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            actionError?.let { error -> item { Text(error, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold) } }
+            actionError?.let { item { Text(it, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold) } }
             item {
                 OutlinedTextField(
                     value = query,
@@ -101,45 +97,50 @@ fun CustomersScreen(
                     placeholder = { Text("Search name or phone") }
                 )
             }
+            item { SectionHeader("Customer ledger", customers.size.toString()) }
             if (customers.isEmpty()) {
                 item {
                     Card(Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp), horizontalAlignment = Alignment.Start) {
                             Icon(Icons.Default.Person, contentDescription = null)
-                            Text("No customers found", fontWeight = FontWeight.Bold)
-                            Text("Add a customer to keep their details ready for billing and Khata.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Button(onClick = { showAdd = true }) { Text("ADD CUSTOMER") }
+                            Text(if (query.isBlank()) "No customers yet" else "No customers found", fontWeight = FontWeight.Bold)
+                            Text("Keep customer details ready for billing and Khata.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Button(onClick = { if (query.isNotBlank()) query = "" else showAdd = true }) { Text(if (query.isNotBlank()) "CLEAR SEARCH" else "ADD CUSTOMER") }
                         }
                     }
                 }
             } else {
                 items(customers, key = { it.id }) { customer ->
                     val balance by khataDao.observeBalance(storeId, customer.id).collectAsState(initial = 0.0)
+                    val state = KhataRules.displayState(balance)
                     Card(Modifier.fillMaxWidth()) {
-                        Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text(customer.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                                if (customer.phone.isNotBlank()) Text(customer.phone)
-                                Text(
-                                    when (KhataRules.displayState(balance)) {
+                        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Icon(Icons.Default.Person, contentDescription = null)
+                                Column(Modifier.weight(1f)) {
+                                    Text(customer.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                                    if (customer.phone.isNotBlank()) Text(customer.phone, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                StatusPill(
+                                    when (state) {
                                         com.retailpos.app.core.customer.KhataState.DUE -> "Due ${money(balance)}"
                                         com.retailpos.app.core.customer.KhataState.CREDIT -> "Credit ${money(-balance)}"
                                         com.retailpos.app.core.customer.KhataState.SETTLED -> "Settled"
-                                        com.retailpos.app.core.customer.KhataState.INVALID -> "Invalid balance"
+                                        com.retailpos.app.core.customer.KhataState.INVALID -> "Invalid"
                                     },
-                                    color = if (balance > 0.0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontWeight = FontWeight.Bold
+                                    positive = balance <= 0.0
                                 )
-                                OutlinedButton(onClick = { onOpenCustomer(customer) }) { Text("OPEN KHATA") }
                             }
-                            IconButton(onClick = { deleteCustomer = customer; actionError = null }) {
-                                Icon(Icons.Default.DeleteOutline, contentDescription = "Delete ${customer.name}")
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Button(onClick = { onOpenCustomer(customer) }, modifier = Modifier.weight(1f)) { Text("OPEN KHATA") }
+                                IconButton(onClick = { deleteCustomer = customer; actionError = null }) {
+                                    Icon(Icons.Default.DeleteOutline, contentDescription = "Delete ${customer.name}")
+                                }
                             }
                         }
                     }
                 }
             }
-            item { OutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text("BACK") } }
         }
     }
 
@@ -149,22 +150,9 @@ fun CustomersScreen(
         AlertDialog(
             onDismissRequest = { deleteCustomer = null },
             title = { Text("Delete customer?") },
-            text = {
-                Text(
-                    if (balance == 0.0) "Remove ${customer.name} from this store's customer list?"
-                    else "${customer.name} has an outstanding Khata balance of ${money(balance)}. Settle the balance before deleting this customer."
-                )
-            },
+            text = { Text(if (balance == 0.0) "Remove ${customer.name} from this store's customer list?" else "${customer.name} has an outstanding Khata balance of ${money(balance)}. Settle the balance before deleting this customer.") },
             confirmButton = {
-                Button(
-                    enabled = balance == 0.0,
-                    onClick = {
-                        scope.launch {
-                            dao.delete(customer.id, storeId)
-                            deleteCustomer = null
-                        }
-                    }
-                ) { Text("DELETE") }
+                Button(enabled = balance == 0.0, onClick = { scope.launch { dao.delete(customer.id, storeId); deleteCustomer = null } }) { Text("DELETE") }
             },
             dismissButton = { TextButton(onClick = { deleteCustomer = null }) { Text("CANCEL") } }
         )
@@ -178,15 +166,14 @@ private fun AddCustomerDialog(storeId: String, dao: CustomerDao, onDismiss: () -
     var phone by remember { mutableStateOf("") }
     var address by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
-
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Add customer") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(value = name, onValueChange = { name = it }, singleLine = true, label = { Text("Name") })
-                OutlinedTextField(value = phone, onValueChange = { phone = it }, singleLine = true, label = { Text("Phone (optional)") })
-                OutlinedTextField(value = address, onValueChange = { address = it }, minLines = 2, label = { Text("Address (optional)") })
+                OutlinedTextField(name, { name = it }, singleLine = true, label = { Text("Name") })
+                OutlinedTextField(phone, { phone = it }, singleLine = true, label = { Text("Phone (optional)") })
+                OutlinedTextField(address, { address = it }, minLines = 2, label = { Text("Address (optional)") })
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             }
         },
@@ -194,22 +181,16 @@ private fun AddCustomerDialog(storeId: String, dao: CustomerDao, onDismiss: () -
             Button(onClick = {
                 val cleanName = name.trim()
                 val cleanPhone = phone.trim()
-                if (cleanName.isBlank()) {
-                    error = "Customer name is required."
-                } else {
-                    scope.launch {
-                        try {
-                            if (cleanPhone.isNotBlank() && dao.getByPhone(storeId, cleanPhone) != null) {
-                                error = "A customer with this phone number already exists."
-                            } else {
-                                val now = System.currentTimeMillis()
-                                dao.upsert(CustomerEntity(UUID.randomUUID().toString(), storeId, cleanName, cleanPhone, address.trim(), now, now))
-                                onDismiss()
-                            }
-                        } catch (exception: Exception) {
-                            error = exception.message ?: "Customer could not be saved."
+                if (cleanName.isBlank()) error = "Customer name is required."
+                else scope.launch {
+                    try {
+                        if (cleanPhone.isNotBlank() && dao.getByPhone(storeId, cleanPhone) != null) error = "A customer with this phone number already exists."
+                        else {
+                            val now = System.currentTimeMillis()
+                            dao.upsert(CustomerEntity(UUID.randomUUID().toString(), storeId, cleanName, cleanPhone, address.trim(), now, now))
+                            onDismiss()
                         }
-                    }
+                    } catch (exception: Exception) { error = exception.message ?: "Customer could not be saved." }
                 }
             }) { Text("SAVE") }
         },
