@@ -11,6 +11,7 @@ object ProductCaptureConsensus {
         val barcode = mostFrequentNonBlank(observations.mapNotNull { it.barcode })
         val name = mostFrequentNonBlank(observations.mapNotNull { it.printedName })
         val brand = mostFrequentNonBlank(observations.mapNotNull { it.printedBrand })
+        val variant = mostFrequentNonBlank(observations.mapNotNull { it.printedVariant })
         val category = mostFrequentNonBlank(observations.mapNotNull { it.categoryHint })
         val mrp = mostFrequentDouble(observations.mapNotNull { it.mrp }, tolerance = 0.01)
         val pack = mostFrequentPack(observations.mapNotNull { it.pack })
@@ -19,6 +20,7 @@ object ProductCaptureConsensus {
             barcode = barcode,
             printedName = name,
             printedBrand = brand,
+            printedVariant = variant,
             mrp = mrp,
             categoryHint = category,
             categoryConfidence = observations.mapNotNull { it.categoryConfidence }.maxOrNull(),

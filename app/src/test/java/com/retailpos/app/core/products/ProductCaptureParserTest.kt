@@ -7,14 +7,15 @@ import org.junit.Test
 
 class ProductCaptureParserTest {
     @Test
-    fun extractsNameBrandAndMrpWhileIgnoringMetadataLines() {
+    fun extractsNameBrandMrpAndExplicitFlavorWhileIgnoringMetadataLines() {
         val parsed = ProductCaptureParser.parse(
-            "ACME Chocolate Bar\nACME\nMRP ₹ 49.00\nNet Wt 50 g\nIngredients sugar"
+            "BRAND: Frooti\nProduct: Mango Drink\nFlavour: Mango\nMRP ₹ 40.00\nNet Wt 600 ml\nIngredients sugar"
         )
 
-        assertEquals("ACME Chocolate Bar", parsed.name)
-        assertEquals("ACME", parsed.brand)
-        assertEquals(49.0, parsed.mrp!!, 0.001)
+        assertEquals("Mango Drink", parsed.name)
+        assertEquals("Frooti", parsed.brand)
+        assertEquals("Mango", parsed.variant)
+        assertEquals(40.0, parsed.mrp!!, 0.001)
         assertTrue(parsed.usefulLines.none { it.contains("MRP", ignoreCase = true) })
     }
 
@@ -22,5 +23,14 @@ class ProductCaptureParserTest {
     fun malformedMrpDoesNotBecomePrice() {
         val parsed = ProductCaptureParser.parse("Sample Product\nMRP --\nRs ???")
         assertNull(parsed.mrp)
+    }
+
+    @Test
+    fun doesNotGuessVariantFromUnlabeledMarketingText() {
+        val parsed = ProductCaptureParser.parse(
+            "BRAND: Example\nExample Cool Summer Taste\nNet Wt 500 ml\nMRP ₹ 20"
+        )
+
+        assertNull(parsed.variant)
     }
 }

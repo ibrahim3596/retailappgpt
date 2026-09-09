@@ -14,7 +14,11 @@ data class CatalogProduct(
     val category: String?,
     val quantity: String?,
     val imageUrl: String?
-)
+) {
+    // Compatibility alias for older review UI terminology.
+    val categories: String?
+        get() = category
+}
 
 object ProductCatalogLookup {
     private const val USER_AGENT = "RetailPOS/0.1 (product-catalog-enrichment)"

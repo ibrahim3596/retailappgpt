@@ -46,6 +46,12 @@ interface ProductDao {
     @Query("SELECT DISTINCT p.* FROM products p WHERE p.storeId = :storeId AND p.isArchived = 1 AND (LOWER(p.name) LIKE '%' || LOWER(:query) || '%' OR LOWER(p.brand) LIKE '%' || LOWER(:query) || '%' OR p.sku LIKE '%' || :query || '%') ORDER BY p.updatedAt DESC, p.name COLLATE NOCASE")
     fun searchArchivedProducts(storeId: String, query: String): Flow<List<ProductEntity>>
 
+    @Query("SELECT COUNT(*) FROM products WHERE storeId = :storeId AND isArchived = 0 AND stock <= 0")
+    suspend fun getOutOfStockCount(storeId: String): Int
+
+    @Query("SELECT COUNT(*) FROM products WHERE storeId = :storeId AND isArchived = 0 AND stock > 0 AND stock <= lowStockThreshold")
+    suspend fun getLowStockCount(storeId: String): Int
+
     @Query("UPDATE products SET isArchived = :archived, updatedAt = :updatedAt WHERE id = :productId AND storeId = :storeId")
     suspend fun setArchived(productId: String, storeId: String, archived: Boolean, updatedAt: Long): Int
 

@@ -15,6 +15,9 @@ interface StaffDao {
     @Query("SELECT * FROM staff WHERE storeId = :storeId ORDER BY name COLLATE NOCASE")
     suspend fun list(storeId: String): List<StaffEntity>
 
+    @Query("SELECT COUNT(*) FROM staff WHERE storeId = :storeId AND role = 'OWNER' AND active = 1")
+    suspend fun countActiveOwners(storeId: String): Int
+
     @Upsert
     suspend fun upsert(staff: StaffEntity)
 

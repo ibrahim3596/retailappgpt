@@ -22,6 +22,8 @@ abstract class InventoryDao {
     abstract suspend fun getProductMovements(storeId: String, productId: String): List<InventoryMovementEntity>
     @Query("SELECT * FROM inventory_batches WHERE storeId = :storeId AND productId = :productId AND quantity > 0 ORDER BY CASE WHEN expiryDate IS NULL THEN 1 ELSE 0 END, expiryDate ASC, createdAt ASC")
     abstract suspend fun getAvailableBatchesFefo(storeId: String, productId: String): List<InventoryBatchEntity>
+    @Query("SELECT * FROM inventory_batches WHERE storeId = :storeId AND id = :batchId LIMIT 1")
+    abstract suspend fun getBatchById(storeId: String, batchId: String): InventoryBatchEntity?
     @Query("SELECT COALESCE(SUM(quantity * purchasePrice), 0.0) FROM inventory_batches WHERE storeId = :storeId AND quantity > 0")
     abstract suspend fun getInventoryValuation(storeId: String): Double
     @Query("SELECT COUNT(*) FROM inventory_batches WHERE storeId = :storeId AND quantity > 0 AND expiryDate IS NOT NULL AND expiryDate > :now AND expiryDate <= :warningEnd")

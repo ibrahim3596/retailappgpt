@@ -155,6 +155,7 @@ fun RetailPosApp(staffSession: StaffSession) {
     fun replaceCart(lines: List<CartLine>) {
         cartManager.replace(lines)
         cart = cartManager.lines
+        PendingPaymentStore.clear()
     }
 
     fun updateCartLinePricing(updatedLine: CartLine) {
@@ -169,7 +170,7 @@ fun RetailPosApp(staffSession: StaffSession) {
 
     fun addProductToCart(product: ProductEntity, quantity: Double = 1.0) {
         when (cartManager.addQuantity(product, quantity)) {
-            AddToCartResult.Added -> { cart = cartManager.lines; posQuery = ""; cartError = null }
+            AddToCartResult.Added -> { cart = cartManager.lines; PendingPaymentStore.clear(); posQuery = ""; cartError = null }
             AddToCartResult.OutOfStock -> cartError = "${product.name} is out of stock."
             AddToCartResult.InsufficientStock -> cartError = "Only ${product.stock} ${product.unit} of ${product.name} is available."
             AddToCartResult.InvalidQuantity -> cartError = "The requested quantity is not valid."
@@ -180,7 +181,7 @@ fun RetailPosApp(staffSession: StaffSession) {
         scope.launch {
             val availableStock = database.productDao().getById(line.productId, LOCAL_STORE_ID)?.stock ?: 0.0
             when (cartManager.setQuantity(line.productId, quantity, availableStock)) {
-                AddToCartResult.Added -> { cart = cartManager.lines; cartError = null }
+                AddToCartResult.Added -> { cart = cartManager.lines; PendingPaymentStore.clear(); cartError = null }
                 AddToCartResult.OutOfStock -> cartError = "${line.name} is out of stock."
                 AddToCartResult.InsufficientStock -> cartError = "Only ${availableStock.clean()} ${line.unit} of ${line.name} is available."
                 AddToCartResult.InvalidQuantity -> cartError = "Enter a quantity greater than zero."
@@ -278,7 +279,7 @@ fun RetailPosApp(staffSession: StaffSession) {
 
     NavHost(navController = navController, startDestination = Routes.HOME) {
         composable(Routes.HOME) { HomeScreen(onNewBill = { navController.navigate(Routes.POS) }, onNavigate = navController::navigate) }
-        composable(Routes.POS) { PosScreen(cart = cart, searchResults = searchResults, onSearchQueryChanged = { posQuery = it }, onAddProduct = { addProductToCart(it) }, onVoiceInput = ::handleVoiceInput, onVoiceError = { cartError = it }, onSetCartQuantity = ::setCartQuantity, onRemoveFromCart = { productId -> cartManager.remove(productId).also { cart = cartManager.lines } }, onBack = { navController.popBackStack() }, onOpenScanner = { navController.navigate(Routes.BILLING_SCANNER) }, onCheckout = { if (cart.isNotEmpty() && recoveryIssues.isEmpty()) navController.navigate(Routes.CHECKOUT) }, onHoldBill = ::holdCurrentBill, onOpenHeldBills = { refreshHeldBills(); showHeldBills = true }, onClearBill = { cartManager.clear(); cart = emptyList(); posQuery = ""; PendingPaymentStore.clear(); cartError = "Bill cleared." }) }
+        composable(Routes.POS) { PosScreen(cart = cart, searchResults = searchResults, onSearchQueryChanged = { posQuery = it }, onAddProduct = { addProductToCart(it) }, onVoiceInput = ::handleVoiceInput, onVoiceError = { cartError = it }, onSetCartQuantity = ::setCartQuantity, onRemoveFromCart = { productId -> cartManager.remove(productId).also { cart = cartManager.lines; PendingPaymentStore.clear() } }, onBack = { navController.popBackStack() }, onOpenScanner = { navController.navigate(Routes.BILLING_SCANNER) }, onCheckout = { if (cart.isNotEmpty() && recoveryIssues.isEmpty()) navController.navigate(Routes.CHECKOUT) }, onHoldBill = ::holdCurrentBill, onOpenHeldBills = { refreshHeldBills(); showHeldBills = true }, onClearBill = { cartManager.clear(); cart = emptyList(); posQuery = ""; PendingPaymentStore.clear(); cartError = "Bill cleared." }) }
         composable(Routes.CHECKOUT) { CheckoutScreen(cart = cart, customers = customers, onBack = { navController.popBackStack() }, onComplete = ::completeSale, isProcessing = checkoutProcessing, error = checkoutError, staffRole = staffSession.role, onUpdateCartLine = ::updateCartLinePricing) }
         composable(Routes.RECEIPT) { receiptSale?.let { sale -> ReceiptScreen(sale = sale, lines = receiptLines, onBack = { receiptSale = null; receiptLines = emptyList(); navController.navigate(Routes.HOME) { popUpTo(Routes.RECEIPT) { inclusive = true } } }, onShare = ::shareReceipt) } }
         composable(Routes.BILLING_SCANNER) { BarcodeScannerScreen(title = "BILLING SCANNER", onBack = { navController.popBackStack() }) { raw, _ -> scope.launch { val barcode = repository.getByBarcode(LOCAL_STORE_ID, raw); val product = barcode?.let { repository.getById(it.productId, LOCAL_STORE_ID) }; if (product == null) unknownBarcode = raw else { addProductToCart(product); if (cartError == null) navController.popBackStack() } } } }
@@ -308,11 +309,19 @@ fun RetailPosApp(staffSession: StaffSession) {
             Button(onClick = {
                 recoveryIssues.map { it.line.productId }.distinct().forEach { cartManager.remove(it) }
                 cart = cartManager.lines
+                PendingPaymentStore.clear()
                 showRecoveryDialog = false
                 cartError = "Affected saved bill lines were removed."
             }) { Text("REMOVE AFFECTED ITEMS") }
         },
         dismissButton = { TextButton(onClick = { showRecoveryDialog = false }) { Text("REVIEW MANUALLY") } }
+    )
+
+    if (cartError != null) AlertDialog(
+        onDismissRequest = { cartError = null },
+        title = { Text("SELLING UPDATE") },
+        text = { Text(cartError.orEmpty()) },
+        confirmButton = { TextButton(onClick = { cartError = null }) { Text("OK") } }
     )
 
     if (completedSale != null) AlertDialog(onDismissRequest = { completedSale = null }, title = { Text("SALE COMPLETE") }, text = { Text("Sale ${completedSale.orEmpty()} was recorded successfully.") }, confirmButton = { TextButton(onClick = { val id = completedSale.orEmpty(); completedSale = null; openReceipt(id) }) { Text("VIEW RECEIPT") } }, dismissButton = { TextButton(onClick = { completedSale = null }) { Text("DONE") } })

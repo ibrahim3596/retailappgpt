@@ -2,6 +2,8 @@ package com.retailpos.app.ui.screens
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.os.Handler
+import android.os.Looper
 import android.view.ViewGroup
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -40,7 +42,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -56,10 +57,14 @@ import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
+import com.retailpos.app.core.products.ProductBarcodeCandidate
 import com.retailpos.app.core.products.ProductBarcodeDecision
 import com.retailpos.app.core.products.ProductBarcodeSafety
+import com.retailpos.app.core.products.ProductBarcodeSelection
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicReference
 
 private enum class ScannerState { REQUESTING_PERMISSION, READY, DENIED }
 
@@ -82,8 +87,6 @@ fun BarcodeScannerScreen(
         )
     }
     var torchEnabled by remember { mutableStateOf(false) }
-    var lastScan by remember { mutableStateOf<String?>(null) }
-    var lastScanAt by remember { mutableLongStateOf(0L) }
     var ignoredScanMessage by remember { mutableStateOf<String?>(null) }
 
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -135,7 +138,35 @@ fun BarcodeScannerScreen(
                             .build()
                         val scanner = BarcodeScanning.getClient(scannerOptions)
                         val executor: ExecutorService = Executors.newSingleThreadExecutor()
+                        val mainHandler = Handler(Looper.getMainLooper())
+                        val lastAcceptedBarcode = AtomicReference<String?>(null)
+                        val lastAcceptedAt = AtomicLong(0L)
                         var cameraProvider: ProcessCameraProvider? = null
+
+                        fun tryAccept(raw: String, format: Int) {
+                            when (ProductBarcodeSafety.classify(raw)) {
+                                ProductBarcodeDecision.ACCEPT -> {
+                                    val now = System.currentTimeMillis()
+                                    val previous = lastAcceptedBarcode.get()
+                                    val previousAt = lastAcceptedAt.get()
+                                    if (raw != previous || now - previousAt > 1_000L) {
+                                        if (lastAcceptedBarcode.compareAndSet(previous, raw)) {
+                                            lastAcceptedAt.set(now)
+                                            mainHandler.post {
+                                                ignoredScanMessage = null
+                                                onBarcodeDetected(raw, format)
+                                            }
+                                        }
+                                    }
+                                }
+                                ProductBarcodeDecision.IGNORE_QR -> mainHandler.post {
+                                    ignoredScanMessage = "This looks like a QR/payment/link payload, not a product barcode."
+                                }
+                                ProductBarcodeDecision.REJECT_INVALID -> mainHandler.post {
+                                    ignoredScanMessage = "That barcode value is not a valid retail product identifier."
+                                }
+                            }
+                        }
 
                         val listener = Runnable {
                             val provider = runCatching { providerFuture.get() }.getOrNull() ?: return@Runnable
@@ -152,31 +183,30 @@ fun BarcodeScannerScreen(
                                             imageProxy.close()
                                             return@setAnalyzer
                                         }
-                                        scanner.process(InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees))
+                                        val rotation = imageProxy.imageInfo.rotationDegrees
+                                        val logicalWidth = if (rotation % 180 == 0) imageProxy.width else imageProxy.height
+                                        val logicalHeight = if (rotation % 180 == 0) imageProxy.height else imageProxy.width
+                                        val image = InputImage.fromMediaImage(mediaImage, rotation)
+                                        scanner.process(image)
                                             .addOnSuccessListener { barcodes ->
-                                                val hit = barcodes.firstOrNull {
-                                                    !it.rawValue.isNullOrBlank() && it.format != Barcode.FORMAT_QR_CODE
+                                                val acceptedCandidates = barcodes.mapNotNull { hit ->
+                                                    val raw = hit.rawValue?.trim()?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                                                    if (ProductBarcodeSafety.classify(raw) != ProductBarcodeDecision.ACCEPT) return@mapNotNull null
+                                                    val bounds = hit.boundingBox ?: return@mapNotNull null
+                                                    ProductBarcodeCandidate(
+                                                        rawValue = raw,
+                                                        format = hit.format,
+                                                        centerX = bounds.centerX().toFloat(),
+                                                        centerY = bounds.centerY().toFloat(),
+                                                        areaRatio = (bounds.width().toLong() * bounds.height().toLong()).toFloat() /
+                                                            (logicalWidth.toLong().coerceAtLeast(1L) * logicalHeight.toLong().coerceAtLeast(1L)).toFloat()
+                                                    )
                                                 }
-                                                val raw = hit?.rawValue?.trim()
-                                                if (!raw.isNullOrBlank()) {
-                                                    when (ProductBarcodeSafety.classify(raw)) {
-                                                        ProductBarcodeDecision.ACCEPT -> {
-                                                            val now = System.currentTimeMillis()
-                                                            if (raw != lastScan || now - lastScanAt > 1_000L) {
-                                                                lastScan = raw
-                                                                lastScanAt = now
-                                                                ignoredScanMessage = null
-                                                                onBarcodeDetected(raw, hit.format)
-                                                            }
-                                                        }
-                                                        ProductBarcodeDecision.IGNORE_QR -> {
-                                                            ignoredScanMessage = "This looks like a QR/payment/link payload, not a product barcode."
-                                                        }
-                                                        ProductBarcodeDecision.REJECT_INVALID -> {
-                                                            ignoredScanMessage = "That barcode value is not a valid retail product identifier."
-                                                        }
-                                                    }
-                                                }
+                                                ProductBarcodeSelection.choose(
+                                                    candidates = acceptedCandidates,
+                                                    frameWidth = logicalWidth,
+                                                    frameHeight = logicalHeight
+                                                )?.let { hit -> tryAccept(hit.rawValue, hit.format) }
                                             }
                                             .addOnCompleteListener { imageProxy.close() }
                                     }
@@ -200,6 +230,7 @@ fun BarcodeScannerScreen(
                             runCatching { cameraProvider?.unbindAll() }
                             scanner.close()
                             executor.shutdownNow()
+                            mainHandler.removeCallbacksAndMessages(null)
                         }
                     }
 
@@ -226,10 +257,10 @@ fun BarcodeScannerScreen(
                                 Icon(Icons.Default.FlashOn, contentDescription = "Flash")
                             }
                             Column(Modifier.weight(1f)) {
-                                Text("Align product barcode inside the frame", style = MaterialTheme.typography.titleSmall)
+                                Text("Move the product into view; the clearest valid code is selected", style = MaterialTheme.typography.titleSmall)
                                 Spacer(Modifier.height(2.dp))
                                 Text(
-                                    ignoredScanMessage ?: "QR codes are not accepted in the product scanner",
+                                    ignoredScanMessage ?: "Linear and non-QR 2D product codes are supported",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = if (ignoredScanMessage != null) {
                                         MaterialTheme.colorScheme.error

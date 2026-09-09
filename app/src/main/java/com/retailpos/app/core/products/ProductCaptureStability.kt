@@ -7,13 +7,13 @@ data class ProductCaptureStability(
 
 object ProductCaptureStabilityRules {
     fun evaluate(observation: ProductCaptureObservation): ProductCaptureStability = when {
-        !observation.barcode.isNullOrBlank() -> ProductCaptureStability(
+        hasValidBarcode(observation.barcode) -> ProductCaptureStability(
             stable = true,
-            explanation = "Barcode evidence is present; additional frames improve confidence but are not required for initial review."
+            explanation = "A valid product barcode is present; review can proceed immediately and other fields remain suggestions."
         )
-        observation.frameCount >= 2 && (!observation.printedName.isNullOrBlank() || !observation.printedBrand.isNullOrBlank()) -> ProductCaptureStability(
+        observation.frameCount >= 2 && hasRepeatedPrintedIdentity(observation) -> ProductCaptureStability(
             stable = true,
-            explanation = "Printed identity evidence repeated across multiple frames."
+            explanation = "Printed product identity evidence repeated across multiple frames."
         )
         observation.categoryHint != null -> ProductCaptureStability(
             stable = false,
@@ -24,4 +24,10 @@ object ProductCaptureStabilityRules {
             explanation = "Identity evidence is not yet stable enough for a capture suggestion."
         )
     }
+
+    private fun hasValidBarcode(barcode: String?): Boolean =
+        barcode?.let { ProductBarcodeSafety.classify(it) == ProductBarcodeDecision.ACCEPT } == true
+
+    private fun hasRepeatedPrintedIdentity(observation: ProductCaptureObservation): Boolean =
+        !observation.printedName.isNullOrBlank() || !observation.printedBrand.isNullOrBlank()
 }

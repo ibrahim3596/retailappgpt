@@ -15,11 +15,11 @@ object CheckoutRecoveryFingerprint {
         customerId: String?,
         billDiscountAmount: Double
     ): String = hash(
-        canonicalCart(lines) + "\nTRANSACTION|$paymentMethod|${customerId.orEmpty()}|${format(billDiscountAmount)}"
+        canonicalCart(lines) + "\nTRANSACTION|${field(paymentMethod)}|${field(customerId.orEmpty())}|${format(billDiscountAmount)}"
     )
 
     private fun canonicalCart(lines: List<CartLine>): String = lines
-        .sortedBy { it.productId }
+        .sortedWith(compareBy<CartLine> { it.productId }.thenBy { it.name }.thenBy { it.sku.orEmpty() }.thenBy { it.unit }.thenBy { format(it.unitPrice) }.thenBy { format(it.quantity) }.thenBy { it.overrideUnitPrice?.let(::format).orEmpty() }.thenBy { format(it.itemDiscountAmount) })
         .joinToString("\n") { line ->
             listOf(
                 line.productId,
@@ -30,7 +30,7 @@ object CheckoutRecoveryFingerprint {
                 format(line.quantity),
                 line.overrideUnitPrice?.let(::format).orEmpty(),
                 format(line.itemDiscountAmount)
-            ).joinToString("|")
+            ).joinToString("|") { field(it) }
         }
 
     private fun hash(value: String): String {
@@ -38,5 +38,7 @@ object CheckoutRecoveryFingerprint {
         return digest.joinToString("") { byte -> "%02x".format(Locale.US, byte.toInt() and 0xff) }
     }
 
-    private fun format(value: Double): String = java.lang.Double.toString(value)
+    private fun field(value: String): String = "${value.length}:$value"
+
+    private fun format(value: Double): String = java.lang.Double.toString(if (value == 0.0) 0.0 else value)
 }

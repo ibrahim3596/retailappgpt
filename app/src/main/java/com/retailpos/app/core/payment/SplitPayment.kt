@@ -17,7 +17,7 @@ object SplitPaymentRules {
         if (parts.any { it.method !in methods }) return "Unsupported split-payment method."
         if (parts.any { !it.amount.isFinite() || it.amount <= 0.0 }) return "Every split-payment amount must be positive."
         val sum = parts.sumOf { it.amount }
-        if (kotlin.math.abs(sum - total) > EPSILON) return "Split payment must equal the payable amount."
+        if (total == 0.0 || kotlin.math.abs(sum - total) > EPSILON) return "Split payment must equal the payable amount."
         return null
     }
 
@@ -26,11 +26,16 @@ object SplitPaymentRules {
 
     fun decode(value: String): List<SplitPaymentPart> {
         if (!value.startsWith("SPLIT:")) return emptyList()
-        return value.removePrefix("SPLIT:").split(',').mapNotNull { token ->
+        val tokens = value.removePrefix("SPLIT:").split(',')
+        if (tokens.size < 2) return emptyList()
+        val decoded = tokens.map { token ->
             val pair = token.split('=', limit = 2)
-            if (pair.size != 2) return@mapNotNull null
-            val amount = pair[1].toDoubleOrNull() ?: return@mapNotNull null
-            SplitPaymentPart(pair[0], amount)
+            if (pair.size != 2) return emptyList()
+            val method = pair[0]
+            val amount = pair[1].toDoubleOrNull() ?: return emptyList()
+            if (method !in methods || !amount.isFinite() || amount <= 0.0) return emptyList()
+            SplitPaymentPart(method, amount)
         }
+        return decoded
     }
 }

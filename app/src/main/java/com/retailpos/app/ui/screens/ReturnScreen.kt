@@ -76,6 +76,7 @@ fun ReturnScreen(
                                 scope.launch {
                                     val saleLines = database.saleDao().getSaleLines(sale.id)
                                     lines = saleLines.map { line -> ReturnCandidateLine(line, database.returnDao().alreadyReturnedQuantity(line.id)) }
+                                    quantities.clear()
                                     selectedSale = sale
                                     error = null
                                 }
@@ -97,7 +98,7 @@ fun ReturnScreen(
                             Text("Sold ${fmt(candidate.saleLine.quantity)} ${candidate.saleLine.unit} • Remaining ${fmt(candidate.remainingQuantity)} ${candidate.saleLine.unit}")
                             OutlinedTextField(
                                 value = input,
-                                onValueChange = { quantities[candidate.saleLine.id] = it },
+                                onValueChange = { value -> quantities[candidate.saleLine.id] = value.filter { it.isDigit() || it == '.' || it == ',' }; error = null },
                                 modifier = Modifier.fillMaxWidth(),
                                 singleLine = true,
                                 label = { Text("Return quantity") }
@@ -107,28 +108,29 @@ fun ReturnScreen(
                 }
                 item {
                     RefundMethodPicker(refundMethod, onSelect = { refundMethod = it })
-                    OutlinedTextField(reason, { reason = it }, modifier = Modifier.fillMaxWidth(), minLines = 2, label = { Text("Return reason") })
+                    OutlinedTextField(reason, { reason = it; error = null }, modifier = Modifier.fillMaxWidth(), minLines = 2, label = { Text("Return reason") })
                     error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                     Button(
                         onClick = {
+                            val invalidInput = quantities.entries.firstOrNull { (_, raw) -> raw.isNotBlank() && raw.replace(',', '.').toDoubleOrNull() == null }
                             val selected = quantities.mapNotNull { (id, raw) ->
                                 val q = raw.replace(',', '.').toDoubleOrNull()
                                 if (q != null && q > 0.0) id to q else null
                             }.toMap()
-                            if (selected.isEmpty()) {
-                                error = "Enter at least one return quantity."
-                            } else if (reason.isBlank()) {
-                                error = "Return reason is required."
-                            } else {
-                                busy = true
-                                scope.launch {
-                                    runCatching {
-                                        ReturnRepository(database).processReturn(storeId, sale, selected, refundMethod, reason, staffRole)
-                                    }.onSuccess {
-                                        onBack()
-                                    }.onFailure {
-                                        error = it.message ?: "Return failed. No stock or ledger changes were committed."
-                                        busy = false
+                            when {
+                                invalidInput != null -> error = "Return quantity must be a valid number."
+                                selected.isEmpty() -> error = "Enter at least one return quantity."
+                                reason.isBlank() -> error = "Return reason is required."
+                                else -> {
+                                    busy = true
+                                    scope.launch {
+                                        runCatching {
+                                            ReturnRepository(database).processReturn(storeId, sale, selected, refundMethod, reason, staffRole)
+                                        }.onSuccess { onBack() }
+                                            .onFailure {
+                                                error = it.message ?: "Return failed. No stock or ledger changes were committed."
+                                                busy = false
+                                            }
                                     }
                                 }
                             }

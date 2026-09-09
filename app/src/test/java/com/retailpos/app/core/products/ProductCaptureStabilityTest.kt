@@ -6,11 +6,19 @@ import org.junit.Test
 
 class ProductCaptureStabilityTest {
     @Test
-    fun barcodeEvidenceCanBeReviewedImmediately() {
+    fun validBarcodeEvidenceCanBeReviewedImmediately() {
         val result = ProductCaptureStabilityRules.evaluate(
             ProductCaptureObservation(barcode = "8901234567890", frameCount = 1)
         )
         assertTrue(result.stable)
+    }
+
+    @Test
+    fun invalidBarcodeCannotCreateStableIdentity() {
+        val result = ProductCaptureStabilityRules.evaluate(
+            ProductCaptureObservation(barcode = "upi://pay?pa=shop@upi", frameCount = 1)
+        )
+        assertFalse(result.stable)
     }
 
     @Test
