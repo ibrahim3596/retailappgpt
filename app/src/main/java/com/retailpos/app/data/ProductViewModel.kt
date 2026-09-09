@@ -127,7 +127,7 @@ class ProductViewModel(application: Application, private val storeId: String) : 
     fun removeSecondaryBarcode(barcodeId: String) { viewModelScope.launch { repository.removeSecondaryBarcode(barcodeId, storeId) } }
 
     fun saveProduct(
-        productId: String?, name: String, brand: String, barcode: String, sku: String,
+        productId: String?, name: String, brand: String, variant: String = "", barcode: String, sku: String,
         mrp: Double, sellingPrice: Double, purchasePrice: Double, stock: Double,
         unit: String, lowStockThreshold: Double,
         captureObservation: ProductCaptureObservation? = null,
@@ -155,7 +155,7 @@ class ProductViewModel(application: Application, private val storeId: String) : 
                 val current = productId?.let { repository.getById(it, storeId) }
                 val product = ProductEntity(
                     id = productId ?: UUID.randomUUID().toString(), storeId = storeId,
-                    name = name.trim(), brand = brand.trim(), barcode = normalizedBarcode.ifBlank { null }, sku = normalizedSku,
+                    name = name.trim(), brand = brand.trim(), variant = variant.trim(), barcode = normalizedBarcode.ifBlank { null }, sku = normalizedSku,
                     mrp = mrp, sellingPrice = sellingPrice, purchasePrice = purchasePrice,
                     stock = if (current != null) current.stock else stock,
                     unit = unit.trim().ifBlank { "pcs" }, lowStockThreshold = lowStockThreshold,
