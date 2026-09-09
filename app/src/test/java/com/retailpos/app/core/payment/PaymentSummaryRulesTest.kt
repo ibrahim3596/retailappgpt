@@ -60,4 +60,10 @@ class PaymentSummaryRulesTest {
         )
         assertEquals(listOf("CASH", "UPI"), result.map { it.paymentMethod })
     }
+
+    @Test
+    fun normalizesCreditReversalToCreditTenderBucket() {
+        assertEquals("CREDIT", PaymentSummaryRules.normalizeRefundMethod("CREDIT_REVERSAL"))
+        assertEquals("UPI", PaymentSummaryRules.normalizeRefundMethod(" UPI "))
+    }
 }
