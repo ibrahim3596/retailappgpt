@@ -16,6 +16,7 @@ data class ProductEntity(
     val storeId: String,
     val name: String,
     val brand: String = "",
+    val variant: String = "",
     val barcode: String? = null,
     val sku: String? = null,
     val mrp: Double,
