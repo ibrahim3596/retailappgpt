@@ -287,7 +287,7 @@ fun ProductReviewScreen(
             OutlinedTextField(variant, { variant = it }, Modifier.fillMaxWidth(), label = { Text("Flavor / variant") }, singleLine = true)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) { OutlinedTextField(barcode, { barcode = it; errorMessage = null }, Modifier.weight(1f), label = { Text("Primary barcode / GTIN") }, singleLine = true); OutlinedButton(onClick = { showBarcodeScanner = true }, modifier = Modifier.padding(top = 8.dp)) { Text("SCAN") } }
             OutlinedTextField(sku, { sku = it; errorMessage = null }, Modifier.fillMaxWidth(), label = { Text("SKU / Item code") }, singleLine = true)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) { OutlinedTextField(mrp, { mrp = it }, Modifier.weight(1f), label = { Text("MRP") }, singleLine = true); OutlinedTextField(sellingPrice, { sellingPrice = it }, Modifier.weight(1f), label = { Text("Sale price") }, singleLine = true) }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) { OutlinedTextField(mrp, { mrp = it }, Modifier.weight(1f), label = { Text("MRP") }, singleLine = true); OutlinedTextField(sellingPrice, { sellingPrice = it }, Modifier.weight(1f), label = { Text("Sale price") }, Modifier.weight(1f), label = { Text("Sale price") }, singleLine = true) }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) { OutlinedTextField(purchasePrice, { purchasePrice = it }, Modifier.weight(1f), label = { Text("Purchase price") }, singleLine = true); OutlinedTextField(value = stock, onValueChange = { if (!isEdit) stock = it }, modifier = Modifier.weight(1f), label = { Text(if (isEdit) "Current stock" else "Opening stock") }, singleLine = true, enabled = !isEdit) }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) { OutlinedTextField(unit, { unit = it }, Modifier.weight(1f), label = { Text("Unit") }, singleLine = true); OutlinedTextField(lowStockThreshold, { lowStockThreshold = it }, Modifier.weight(1f), label = { Text("Low-stock alert") }, singleLine = true) }
             captureObservation?.printedVariant?.let { Text("DETECTED VARIANT: $it", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold) }
@@ -314,16 +314,16 @@ fun ProductReviewScreen(
                     catalog.name?.let { Text("Name: $it", style = MaterialTheme.typography.bodyMedium) }
                     catalog.brand?.let { Text("Brand: $it", style = MaterialTheme.typography.bodyMedium) }
                     catalog.quantity?.let { Text("Pack: $it", style = MaterialTheme.typography.bodyMedium) }
-                    catalog.categories?.let { Text("Categories: $it", style = MaterialTheme.typography.bodySmall) }
+                    catalog.category?.let { Text("Category: $it", style = MaterialTheme.typography.bodySmall) }
                     Text("Public catalog data is advisory only; store-controlled price, stock, SKU and purchase data remain unchanged.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                         OutlinedButton(onClick = {
                             catalog.name?.takeIf { it.isNotBlank() }?.let { name = it }
                             catalog.brand?.takeIf { it.isNotBlank() }?.let { brand = it }
-                            viewModel.recordIdentificationFeedback(detectedBarcode = barcode, candidateKey = catalog.name.orEmpty(), feedback = ProductIdentificationFeedback(acceptedCatalogCandidate = true))
+                            viewModel.recordIdentificationFeedback(barcode, catalog.name.orEmpty(), ProductIdentificationFeedback(acceptedCatalogCandidate = true))
                             catalogStatus = "Catalog identity applied for review. Store-controlled values are unchanged."
                         }, modifier = Modifier.weight(1f)) { Text("APPLY IDENTITY") }
-                        TextButton(onClick = { viewModel.recordIdentificationFeedback(detectedBarcode = barcode, candidateKey = catalog.name.orEmpty(), feedback = ProductIdentificationFeedback(rejectedCatalogCandidate = true)); catalogStatus = "Catalog suggestion dismissed." }) { Text("DISMISS") }
+                        TextButton(onClick = { viewModel.recordIdentificationFeedback(barcode, catalog.name.orEmpty(), ProductIdentificationFeedback(rejectedCatalogCandidate = true)); catalogStatus = "Catalog suggestion dismissed." }) { Text("DISMISS") }
                     }
                 }
             }
@@ -340,7 +340,6 @@ fun ProductReviewScreen(
                             BarcodeMutationResult.Success -> { secondaryBarcode = ""; secondaryBarcodeError = null }
                             BarcodeMutationResult.Duplicate -> secondaryBarcodeError = "This barcode is already assigned."
                             BarcodeMutationResult.Invalid -> secondaryBarcodeError = "Enter a valid non-QR product barcode."
-                            BarcodeMutationResult.Error -> secondaryBarcodeError = "Unable to add barcode."
                         }
                     }
                 }, modifier = Modifier.padding(top = 8.dp)) { Text("ADD") }
