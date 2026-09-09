@@ -183,7 +183,10 @@ fun BarcodeScannerScreen(
                                             imageProxy.close()
                                             return@setAnalyzer
                                         }
-                                        val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
+                                        val rotation = imageProxy.imageInfo.rotationDegrees
+                                        val logicalWidth = if (rotation % 180 == 0) imageProxy.width else imageProxy.height
+                                        val logicalHeight = if (rotation % 180 == 0) imageProxy.height else imageProxy.width
+                                        val image = InputImage.fromMediaImage(mediaImage, rotation)
                                         scanner.process(image)
                                             .addOnSuccessListener { barcodes ->
                                                 val acceptedCandidates = barcodes.mapNotNull { hit ->
@@ -196,13 +199,13 @@ fun BarcodeScannerScreen(
                                                         centerX = bounds.centerX().toFloat(),
                                                         centerY = bounds.centerY().toFloat(),
                                                         areaRatio = (bounds.width().toLong() * bounds.height().toLong()).toFloat() /
-                                                            (imageProxy.width.toLong().coerceAtLeast(1L) * imageProxy.height.toLong().coerceAtLeast(1L)).toFloat()
+                                                            (logicalWidth.toLong().coerceAtLeast(1L) * logicalHeight.toLong().coerceAtLeast(1L)).toFloat()
                                                     )
                                                 }
                                                 ProductBarcodeSelection.choose(
                                                     candidates = acceptedCandidates,
-                                                    frameWidth = imageProxy.width,
-                                                    frameHeight = imageProxy.height
+                                                    frameWidth = logicalWidth,
+                                                    frameHeight = logicalHeight
                                                 )?.let { hit -> tryAccept(hit.rawValue, hit.format) }
                                             }
                                             .addOnCompleteListener { imageProxy.close() }
@@ -254,7 +257,7 @@ fun BarcodeScannerScreen(
                                 Icon(Icons.Default.FlashOn, contentDescription = "Flash")
                             }
                             Column(Modifier.weight(1f)) {
-                                Text("Align product barcode inside the frame", style = MaterialTheme.typography.titleSmall)
+                                Text("Move the product into view; the clearest valid code is selected", style = MaterialTheme.typography.titleSmall)
                                 Spacer(Modifier.height(2.dp))
                                 Text(
                                     ignoredScanMessage ?: "Linear and non-QR 2D product codes are supported",
