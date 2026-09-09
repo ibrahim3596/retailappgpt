@@ -67,6 +67,7 @@ fun ProductReviewScreen(
     val scope = rememberCoroutineScope()
     var name by remember { mutableStateOf("") }
     var brand by remember { mutableStateOf("") }
+    var variant by remember { mutableStateOf("") }
     var barcode by remember { mutableStateOf(initialBarcode) }
     var sku by remember { mutableStateOf("") }
     var mrp by remember { mutableStateOf("") }
@@ -99,6 +100,7 @@ fun ProductReviewScreen(
         editingProduct?.let { product ->
             name = product.name
             brand = product.brand
+            variant = product.variant
             barcode = product.barcode.orEmpty()
             sku = product.sku.orEmpty()
             mrp = product.mrp.toString()
@@ -149,6 +151,7 @@ fun ProductReviewScreen(
             productId = productId,
             name = name,
             brand = brand,
+            variant = variant,
             barcode = barcode,
             sku = sku,
             mrp = mrpValue,
@@ -191,11 +194,13 @@ fun ProductReviewScreen(
                 result.barcode?.let { barcode = it }
                 result.detectedName?.let { name = it }
                 result.detectedBrand?.let { brand = it }
+                result.detectedVariant?.let { variant = it }
                 result.detectedMrp?.let { mrp = it.toString() }
                 val observation = ProductCaptureObservation(
                     barcode = result.barcode,
                     printedName = result.detectedName,
                     printedBrand = result.detectedBrand,
+                    printedVariant = result.detectedVariant,
                     mrp = result.detectedMrp,
                     categoryHint = result.categoryHint,
                     categoryConfidence = result.labelConfidence,
@@ -265,13 +270,14 @@ fun ProductReviewScreen(
             Text(if (isEdit) "Update product details" else "Product details", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             if (!isEdit) {
                 Button(onClick = { showIntelligentCapture = true }, modifier = Modifier.fillMaxWidth()) { Text("INTELLIGENTLY IDENTIFY PRODUCT", fontWeight = FontWeight.Bold) }
-                Text("Point the camera at the front of the product. Identity is a suggestion and must be reviewed before saving.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Point the camera at the product. Identity is a suggestion and must be reviewed before saving.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             identificationStatus?.let { Text(it, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold) }
             identificationConfidence?.let { val level = when { it >= 95 -> "HIGH"; it >= 80 -> "GOOD"; it >= 60 -> "MEDIUM"; it > 0 -> "LOW"; else -> "NONE" }; Text("IDENTIFICATION CONFIDENCE: $level ($it%)", color = if (it >= 80) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold) }
             identificationExplanation?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             OutlinedTextField(name, { name = it; errorMessage = null }, Modifier.fillMaxWidth(), label = { Text("Product name") }, singleLine = true)
             OutlinedTextField(brand, { brand = it }, Modifier.fillMaxWidth(), label = { Text("Brand") }, singleLine = true)
+            OutlinedTextField(variant, { variant = it }, Modifier.fillMaxWidth(), label = { Text("Flavor / variant") }, singleLine = true)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) { OutlinedTextField(barcode, { barcode = it; errorMessage = null }, Modifier.weight(1f), label = { Text("Primary barcode / GTIN") }, singleLine = true); OutlinedButton(onClick = { showBarcodeScanner = true }, modifier = Modifier.padding(top = 8.dp)) { Text("SCAN") } }
             OutlinedTextField(sku, { sku = it; errorMessage = null }, Modifier.fillMaxWidth(), label = { Text("SKU / Item code") }, singleLine = true)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) { OutlinedTextField(mrp, { mrp = it }, Modifier.weight(1f), label = { Text("MRP") }, singleLine = true); OutlinedTextField(sellingPrice, { sellingPrice = it }, Modifier.weight(1f), label = { Text("Sale price") }, singleLine = true) }
@@ -284,6 +290,7 @@ fun ProductReviewScreen(
                     Text("LOCAL PRODUCT MATCH", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
                     Text(candidate.product.name, fontWeight = FontWeight.Bold)
                     if (candidate.product.brand.isNotBlank()) Text("Brand: ${candidate.product.brand}", style = MaterialTheme.typography.bodyMedium)
+                    if (candidate.product.variant.isNotBlank()) Text("Flavor / variant: ${candidate.product.variant}", style = MaterialTheme.typography.bodyMedium)
                     Text("Match: ${candidate.score}% • ${candidate.explanation}", style = MaterialTheme.typography.bodySmall)
                     Text("This product already exists in this store. Opening it avoids creating a duplicate.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
