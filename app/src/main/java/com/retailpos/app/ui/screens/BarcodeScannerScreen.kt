@@ -60,6 +60,8 @@ import com.retailpos.app.core.products.ProductBarcodeDecision
 import com.retailpos.app.core.products.ProductBarcodeSafety
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicReference
 
 private enum class ScannerState { REQUESTING_PERMISSION, READY, DENIED }
 
@@ -82,7 +84,6 @@ fun BarcodeScannerScreen(
         )
     }
     var torchEnabled by remember { mutableStateOf(false) }
-    var lastScan by remember { mutableStateOf<String?>(null) }
     var lastScanAt by remember { mutableLongStateOf(0L) }
     var ignoredScanMessage by remember { mutableStateOf<String?>(null) }
 
@@ -127,15 +128,38 @@ fun BarcodeScannerScreen(
                                 Barcode.FORMAT_CODE_128,
                                 Barcode.FORMAT_CODE_39,
                                 Barcode.FORMAT_CODE_93,
-                                Barcode.FORMAT_CODABAR,
-                                Barcode.FORMAT_DATA_MATRIX,
-                                Barcode.FORMAT_PDF417,
-                                Barcode.FORMAT_AZTEC
+                                Barcode.FORMAT_CODABAR
                             )
                             .build()
                         val scanner = BarcodeScanning.getClient(scannerOptions)
                         val executor: ExecutorService = Executors.newSingleThreadExecutor()
+                        val lastAcceptedBarcode = AtomicReference<String?>(null)
+                        val lastAcceptedAt = AtomicLong(0L)
                         var cameraProvider: ProcessCameraProvider? = null
+
+                        fun tryAccept(raw: String, format: Int) {
+                            when (ProductBarcodeSafety.classify(raw)) {
+                                ProductBarcodeDecision.ACCEPT -> {
+                                    val now = System.currentTimeMillis()
+                                    val previous = lastAcceptedBarcode.get()
+                                    val previousAt = lastAcceptedAt.get()
+                                    if (raw != previous || now - previousAt > 1_000L) {
+                                        if (lastAcceptedBarcode.compareAndSet(previous, raw)) {
+                                            lastAcceptedAt.set(now)
+                                            lastScanAt = now
+                                            ignoredScanMessage = null
+                                            onBarcodeDetected(raw, format)
+                                        }
+                                    }
+                                }
+                                ProductBarcodeDecision.IGNORE_QR -> {
+                                    ignoredScanMessage = "This looks like a QR/payment/link payload, not a product barcode."
+                                }
+                                ProductBarcodeDecision.REJECT_INVALID -> {
+                                    ignoredScanMessage = "That barcode value is not a valid retail product identifier."
+                                }
+                            }
+                        }
 
                         val listener = Runnable {
                             val provider = runCatching { providerFuture.get() }.getOrNull() ?: return@Runnable
@@ -152,30 +176,11 @@ fun BarcodeScannerScreen(
                                             imageProxy.close()
                                             return@setAnalyzer
                                         }
-                                        scanner.process(InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees))
+                                        val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
+                                        scanner.process(image)
                                             .addOnSuccessListener { barcodes ->
-                                                val hit = barcodes.firstOrNull {
-                                                    !it.rawValue.isNullOrBlank() && it.format != Barcode.FORMAT_QR_CODE
-                                                }
-                                                val raw = hit?.rawValue?.trim()
-                                                if (!raw.isNullOrBlank()) {
-                                                    when (ProductBarcodeSafety.classify(raw)) {
-                                                        ProductBarcodeDecision.ACCEPT -> {
-                                                            val now = System.currentTimeMillis()
-                                                            if (raw != lastScan || now - lastScanAt > 1_000L) {
-                                                                lastScan = raw
-                                                                lastScanAt = now
-                                                                ignoredScanMessage = null
-                                                                onBarcodeDetected(raw, hit.format)
-                                                            }
-                                                        }
-                                                        ProductBarcodeDecision.IGNORE_QR -> {
-                                                            ignoredScanMessage = "This looks like a QR/payment/link payload, not a product barcode."
-                                                        }
-                                                        ProductBarcodeDecision.REJECT_INVALID -> {
-                                                            ignoredScanMessage = "That barcode value is not a valid retail product identifier."
-                                                        }
-                                                    }
+                                                barcodes.firstOrNull { !it.rawValue.isNullOrBlank() }?.let { hit ->
+                                                    hit.rawValue?.trim()?.takeIf { it.isNotBlank() }?.let { raw -> tryAccept(raw, hit.format) }
                                                 }
                                             }
                                             .addOnCompleteListener { imageProxy.close() }
