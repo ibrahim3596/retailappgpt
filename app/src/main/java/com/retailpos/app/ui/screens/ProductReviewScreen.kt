@@ -224,7 +224,7 @@ fun ProductReviewScreen(
                 identificationExplanation = baseScore.explanation
                 captureHint = buildString {
                     observation.categoryHint?.let { hint -> append("Visual hint: $hint"); observation.categoryConfidence?.let { append(" (${String.format(java.util.Locale.US, "%.0f%%", it * 100f)})") }; append(". ") }
-                    observation.variant?.let { append("Variant: $it. ") }
+                    observation.printedVariant?.let { append("Variant: $it. ") }
                     observation.pack?.let { pack -> append("Observed pack: ${pack.sourceText}. Verify against selling unit.") }
                     if (observation.frameCount > 1) append(" Evidence across ${observation.frameCount} frames.")
                 }.ifBlank { null }
@@ -287,10 +287,10 @@ fun ProductReviewScreen(
             OutlinedTextField(variant, { variant = it }, Modifier.fillMaxWidth(), label = { Text("Flavor / variant") }, singleLine = true)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) { OutlinedTextField(barcode, { barcode = it; errorMessage = null }, Modifier.weight(1f), label = { Text("Primary barcode / GTIN") }, singleLine = true); OutlinedButton(onClick = { showBarcodeScanner = true }, modifier = Modifier.padding(top = 8.dp)) { Text("SCAN") } }
             OutlinedTextField(sku, { sku = it; errorMessage = null }, Modifier.fillMaxWidth(), label = { Text("SKU / Item code") }, singleLine = true)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) { OutlinedTextField(mrp, { mrp = it }, Modifier.weight(1f), label = { Text("MRP") }, singleLine = true); OutlinedTextField(sellingPrice, { sellingPrice = it }, Modifier.weight(1f), label = { Text("Sale price") }, singleLine = true) }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) { OutlinedTextField(mrp, { mrp = it }, Modifier.weight(1f), label = { Text("MRP") }, singleLine = true); OutlinedTextField(sellingPrice, { sellingPrice = it }, Modifier.weight(1f), label = { Text("Sale price") }, Modifier.weight(1f), label = { Text("Sale price") }, singleLine = true) }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) { OutlinedTextField(purchasePrice, { purchasePrice = it }, Modifier.weight(1f), label = { Text("Purchase price") }, singleLine = true); OutlinedTextField(value = stock, onValueChange = { if (!isEdit) stock = it }, modifier = Modifier.weight(1f), label = { Text(if (isEdit) "Current stock" else "Opening stock") }, singleLine = true, enabled = !isEdit) }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) { OutlinedTextField(unit, { unit = it }, Modifier.weight(1f), label = { Text("Unit") }, singleLine = true); OutlinedTextField(lowStockThreshold, { lowStockThreshold = it }, Modifier.weight(1f), label = { Text("Low-stock alert") }, singleLine = true) }
-            captureObservation?.variant?.let { Text("DETECTED VARIANT: $it", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold) }
+            captureObservation?.printedVariant?.let { Text("DETECTED VARIANT: $it", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold) }
             captureObservation?.pack?.let { pack -> val compatibility = ProductPackCompatibility.classify(pack, unit); Text("OBSERVED PACK: ${pack.sourceText} • ${compatibility.explanation}", color = if (compatibility.compatibility == PackCompatibility.MISMATCH_REQUIRES_REVIEW) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold) }
             localCandidateStatus?.let { Text(it, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall) }
             localCandidates.take(3).forEach { candidate ->
@@ -313,22 +313,42 @@ fun ProductReviewScreen(
                     Text("CATALOG MATCH", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
                     catalog.name?.let { Text("Name: $it", style = MaterialTheme.typography.bodyMedium) }
                     catalog.brand?.let { Text("Brand: $it", style = MaterialTheme.typography.bodyMedium) }
-                    catalog.quantity?.let { Text("Quantity: $it", style = MaterialTheme.typography.bodyMedium) }
-                    catalog.category?.let { Text("Category: $it", style = MaterialTheme.typography.bodyMedium) }
-                    Text("Barcode-backed candidate. Applying it never changes retailer price, purchase price, stock or SKU.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    catalog.quantity?.let { Text("Pack: $it", style = MaterialTheme.typography.bodyMedium) }
+                    catalog.categories?.let { Text("Categories: $it", style = MaterialTheme.typography.bodySmall) }
+                    Text("Public catalog data is advisory only; store-controlled price, stock, SKU and purchase data remain unchanged.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                        Button(onClick = { viewModel.recordIdentificationFeedback(captureObservation?.barcode, catalog.name, ProductIdentificationFeedback(acceptedCatalog = true)); catalog.name?.let { name = it }; catalog.brand?.let { brand = it }; catalog.quantity?.let { captureHint = "Catalog quantity: $it" }; catalog.category?.let { captureHint = "Catalog category: $it" }; identificationStatus = "IDENTIFICATION: CATALOG APPLIED"; identificationConfidence = ProductIdentificationRanking.score(ProductIdentificationSignals(barcodeDetected = true, catalogMatched = true, barcodeMatchesCatalog = true)).score; identificationExplanation = "Catalog candidate accepted by the retailer. Verify all fields before saving."; catalogStatus = "Catalog identity applied. Store-controlled fields remain unchanged."; catalogCandidate = null }, modifier = Modifier.weight(1f)) { Text("USE CATALOG") }
-                        OutlinedButton(onClick = { viewModel.recordIdentificationFeedback(captureObservation?.barcode, catalog.name, ProductIdentificationFeedback(rejectedCatalog = true, retainedCameraData = true)); catalogCandidate = null; identificationConfidence = ProductIdentificationRanking.score(ProductIdentificationSignals(barcodeDetected = barcode.isNotBlank(), printedTextDetected = name.isNotBlank() || brand.isNotBlank())).score; identificationExplanation = "Catalog suggestion dismissed. Camera/OCR details remain under retailer control."; catalogStatus = "Catalog suggestion dismissed." }, modifier = Modifier.weight(1f)) { Text("KEEP CAMERA") }
+                        OutlinedButton(onClick = {
+                            catalog.name?.takeIf { it.isNotBlank() }?.let { name = it }
+                            catalog.brand?.takeIf { it.isNotBlank() }?.let { brand = it }
+                            viewModel.recordIdentificationFeedback(detectedBarcode = barcode, candidateKey = catalog.name.orEmpty(), feedback = ProductIdentificationFeedback(acceptedCatalogCandidate = true))
+                            catalogStatus = "Catalog identity applied for review. Store-controlled values are unchanged."
+                        }, modifier = Modifier.weight(1f)) { Text("APPLY IDENTITY") }
+                        TextButton(onClick = { viewModel.recordIdentificationFeedback(detectedBarcode = barcode, candidateKey = catalog.name.orEmpty(), feedback = ProductIdentificationFeedback(rejectedCatalogCandidate = true)); catalogStatus = "Catalog suggestion dismissed." }) { Text("DISMISS") }
                     }
                 }
             }
-            captureHint?.let { Text(it, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall) }
-            Text("ADDITIONAL BAR CODES", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-            if (productId == null) Text("Save the product first, then add additional barcodes.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            else { barcodes.filter { !it.isPrimary }.forEach { code -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Column(Modifier.weight(1f)) { Text(code.value, fontWeight = FontWeight.Bold); Text(code.type, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }; TextButton(onClick = { viewModel.removeSecondaryBarcode(code.id) }) { Text("REMOVE") } } }; Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) { OutlinedTextField(secondaryBarcode, { secondaryBarcode = it; secondaryBarcodeError = null }, Modifier.weight(1f), label = { Text("Secondary barcode") }, singleLine = true); OutlinedButton(onClick = { viewModel.addSecondaryBarcode(productId, secondaryBarcode, "UNKNOWN") { result -> when (result) { BarcodeMutationResult.Success -> { secondaryBarcode = ""; secondaryBarcodeError = null }; BarcodeMutationResult.Duplicate -> secondaryBarcodeError = "That barcode is already assigned to a product in this store."; BarcodeMutationResult.Invalid -> secondaryBarcodeError = "Enter a barcode before adding it." } } }, modifier = Modifier.padding(top = 8.dp)) { Text("ADD") } }; secondaryBarcodeError?.let { Text(it, color = MaterialTheme.colorScheme.error) } }
-            Text("Sale price cannot exceed MRP. Stock is managed separately after product creation. QR codes are not accepted as product identifiers.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            errorMessage?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-            Button(onClick = ::persistProduct, modifier = Modifier.fillMaxWidth().padding(top = 8.dp), contentPadding = PaddingValues(vertical = 16.dp)) { Text(if (isEdit) "SAVE CHANGES" else "SAVE PRODUCT", fontWeight = FontWeight.Bold) }
+            captureHint?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            if (barcodes.isNotEmpty()) {
+                Text("OTHER BARCODES", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                barcodes.forEach { Text(it.barcode, style = MaterialTheme.typography.bodySmall) }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(secondaryBarcode, { secondaryBarcode = it; secondaryBarcodeError = null }, Modifier.weight(1f), label = { Text("Alternate barcode") }, singleLine = true)
+                OutlinedButton(onClick = {
+                    viewModel.addSecondaryBarcode(secondaryBarcode) { result ->
+                        when (result) {
+                            BarcodeMutationResult.Success -> { secondaryBarcode = ""; secondaryBarcodeError = null }
+                            BarcodeMutationResult.Duplicate -> secondaryBarcodeError = "This barcode is already assigned."
+                            BarcodeMutationResult.Invalid -> secondaryBarcodeError = "Enter a valid non-QR product barcode."
+                            BarcodeMutationResult.Error -> secondaryBarcodeError = "Unable to add barcode."
+                        }
+                    }
+                }, modifier = Modifier.padding(top = 8.dp)) { Text("ADD") }
+            }
+            secondaryBarcodeError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+            errorMessage?.let { Text(it, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold) }
+            Button(onClick = ::persistProduct, modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(vertical = 14.dp)) { Text(if (isEdit) "SAVE CHANGES" else "CREATE PRODUCT", fontWeight = FontWeight.Black) }
+            OutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text("CANCEL") }
         }
     }
 }
