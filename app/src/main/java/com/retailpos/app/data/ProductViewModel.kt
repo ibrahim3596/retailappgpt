@@ -124,6 +124,11 @@ class ProductViewModel(application: Application, private val storeId: String) : 
         viewModelScope.launch { onResult(repository.addSecondaryBarcode(productId, storeId, value, type)) }
     }
 
+    /** Compatibility overload for the review screen; uses the currently loaded product. */
+    fun addSecondaryBarcode(value: String, onResult: (BarcodeMutationResult) -> Unit) {
+        addSecondaryBarcode(_editingProduct.value?.id, value, "ALTERNATE", onResult)
+    }
+
     fun removeSecondaryBarcode(barcodeId: String) { viewModelScope.launch { repository.removeSecondaryBarcode(barcodeId, storeId) } }
 
     fun saveProduct(
