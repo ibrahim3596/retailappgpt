@@ -34,7 +34,7 @@ import com.retailpos.app.core.payment.PendingPaymentStore
         FavoriteProductEntity::class,
         ExpenseEntity::class
     ],
-    version = 25,
+    version = 26,
     exportSchema = false
 )
 abstract class RetailDatabase : RoomDatabase() {
@@ -91,7 +91,8 @@ abstract class RetailDatabase : RoomDatabase() {
                     DatabaseMigrationsV22.MIGRATION_21_22,
                     DatabaseMigrationsV23.MIGRATION_22_23,
                     DatabaseMigrationsV24.MIGRATION_23_24,
-                    DatabaseMigrationsV25.MIGRATION_24_25
+                    DatabaseMigrationsV25.MIGRATION_24_25,
+                    DatabaseMigrationsV26.MIGRATION_25_26
                 )
                 .build()
                 .also {
