@@ -30,4 +30,10 @@ object PaymentSummaryRules {
             .map { (method, value) -> PaymentSummary(method, value.first, value.second) }
             .sortedWith(compareByDescending<PaymentSummary> { it.total }.thenBy { it.paymentMethod })
     }
+
+    /** Maps bookkeeping-only refund method names back to the customer tender bucket. */
+    fun normalizeRefundMethod(refundMethod: String): String = when (refundMethod.trim()) {
+        "CREDIT_REVERSAL" -> "CREDIT"
+        else -> refundMethod.trim()
+    }
 }
