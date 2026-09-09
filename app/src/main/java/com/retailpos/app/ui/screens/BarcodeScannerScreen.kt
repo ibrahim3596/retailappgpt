@@ -2,6 +2,8 @@ package com.retailpos.app.ui.screens
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.os.Handler
+import android.os.Looper
 import android.view.ViewGroup
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -40,7 +42,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -84,7 +85,6 @@ fun BarcodeScannerScreen(
         )
     }
     var torchEnabled by remember { mutableStateOf(false) }
-    var lastScanAt by remember { mutableLongStateOf(0L) }
     var ignoredScanMessage by remember { mutableStateOf<String?>(null) }
 
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -133,6 +133,7 @@ fun BarcodeScannerScreen(
                             .build()
                         val scanner = BarcodeScanning.getClient(scannerOptions)
                         val executor: ExecutorService = Executors.newSingleThreadExecutor()
+                        val mainHandler = Handler(Looper.getMainLooper())
                         val lastAcceptedBarcode = AtomicReference<String?>(null)
                         val lastAcceptedAt = AtomicLong(0L)
                         var cameraProvider: ProcessCameraProvider? = null
@@ -146,16 +147,17 @@ fun BarcodeScannerScreen(
                                     if (raw != previous || now - previousAt > 1_000L) {
                                         if (lastAcceptedBarcode.compareAndSet(previous, raw)) {
                                             lastAcceptedAt.set(now)
-                                            lastScanAt = now
-                                            ignoredScanMessage = null
-                                            onBarcodeDetected(raw, format)
+                                            mainHandler.post {
+                                                ignoredScanMessage = null
+                                                onBarcodeDetected(raw, format)
+                                            }
                                         }
                                     }
                                 }
-                                ProductBarcodeDecision.IGNORE_QR -> {
+                                ProductBarcodeDecision.IGNORE_QR -> mainHandler.post {
                                     ignoredScanMessage = "This looks like a QR/payment/link payload, not a product barcode."
                                 }
-                                ProductBarcodeDecision.REJECT_INVALID -> {
+                                ProductBarcodeDecision.REJECT_INVALID -> mainHandler.post {
                                     ignoredScanMessage = "That barcode value is not a valid retail product identifier."
                                 }
                             }
@@ -205,6 +207,7 @@ fun BarcodeScannerScreen(
                             runCatching { cameraProvider?.unbindAll() }
                             scanner.close()
                             executor.shutdownNow()
+                            mainHandler.removeCallbacksAndMessages(null)
                         }
                     }
 
