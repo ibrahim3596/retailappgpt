@@ -224,12 +224,19 @@ fun ProductReviewScreen(
                 identificationExplanation = baseScore.explanation
                 captureHint = buildString {
                     observation.categoryHint?.let { hint -> append("Visual hint: $hint"); observation.categoryConfidence?.let { append(" (${String.format(java.util.Locale.US, "%.0f%%", it * 100f)})") }; append(". ") }
+                    observation.variant?.let { append("Variant: $it. ") }
                     observation.pack?.let { pack -> append("Observed pack: ${pack.sourceText}. Verify against selling unit.") }
                     if (observation.frameCount > 1) append(" Evidence across ${observation.frameCount} frames.")
                 }.ifBlank { null }
 
                 localCandidateStatus = "Checking your local product master…"
-                viewModel.findLocalCaptureCandidates(observation.printedName, observation.printedBrand, observation.pack?.size, observation.pack?.unit) { candidates ->
+                viewModel.findLocalCaptureCandidates(
+                    barcode = observation.barcode,
+                    name = observation.printedName,
+                    brand = observation.printedBrand,
+                    packSize = observation.pack?.size,
+                    packUnit = observation.pack?.unit
+                ) { candidates ->
                     if (candidates.isEmpty()) localCandidateStatus = "No strong local product match found."
                     else {
                         localCandidateStatus = "Local product matches found. Review before creating a new product."
@@ -283,6 +290,7 @@ fun ProductReviewScreen(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) { OutlinedTextField(mrp, { mrp = it }, Modifier.weight(1f), label = { Text("MRP") }, singleLine = true); OutlinedTextField(sellingPrice, { sellingPrice = it }, Modifier.weight(1f), label = { Text("Sale price") }, singleLine = true) }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) { OutlinedTextField(purchasePrice, { purchasePrice = it }, Modifier.weight(1f), label = { Text("Purchase price") }, singleLine = true); OutlinedTextField(value = stock, onValueChange = { if (!isEdit) stock = it }, modifier = Modifier.weight(1f), label = { Text(if (isEdit) "Current stock" else "Opening stock") }, singleLine = true, enabled = !isEdit) }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) { OutlinedTextField(unit, { unit = it }, Modifier.weight(1f), label = { Text("Unit") }, singleLine = true); OutlinedTextField(lowStockThreshold, { lowStockThreshold = it }, Modifier.weight(1f), label = { Text("Low-stock alert") }, singleLine = true) }
+            captureObservation?.variant?.let { Text("DETECTED VARIANT: $it", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold) }
             captureObservation?.pack?.let { pack -> val compatibility = ProductPackCompatibility.classify(pack, unit); Text("OBSERVED PACK: ${pack.sourceText} • ${compatibility.explanation}", color = if (compatibility.compatibility == PackCompatibility.MISMATCH_REQUIRES_REVIEW) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold) }
             localCandidateStatus?.let { Text(it, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall) }
             localCandidates.take(3).forEach { candidate ->
