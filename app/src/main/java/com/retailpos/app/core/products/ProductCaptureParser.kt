@@ -12,10 +12,14 @@ private val MRP_PATTERNS = listOf(
 )
 private val BRAND_PATTERN = Regex("^brand\\s*[:\\-]\\s*(.+)$", RegexOption.IGNORE_CASE)
 private val PRODUCT_PATTERN = Regex("^(?:product|product name|name)\\s*[:\\-]\\s*(.+)$", RegexOption.IGNORE_CASE)
+private val VARIANT_PATTERN = Regex("^(?:flavou?r|variant|taste)\\s*[:\\-]\\s*(.+)$", RegexOption.IGNORE_CASE)
 
+// Only extract a flavor/variant when the packaging explicitly labels it. This
+// avoids converting arbitrary marketing/background text into a product variant.
 data class ParsedProductText(
     val name: String?,
     val brand: String?,
+    val variant: String?,
     val mrp: Double?,
     val usefulLines: List<String>
 )
@@ -37,9 +41,12 @@ object ProductCaptureParser {
         val explicitBrand = rawLines.firstNotNullOfOrNull {
             BRAND_PATTERN.matchEntire(it)?.groupValues?.getOrNull(1)?.trim()?.takeIf(String::isNotBlank)
         }
+        val explicitVariant = rawLines.firstNotNullOfOrNull {
+            VARIANT_PATTERN.matchEntire(it)?.groupValues?.getOrNull(1)?.trim()?.takeIf(String::isNotBlank)
+        }
         val usefulLines = cleanLines(rawText)
         val name = explicitName ?: usefulLines
-            .filterNot { BRAND_PATTERN.matches(it) || PRODUCT_PATTERN.matches(it) }
+            .filterNot { BRAND_PATTERN.matches(it) || PRODUCT_PATTERN.matches(it) || VARIANT_PATTERN.matches(it) }
             .sortedWith(
                 compareByDescending<String> { line ->
                     val words = line.split(' ').count { it.length >= 2 }
@@ -52,6 +59,7 @@ object ProductCaptureParser {
             .asSequence()
             .filter { it != name }
             .filter { it.length in 2..40 }
+            .filterNot { BRAND_PATTERN.matches(it) || VARIANT_PATTERN.matches(it) }
             .filterNot { it.count(Char::isDigit) > it.count(Char::isLetter) }
             .sortedByDescending { it.count(Char::isLetter) }
             .firstOrNull()
@@ -68,6 +76,7 @@ object ProductCaptureParser {
         return ParsedProductText(
             name = name?.takeIf(String::isNotBlank),
             brand = brand?.takeIf { it.isNotBlank() && it != name },
+            variant = explicitVariant?.takeIf(String::isNotBlank),
             mrp = mrp,
             usefulLines = usefulLines
         )
@@ -81,7 +90,8 @@ object ProductCaptureParser {
         .filterNot { line ->
             OCR_METADATA_PATTERN.containsMatchIn(line) &&
                 !BRAND_PATTERN.matches(line) &&
-                !PRODUCT_PATTERN.matches(line)
+                !PRODUCT_PATTERN.matches(line) &&
+                !VARIANT_PATTERN.matches(line)
         }
         .map { it.replace(OCR_SYMBOL_PATTERN, " ").replace(Regex("\\s+"), " ").trim() }
         .filter { it.length >= 2 }
