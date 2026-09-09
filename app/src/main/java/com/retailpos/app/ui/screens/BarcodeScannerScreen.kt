@@ -57,8 +57,10 @@ import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
+import com.retailpos.app.core.products.ProductBarcodeCandidate
 import com.retailpos.app.core.products.ProductBarcodeDecision
 import com.retailpos.app.core.products.ProductBarcodeSafety
+import com.retailpos.app.core.products.ProductBarcodeSelection
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicLong
@@ -128,7 +130,10 @@ fun BarcodeScannerScreen(
                                 Barcode.FORMAT_CODE_128,
                                 Barcode.FORMAT_CODE_39,
                                 Barcode.FORMAT_CODE_93,
-                                Barcode.FORMAT_CODABAR
+                                Barcode.FORMAT_CODABAR,
+                                Barcode.FORMAT_DATA_MATRIX,
+                                Barcode.FORMAT_PDF417,
+                                Barcode.FORMAT_AZTEC
                             )
                             .build()
                         val scanner = BarcodeScanning.getClient(scannerOptions)
@@ -181,9 +186,24 @@ fun BarcodeScannerScreen(
                                         val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
                                         scanner.process(image)
                                             .addOnSuccessListener { barcodes ->
-                                                barcodes.firstOrNull { !it.rawValue.isNullOrBlank() }?.let { hit ->
-                                                    hit.rawValue?.trim()?.takeIf { it.isNotBlank() }?.let { raw -> tryAccept(raw, hit.format) }
+                                                val acceptedCandidates = barcodes.mapNotNull { hit ->
+                                                    val raw = hit.rawValue?.trim()?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                                                    if (ProductBarcodeSafety.classify(raw) != ProductBarcodeDecision.ACCEPT) return@mapNotNull null
+                                                    val bounds = hit.boundingBox ?: return@mapNotNull null
+                                                    ProductBarcodeCandidate(
+                                                        rawValue = raw,
+                                                        format = hit.format,
+                                                        centerX = bounds.centerX().toFloat(),
+                                                        centerY = bounds.centerY().toFloat(),
+                                                        areaRatio = (bounds.width().toLong() * bounds.height().toLong()).toFloat() /
+                                                            (imageProxy.width.toLong().coerceAtLeast(1L) * imageProxy.height.toLong().coerceAtLeast(1L)).toFloat()
+                                                    )
                                                 }
+                                                ProductBarcodeSelection.choose(
+                                                    candidates = acceptedCandidates,
+                                                    frameWidth = imageProxy.width,
+                                                    frameHeight = imageProxy.height
+                                                )?.let { hit -> tryAccept(hit.rawValue, hit.format) }
                                             }
                                             .addOnCompleteListener { imageProxy.close() }
                                     }
@@ -237,7 +257,7 @@ fun BarcodeScannerScreen(
                                 Text("Align product barcode inside the frame", style = MaterialTheme.typography.titleSmall)
                                 Spacer(Modifier.height(2.dp))
                                 Text(
-                                    ignoredScanMessage ?: "QR codes are not accepted in the product scanner",
+                                    ignoredScanMessage ?: "Linear and non-QR 2D product codes are supported",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = if (ignoredScanMessage != null) {
                                         MaterialTheme.colorScheme.error
