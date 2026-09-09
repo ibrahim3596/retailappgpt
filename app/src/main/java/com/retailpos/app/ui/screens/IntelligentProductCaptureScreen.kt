@@ -65,6 +65,7 @@ data class ProductCaptureResult(
     val barcode: String?,
     val detectedName: String?,
     val detectedBrand: String?,
+    val detectedVariant: String?,
     val categoryHint: String?,
     val detectedMrp: Double?,
     val detectedPackSize: Double?,
@@ -158,6 +159,7 @@ fun IntelligentProductCaptureScreen(
                                     barcode = barcodeRef.get(),
                                     printedName = parsed.name,
                                     printedBrand = parsed.brand,
+                                    printedVariant = parsed.variant,
                                     mrp = parsed.mrp,
                                     categoryHint = labelRef.get(),
                                     categoryConfidence = labelConfidenceRef.get(),
@@ -172,6 +174,7 @@ fun IntelligentProductCaptureScreen(
                                     consensus.barcode,
                                     consensus.printedName,
                                     consensus.printedBrand,
+                                    consensus.printedVariant,
                                     consensus.categoryHint,
                                     consensus.mrp,
                                     consensus.pack?.size,
@@ -185,6 +188,7 @@ fun IntelligentProductCaptureScreen(
                                         barcode = consensus.barcode,
                                         detectedName = consensus.printedName,
                                         detectedBrand = consensus.printedBrand,
+                                        detectedVariant = consensus.printedVariant,
                                         categoryHint = consensus.categoryHint,
                                         detectedMrp = consensus.mrp,
                                         detectedPackSize = consensus.pack?.size,
@@ -244,13 +248,14 @@ fun IntelligentProductCaptureScreen(
             AndroidView(factory = { previewView }, modifier = Modifier.weight(1f).fillMaxWidth())
             Surface(Modifier.fillMaxWidth().padding(16.dp), tonalElevation = 6.dp, shadowElevation = 8.dp) {
                 Column(Modifier.padding(16.dp)) {
-                    Text("Point the camera at the front of the product", style = MaterialTheme.typography.titleMedium)
+                    Text("Move the product into view; keep the pack steady for a moment", style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(6.dp))
-                    Text("The app samples multiple frames and keeps only consistent evidence. Identity remains a suggestion until review.", style = MaterialTheme.typography.bodySmall)
+                    Text("Multiple frames are compared and background metadata is filtered. Printed flavor/variant is captured only when explicitly labeled.", style = MaterialTheme.typography.bodySmall)
                     resultPreview?.let { result ->
                         Spacer(Modifier.height(10.dp))
                         Text("Detected: ${result.detectedName ?: result.categoryHint ?: "Unknown product"}", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
                         result.detectedBrand?.let { Text("Brand: $it", style = MaterialTheme.typography.bodySmall) }
+                        result.detectedVariant?.let { Text("Flavor / variant: $it", style = MaterialTheme.typography.bodySmall) }
                         result.barcode?.let { Text("Barcode: $it", style = MaterialTheme.typography.bodySmall) }
                         result.detectedMrp?.let { Text("Printed MRP: ₹${formatMoney(it)}", style = MaterialTheme.typography.bodySmall) }
                         if (result.detectedPackSize != null && !result.detectedPackUnit.isNullOrBlank()) Text("Pack size: ${formatQuantity(result.detectedPackSize)} ${result.detectedPackUnit}", style = MaterialTheme.typography.bodySmall)
@@ -265,6 +270,7 @@ fun IntelligentProductCaptureScreen(
                                     barcode = result.barcode,
                                     printedName = result.detectedName,
                                     printedBrand = result.detectedBrand,
+                                    printedVariant = result.detectedVariant,
                                     categoryHint = result.categoryHint,
                                     frameCount = result.frameCount
                                 )
