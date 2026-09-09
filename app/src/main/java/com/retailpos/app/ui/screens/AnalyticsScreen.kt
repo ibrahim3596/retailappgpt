@@ -102,7 +102,9 @@ fun AnalyticsScreen(
 
         val grossPaymentSummary = PaymentSummaryRules.normalize(saleDao.getPaymentSummary(storeId, start, end))
         val refundSummary = database.returnDao().getRefundSummary(storeId, start, end)
-        val refundByMethod = refundSummary.associate { it.refundMethod to it.total }
+        val refundByMethod = refundSummary
+            .groupBy { PaymentSummaryRules.normalizeRefundMethod(it.refundMethod) }
+            .mapValues { (_, rows) -> rows.sumOf { it.total } }
         paymentSummary = grossPaymentSummary.map { summary ->
             summary.copy(total = (summary.total - (refundByMethod[summary.paymentMethod] ?: 0.0)).coerceAtLeast(0.0))
         }.filter { it.total > 0.0 }
