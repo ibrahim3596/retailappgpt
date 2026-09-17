@@ -12,7 +12,31 @@ export interface AuthenticatedRequest extends Request {
   user?: AuthenticatedUser;
 }
 
-const JWT_SECRET = process.env.JWT_SECRET || "RETAIL_POS_SUPER_SECRET_KEY_2026";
+let cachedSecret: string | null = null;
+
+/**
+ * Returns the JWT signing secret. There is deliberately NO fallback value:
+ * signing tokens with a publicly-known key would let anyone forge an
+ * authenticated session. The process refuses to sign/verify without a
+ * configured secret.
+ */
+export function getJwtSecret(): string {
+  if (cachedSecret) return cachedSecret;
+  const secret = process.env.JWT_SECRET;
+  if (!secret || secret.length < 32) {
+    throw new Error(
+      "JWT_SECRET is not configured (must be at least 32 characters). " +
+        "Set it in the environment before starting the server."
+    );
+  }
+  cachedSecret = secret;
+  return secret;
+}
+
+/** Non-fatal check used at startup so a misconfigured deployment fails fast. */
+export function assertJwtSecretConfigured(): void {
+  getJwtSecret();
+}
 
 export function authenticateToken(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   const authHeader = req.headers["authorization"];
@@ -22,7 +46,14 @@ export function authenticateToken(req: AuthenticatedRequest, res: Response, next
     return res.status(401).json({ error: "UNAUTHORIZED", message: "Missing authorization token" });
   }
 
-  jwt.verify(token, JWT_SECRET, (err, decoded) => {
+  let secret: string;
+  try {
+    secret = getJwtSecret();
+  } catch {
+    return res.status(500).json({ error: "SERVER_MISCONFIGURED", message: "Authentication is not configured" });
+  }
+
+  jwt.verify(token, secret, (err, decoded) => {
     if (err || !decoded) {
       return res.status(403).json({ error: "FORBIDDEN", message: "Invalid or expired token" });
     }

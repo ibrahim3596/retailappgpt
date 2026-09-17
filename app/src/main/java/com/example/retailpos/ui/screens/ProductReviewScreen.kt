@@ -4,7 +4,6 @@ import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -13,7 +12,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -28,6 +26,9 @@ import com.example.retailpos.engine.barcode.BarcodeNormalizer
 import com.example.retailpos.engine.ocr.PackagingOcrParser
 import com.example.retailpos.ui.MainViewModel
 import com.example.ui.theme.*
+import com.example.ui.theme.Spacing
+import com.example.ui.theme.IconSizes
+import com.example.ui.theme.Shapes
 import kotlinx.coroutines.launch
 import java.util.UUID
 
@@ -119,7 +120,7 @@ fun ProductReviewScreen(
     }
 
     Scaffold(
-        containerColor = RetailBackground,
+        containerColor = Background,
         topBar = {
             TopAppBar(
                 title = { 
@@ -135,7 +136,7 @@ fun ProductReviewScreen(
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = RetailBackground)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Background)
             )
         }
     ) { padding ->
@@ -151,17 +152,17 @@ fun ProductReviewScreen(
             // Header Info
             if (existingProductId != null) {
                 Surface(
-                    color = RetailPrimary.copy(alpha = 0.05f),
-                    shape = RoundedCornerShape(12.dp),
+                    color = Primary.copy(alpha = 0.05f),
+                    shape = Shapes.medium,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Info, contentDescription = null, tint = RetailPrimary, modifier = Modifier.size(20.dp))
+                        Icon(Icons.Default.Info, contentDescription = "信息", tint = Primary, modifier = Modifier.size(20.dp))
                         Spacer(modifier = Modifier.width(12.dp))
                         Text(
                             "You are editing an existing product in your catalogue.",
                             style = MaterialTheme.typography.bodySmall,
-                            color = RetailPrimary,
+                            color = Primary,
                             fontWeight = FontWeight.Medium
                         )
                     }
@@ -172,22 +173,22 @@ fun ProductReviewScreen(
             if (existingProductId == null) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = RetailSurfaceVariant)
+                    shape = Shapes.cardElevated,
+                    colors = CardDefaults.cardColors(containerColor = SurfaceVariant)
                 ) {
                     Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Surface(
                                 modifier = Modifier.size(32.dp),
                                 shape = CircleShape,
-                                color = RetailPrimary.copy(alpha = 0.1f)
+                                color = Primary.copy(alpha = 0.1f)
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
-                                    Icon(Icons.Default.DocumentScanner, contentDescription = null, modifier = Modifier.size(18.dp), tint = RetailPrimary)
+                                    Icon(Icons.Default.DocumentScanner, contentDescription = "扫描", modifier = Modifier.size(18.dp), tint = Primary)
                                 }
                             }
                             Spacer(modifier = Modifier.width(12.dp))
-                            Text("PACKAGING SCAN", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = RetailTextPrimary)
+                            Text("PACKAGING SCAN", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = TextPrimary)
                         }
 
                         OutlinedTextField(
@@ -195,17 +196,17 @@ fun ProductReviewScreen(
                             onValueChange = { sampleOcrInputText = it },
                             modifier = Modifier.fillMaxWidth().height(100.dp),
                             label = { Text("Recognized Text Buffer", style = MaterialTheme.typography.bodySmall) },
-                            shape = RoundedCornerShape(12.dp),
-                            colors = OutlinedTextFieldDefaults.colors(unfocusedContainerColor = RetailSurface, focusedContainerColor = RetailSurface)
+                            shape = Shapes.medium,
+                            colors = OutlinedTextFieldDefaults.colors(unfocusedContainerColor = Surface, focusedContainerColor = Surface)
                         )
 
                         Button(
                             onClick = { runRealOcrParser() },
                             modifier = Modifier.fillMaxWidth().height(48.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = RetailPrimary)
+                            shape = Shapes.pill,
+                            colors = ButtonDefaults.buttonColors(containerColor = Primary)
                         ) {
-                            Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Default.AutoAwesome, contentDescription = "AI识别", modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(8.dp))
                             Text("AUTO-EXTRACT DETAILS", fontWeight = FontWeight.Bold)
                         }
@@ -214,14 +215,14 @@ fun ProductReviewScreen(
 
                 if (mrpConflictDetected) {
                     Surface(
-                        color = RetailError.copy(alpha = 0.05f),
-                        shape = RoundedCornerShape(16.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, RetailError.copy(alpha = 0.1f))
+                        color = Error.copy(alpha = 0.05f),
+                        shape = Shapes.card,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Error.copy(alpha = 0.1f))
                     ) {
                         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Warning, contentDescription = null, tint = RetailError)
+                            Icon(Icons.Default.Warning, contentDescription = "警告", tint = Error)
                             Spacer(modifier = Modifier.width(12.dp))
-                            Text("MRP discrepancy found in scan. Verify manually.", style = MaterialTheme.typography.bodySmall, color = RetailError, fontWeight = FontWeight.SemiBold)
+                            Text("MRP discrepancy found in scan. Verify manually.", style = MaterialTheme.typography.bodySmall, color = Error, fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }
@@ -229,15 +230,15 @@ fun ProductReviewScreen(
 
             // Shopkeeper Verification Form
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text("Product Details", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = RetailTextPrimary)
+                Text("Product Details", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = TextPrimary)
 
                 OutlinedTextField(
                     value = productName,
                     onValueChange = { productName = it },
                     label = { Text("Product Display Name") },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RetailPrimary)
+                    shape = Shapes.medium,
+                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Primary)
                 )
 
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -246,29 +247,29 @@ fun ProductReviewScreen(
                         onValueChange = { brand = it },
                         label = { Text("Brand") },
                         modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RetailPrimary)
+                        shape = Shapes.medium,
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Primary)
                     )
                     OutlinedTextField(
                         value = packSize,
                         onValueChange = { packSize = it },
                         label = { Text("Variant") },
                         modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RetailPrimary)
+                        shape = Shapes.medium,
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Primary)
                     )
                 }
 
-                Divider(color = RetailBorderSubtle, modifier = Modifier.padding(vertical = 8.dp))
-                Text("Identification & Inventory", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = RetailTextPrimary)
+                Divider(color = OutlineVariant, modifier = Modifier.padding(vertical = 8.dp))
+                Text("Identification & Inventory", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = TextPrimary)
 
                 OutlinedTextField(
                     value = sku,
                     onValueChange = { sku = it },
                     label = { Text("SKU / Item Code") },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RetailPrimary)
+                    shape = Shapes.medium,
+                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Primary)
                 )
 
                 OutlinedTextField(
@@ -276,13 +277,13 @@ fun ProductReviewScreen(
                     onValueChange = { currentBarcode = it },
                     label = { Text("Barcode") },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    trailingIcon = { Icon(Icons.Default.QrCode, contentDescription = null, tint = RetailTextSecondary) },
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RetailPrimary)
+                    shape = Shapes.medium,
+                    trailingIcon = { Icon(Icons.Default.QrCode, contentDescription = "二维码", tint = TextSecondary) },
+                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Primary)
                 )
 
-                Divider(color = RetailBorderSubtle, modifier = Modifier.padding(vertical = 8.dp))
-                Text("Pricing & Tax", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = RetailTextPrimary)
+                Divider(color = OutlineVariant, modifier = Modifier.padding(vertical = 8.dp))
+                Text("Pricing & Tax", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = TextPrimary)
 
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedTextField(
@@ -291,8 +292,8 @@ fun ProductReviewScreen(
                         label = { Text("MRP (₹)") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RetailPrimary)
+                        shape = Shapes.medium,
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Primary)
                     )
                     OutlinedTextField(
                         value = sellingPriceText,
@@ -300,8 +301,8 @@ fun ProductReviewScreen(
                         label = { Text("Selling Price (₹)") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RetailPrimary)
+                        shape = Shapes.medium,
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Primary)
                     )
                 }
 
@@ -312,8 +313,8 @@ fun ProductReviewScreen(
                         label = { Text("Purchase (₹)") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RetailPrimary)
+                        shape = Shapes.medium,
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Primary)
                     )
                     OutlinedTextField(
                         value = gstRateText,
@@ -321,13 +322,13 @@ fun ProductReviewScreen(
                         label = { Text("GST %") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RetailPrimary)
+                        shape = Shapes.medium,
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Primary)
                     )
                 }
 
-                Divider(color = RetailBorderSubtle, modifier = Modifier.padding(vertical = 8.dp))
-                Text("Inventory", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = RetailTextPrimary)
+                Divider(color = OutlineVariant, modifier = Modifier.padding(vertical = 8.dp))
+                Text("Inventory", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = TextPrimary)
 
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedTextField(
@@ -335,8 +336,8 @@ fun ProductReviewScreen(
                         onValueChange = { hsnCode = it },
                         label = { Text("HSN Code") },
                         modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RetailPrimary)
+                        shape = Shapes.medium,
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Primary)
                     )
                     OutlinedTextField(
                         value = initialStockText,
@@ -344,8 +345,8 @@ fun ProductReviewScreen(
                         label = { Text(if (existingProductId != null) "Current Stock" else "Opening Stock") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RetailPrimary)
+                        shape = Shapes.medium,
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Primary)
                     )
                 }
             }
@@ -432,10 +433,10 @@ fun ProductReviewScreen(
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(64.dp),
-                shape = RoundedCornerShape(20.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = RetailPrimary)
+                shape = Shapes.cardElevated,
+                colors = ButtonDefaults.buttonColors(containerColor = Primary)
             ) {
-                Icon(Icons.Default.CheckCircle, contentDescription = null)
+                Icon(Icons.Default.CheckCircle, contentDescription = "完成")
                 Spacer(modifier = Modifier.width(12.dp))
                 Text(
                     text = if (existingProductId != null) "UPDATE PRODUCT" else "SAVE PRODUCT TO CATALOGUE", 

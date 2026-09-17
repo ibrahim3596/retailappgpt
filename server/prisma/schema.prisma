@@ -30,24 +30,25 @@ model Store {
 }
 
 model User {
-  id           String     @id @default(uuid())
-  storeId      String
-  username     String
-  passwordHash String
-  fullName     String
-  role         Role       @default(CASHIER)
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  id             String     @id @default(uuid())
+  storeId        String
+  username       String
+  passwordHash   String
+  fullName       String
+  role           Role       @default(CASHIER)
+  supabaseUserId String?    @unique
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
 
-  store        Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  refreshTokens RefreshToken[]
+  store          Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  refreshTokens  RefreshToken[]
 
   @@unique([storeId, username])
   @@map("users")
 }
 
 enum Role {
-  ADMIN
+  OWNER
   MANAGER
   CASHIER
 }

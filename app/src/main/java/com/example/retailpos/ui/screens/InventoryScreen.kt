@@ -8,7 +8,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -28,6 +27,11 @@ import com.example.retailpos.data.local.entity.StockMovementType
 import com.example.retailpos.ui.MainViewModel
 import com.example.retailpos.ui.components.MetricTile
 import com.example.ui.theme.*
+import com.example.ui.theme.Spacing
+import com.example.ui.theme.IconSizes
+import com.example.ui.theme.Shapes
+import com.example.ui.theme.Elevation
+import com.example.ui.theme.Shapes
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
@@ -91,7 +95,7 @@ fun InventoryScreen(
     }
 
     Scaffold(
-        containerColor = RetailBackground,
+        containerColor = Background,
         topBar = {
             TopAppBar(
                 title = { Text("STOCK MANAGEMENT", fontWeight = FontWeight.Black, letterSpacing = 1.sp) },
@@ -100,16 +104,16 @@ fun InventoryScreen(
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = RetailBackground)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Background)
             )
         },
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = { showAddBatchDialog = true },
-                containerColor = RetailPrimary,
+                containerColor = Primary,
                 contentColor = Color.White,
-                shape = RoundedCornerShape(16.dp),
-                icon = { Icon(Icons.Default.AddBox, contentDescription = null) },
+                shape = Shapes.pill,
+                icon = { Icon(Icons.Default.AddBox, contentDescription = "Add Stock") },
                 text = { Text("RECEIVE STOCK", fontWeight = FontWeight.Bold) }
             )
         }
@@ -118,46 +122,46 @@ fun InventoryScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(horizontal = Spacing.screenPadding),
+            verticalArrangement = Arrangement.spacedBy(Spacing.lg)
         ) {
             // Header
             Column {
-                Text("INVENTORY", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium, color = RetailTextPrimary)
-                Text("Track stock, batches and expiry", style = MaterialTheme.typography.labelSmall, color = RetailTextSecondary)
+                Text("INVENTORY", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium, color = TextPrimary)
+                Text("Track stock, batches and expiry", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
             }
 
             // Summary Metrics
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(Spacing.md)
             ) {
                 MetricTile(
                     label = "Items",
                     value = "${products.size}",
                     icon = Icons.Default.Inventory2,
-                    iconColor = RetailPrimary,
+                    iconColor = Primary,
                     modifier = Modifier.weight(1f)
                 )
                 MetricTile(
                     label = "Low",
                     value = "$lowStockCount",
                     icon = Icons.Default.Warning,
-                    iconColor = RetailWarning,
+                    iconColor = Warning,
                     modifier = Modifier.weight(1f)
                 )
                 MetricTile(
                     label = "Out",
                     value = "$outOfStockCount",
                     icon = Icons.Default.Error,
-                    iconColor = RetailError,
+                    iconColor = Error,
                     modifier = Modifier.weight(1f)
                 )
                 MetricTile(
                     label = "Expiring",
                     value = "${expiringBatches.size}",
                     icon = Icons.Default.EventBusy,
-                    iconColor = Color(0xFFF59E0B),
+                    iconColor = Warning,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -167,14 +171,14 @@ fun InventoryScreen(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Search by name, SKU or barcode", color = RetailTextSecondary) },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = RetailTextSecondary) },
-                shape = RoundedCornerShape(16.dp),
+                placeholder = { Text("Search by name, SKU or barcode", color = TextSecondary) },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search products", tint = TextSecondary) },
+                shape = Shapes.medium,
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = RetailPrimary,
-                    unfocusedBorderColor = RetailBorderSubtle,
-                    unfocusedContainerColor = RetailSurface,
-                    focusedContainerColor = RetailSurface
+                    focusedBorderColor = Primary,
+                    unfocusedBorderColor = OutlineVariant,
+                    unfocusedContainerColor = Surface,
+                    focusedContainerColor = Surface
                 ),
                 singleLine = true
             )
@@ -182,14 +186,14 @@ fun InventoryScreen(
             // Filter Tabs
             LazyRow(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
             ) {
                 item {
                     FilterChip(
                         selected = selectedFilter == "ALL",
                         onClick = { selectedFilter = "ALL" },
                         label = { Text("All Items") },
-                        shape = CircleShape
+                        shape = Shapes.pill
                     )
                 }
                 item {
@@ -197,10 +201,10 @@ fun InventoryScreen(
                         selected = selectedFilter == "LOW",
                         onClick = { selectedFilter = "LOW" },
                         label = { Text("Low Stock") },
-                        shape = CircleShape,
+                        shape = Shapes.pill,
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = RetailWarning.copy(alpha = 0.1f),
-                            selectedLabelColor = RetailWarning
+                            selectedContainerColor = Warning.copy(alpha = 0.1f),
+                            selectedLabelColor = Warning
                         )
                     )
                 }
@@ -209,10 +213,10 @@ fun InventoryScreen(
                         selected = selectedFilter == "OUT",
                         onClick = { selectedFilter = "OUT" },
                         label = { Text("Out of Stock") },
-                        shape = CircleShape,
+                        shape = Shapes.pill,
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = RetailError.copy(alpha = 0.1f),
-                            selectedLabelColor = RetailError
+                            selectedContainerColor = Error.copy(alpha = 0.1f),
+                            selectedLabelColor = Error
                         )
                     )
                 }
@@ -221,7 +225,7 @@ fun InventoryScreen(
                         selected = selectedFilter == "EXPIRING",
                         onClick = { selectedFilter = "EXPIRING" },
                         label = { Text("Expiring Soon") },
-                        shape = CircleShape
+                        shape = Shapes.pill
                     )
                 }
                 item {
@@ -229,7 +233,7 @@ fun InventoryScreen(
                         selected = selectedFilter == "HISTORY",
                         onClick = { selectedFilter = "HISTORY" },
                         label = { Text("History") },
-                        shape = CircleShape
+                        shape = Shapes.pill
                     )
                 }
             }
@@ -318,7 +322,7 @@ fun ProductsInventoryList(
         EmptyInventoryState("No items found")
     } else {
         LazyColumn(
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md),
             contentPadding = PaddingValues(bottom = 80.dp),
             modifier = Modifier.fillMaxSize()
         ) {
@@ -329,39 +333,41 @@ fun ProductsInventoryList(
                     else -> "IN STOCK"
                 }
                 val statusColor = when (status) {
-                    "OUT OF STOCK" -> RetailError
-                    "LOW STOCK" -> RetailWarning
-                    else -> RetailSuccess
+                    "OUT OF STOCK" -> Error
+                    "LOW STOCK" -> Warning
+                    else -> Success
                 }
 
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = RetailSurface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 0.5.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, RetailBorderSubtle)
+                    shape = Shapes.card,
+                    colors = CardDefaults.cardColors(containerColor = Surface),
+                    elevation = CardDefaults.cardElevation(
+                        defaultElevation = Elevation.level1
+                    ),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, OutlineVariant)
                 ) {
-                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column(modifier = Modifier.padding(Spacing.cardPadding), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.Top
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(product.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall, color = RetailTextPrimary)
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Text("SKU: ${product.sku}", style = MaterialTheme.typography.labelSmall, color = RetailTextSecondary)
-                                    Text("•", color = RetailTextSecondary)
-                                    Text(product.brand, style = MaterialTheme.typography.labelSmall, color = RetailTextSecondary)
+                                Text(product.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall, color = TextPrimary)
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                                    Text("SKU: ${product.sku}", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                                    Text("•", color = TextSecondary)
+                                    Text(product.brand, style = MaterialTheme.typography.labelSmall, color = TextSecondary)
                                 }
                             }
                             Surface(
                                 color = statusColor.copy(alpha = 0.1f),
-                                shape = RoundedCornerShape(6.dp)
+                                shape = Shapes.small
                             ) {
                                 Text(
                                     text = status,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                    modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xs),
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Black,
                                     color = statusColor
@@ -375,8 +381,8 @@ fun ProductsInventoryList(
                             verticalAlignment = Alignment.Bottom
                         ) {
                             Column {
-                                Text("STOCK LEVEL", style = MaterialTheme.typography.labelSmall, color = RetailTextSecondary, fontWeight = FontWeight.Bold)
-                                Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("STOCK LEVEL", style = MaterialTheme.typography.labelSmall, color = TextSecondary, fontWeight = FontWeight.Bold)
+                                Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                                     Text(
                                         "${product.currentStock.toInt()}",
                                         style = MaterialTheme.typography.titleLarge,
@@ -386,33 +392,33 @@ fun ProductsInventoryList(
                                     Text(
                                         product.unit,
                                         style = MaterialTheme.typography.labelMedium,
-                                        color = RetailTextSecondary,
-                                        modifier = Modifier.padding(bottom = 4.dp)
+                                        color = TextSecondary,
+                                        modifier = Modifier.padding(bottom = Spacing.xs)
                                     )
                                 }
                             }
 
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                                 OutlinedButton(
                                     onClick = { onAdjustStock(product) },
-                                    contentPadding = PaddingValues(horizontal = 12.dp),
+                                    contentPadding = PaddingValues(horizontal = Spacing.md),
                                     modifier = Modifier.height(36.dp),
-                                    shape = RoundedCornerShape(10.dp),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, RetailBorderSubtle)
+                                    shape = Shapes.pill,
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, OutlineVariant)
                                 ) {
-                                    Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(16.dp), tint = RetailPrimary)
-                                    Spacer(Modifier.width(4.dp))
-                                    Text("ADJUST", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = RetailPrimary)
+                                    Icon(Icons.Default.Tune, contentDescription = "Adjust Stock", modifier = Modifier.size(IconSizes.sm), tint = Primary)
+                                    Spacer(modifier = Modifier.width(Spacing.xs))
+                                    Text("ADJUST", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Primary)
                                 }
                                 listOf(10, 50).forEach { qty ->
                                     OutlinedButton(
                                         onClick = { onQuickRestock(product, qty.toDouble()) },
-                                        contentPadding = PaddingValues(horizontal = 12.dp),
+                                        contentPadding = PaddingValues(horizontal = Spacing.md),
                                         modifier = Modifier.height(36.dp),
-                                        shape = RoundedCornerShape(10.dp),
-                                        border = androidx.compose.foundation.BorderStroke(1.dp, RetailBorderSubtle)
+                                        shape = Shapes.pill,
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, OutlineVariant)
                                     ) {
-                                        Text("+$qty", fontSize = 12.sp, fontWeight = FontWeight.Black, color = RetailPrimary)
+                                        Text("+$qty", fontSize = 12.sp, fontWeight = FontWeight.Black, color = Primary)
                                     }
                                 }
                             }
@@ -430,7 +436,7 @@ fun ExpiringBatchesList(batches: List<BatchEntity>, products: List<ProductEntity
         EmptyInventoryState("No items expiring soon")
     } else {
         LazyColumn(
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md),
             contentPadding = PaddingValues(bottom = 80.dp),
             modifier = Modifier.fillMaxSize()
         ) {
@@ -441,37 +447,41 @@ fun ExpiringBatchesList(batches: List<BatchEntity>, products: List<ProductEntity
 
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = RetailSurface),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, if (isExpired) RetailError.copy(alpha = 0.3f) else RetailBorderSubtle)
+                    shape = Shapes.card,
+                    colors = CardDefaults.cardColors(containerColor = Surface),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, if (isExpired) Error.copy(alpha = 0.3f) else OutlineVariant)
                 ) {
-                    Row(modifier = Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(modifier = Modifier.padding(Spacing.cardPadding), horizontalArrangement = Arrangement.spacedBy(Spacing.lg), verticalAlignment = Alignment.CenterVertically) {
                         Surface(
-                            color = if (isExpired) RetailError.copy(alpha = 0.1f) else Color(0xFFF59E0B).copy(alpha = 0.1f),
-                            shape = RoundedCornerShape(12.dp),
+                            color = if (isExpired) Error.copy(alpha = 0.1f) else Warning.copy(alpha = 0.1f),
+                            shape = Shapes.medium,
                             modifier = Modifier.size(48.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
+                                val icon = if (isExpired) Icons.Default.Block else Icons.Default.EventBusy
+                                val desc = if (isExpired) "Expired" else "Expiring Soon"
+                                val iconColor = if (isExpired) Error else Warning
                                 Icon(
-                                    if (isExpired) Icons.Default.Block else Icons.Default.EventBusy,
-                                    contentDescription = null,
-                                    tint = if (isExpired) RetailError else Color(0xFFF59E0B)
+                                    icon,
+                                    contentDescription = desc,
+                                    tint = iconColor,
+                                    modifier = Modifier.size(IconSizes.lg)
                                 )
                             }
                         }
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(product?.name ?: "Unknown Product", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
-                            Text("Batch: ${batch.batchNumber}", style = MaterialTheme.typography.labelSmall, color = RetailTextSecondary)
+                            Text(product?.name ?: "Unknown Product", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall, color = TextPrimary)
+                            Text("Batch: ${batch.batchNumber}", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
                             Text(
                                 "Expires: ${df.format(Date(batch.expiryDate))}",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = if (isExpired) RetailError else Color(0xFFF59E0B)
+                                color = if (isExpired) Error else Warning
                             )
                         }
                         Column(horizontalAlignment = Alignment.End) {
-                            Text("${batch.remainingQty.toInt()} LEFT", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
-                            Text("MRP ₹${batch.mrp}", style = MaterialTheme.typography.labelSmall, color = RetailTextSecondary)
+                            Text("${batch.remainingQty.toInt()} LEFT", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium, color = TextPrimary)
+                            Text("MRP ₹${batch.mrp}", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
                         }
                     }
                 }
@@ -486,37 +496,37 @@ fun StockHistoryList(movements: List<StockMovementEntity>, products: List<Produc
         EmptyInventoryState("No stock movements yet")
     } else {
         LazyColumn(
-            verticalArrangement = Arrangement.spacedBy(1.dp),
+            verticalArrangement = Arrangement.spacedBy(Spacing.xs),
             contentPadding = PaddingValues(bottom = 80.dp),
             modifier = Modifier.fillMaxSize()
         ) {
             items(movements) { movement ->
                 val product = products.find { it.id == movement.productId }
                 val df = SimpleDateFormat("dd MMM, HH:mm", Locale.getDefault())
-                
+
                 Surface(
-                    color = RetailSurface,
+                    color = Surface,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
-                        modifier = Modifier.padding(16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        modifier = Modifier.padding(Spacing.cardPadding),
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.lg),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         val color = when {
-                            movement.quantity > 0 -> RetailSuccess
-                            movement.quantity < 0 -> RetailError
-                            else -> RetailTextSecondary
+                            movement.quantity > 0 -> Success
+                            movement.quantity < 0 -> Error
+                            else -> TextSecondary
                         }
-                        
+
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(product?.name ?: "Unknown Product", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
-                            Text("${movement.type} • ${df.format(Date(movement.timestamp))}", style = MaterialTheme.typography.labelSmall, color = RetailTextSecondary)
+                            Text(product?.name ?: "Unknown Product", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium, color = TextPrimary)
+                            Text("${movement.type} • ${df.format(Date(movement.timestamp))}", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
                             if (movement.notes.isNotBlank()) {
-                                Text(movement.notes, style = MaterialTheme.typography.labelSmall, color = RetailTextSecondary.copy(alpha = 0.7f))
+                                Text(movement.notes, style = MaterialTheme.typography.labelSmall, color = TextTertiary)
                             }
                         }
-                        
+
                         Column(horizontalAlignment = Alignment.End) {
                             Text(
                                 text = if (movement.quantity > 0) "+${movement.quantity.toInt()}" else "${movement.quantity.toInt()}",
@@ -524,11 +534,11 @@ fun StockHistoryList(movements: List<StockMovementEntity>, products: List<Produc
                                 color = color,
                                 style = MaterialTheme.typography.titleMedium
                             )
-                            Text("Bal: ${movement.balanceAfter.toInt()}", style = MaterialTheme.typography.labelSmall, color = RetailTextSecondary)
+                            Text("Bal: ${movement.balanceAfter.toInt()}", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
                         }
                     }
                 }
-                Divider(color = RetailBorderSubtle.copy(alpha = 0.5f), modifier = Modifier.padding(horizontal = 16.dp))
+                Divider(color = OutlineVariant, modifier = Modifier.padding(horizontal = Spacing.cardPadding))
             }
         }
     }
@@ -541,9 +551,9 @@ fun EmptyInventoryState(message: String) {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Icon(Icons.Default.Inventory, contentDescription = null, modifier = Modifier.size(64.dp), tint = RetailTextSecondary.copy(alpha = 0.1f))
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(message, style = MaterialTheme.typography.bodyMedium, color = RetailTextSecondary, fontWeight = FontWeight.Medium)
+        Icon(Icons.Default.Inventory, contentDescription = "Inventory", modifier = Modifier.size(64.dp), tint = TextTertiary.copy(alpha = 0.1f))
+        Spacer(modifier = Modifier.height(Spacing.lg))
+        Text(message, style = MaterialTheme.typography.bodyMedium, color = TextSecondary, fontWeight = FontWeight.Medium)
     }
 }
 
@@ -559,31 +569,31 @@ fun AdjustStockDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = RetailSurface,
-        title = { Text("Stock Adjustment", fontWeight = FontWeight.Black) },
+        containerColor = Surface,
+        title = { Text("Stock Adjustment", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleLarge) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text(product.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall)
-                
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.lg)) {
+                Text(product.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                     Surface(
                         modifier = Modifier.weight(1f).clickable { isAddition = true },
-                        color = if (isAddition) RetailSuccess.copy(alpha = 0.1f) else RetailBackground,
-                        shape = RoundedCornerShape(8.dp),
-                        border = if (isAddition) androidx.compose.foundation.BorderStroke(1.dp, RetailSuccess) else null
+                        color = if (isAddition) Success.copy(alpha = 0.1f) else SurfaceVariant,
+                        shape = Shapes.medium,
+                        border = if (isAddition) androidx.compose.foundation.BorderStroke(1.dp, Success) else null
                     ) {
-                        Box(Modifier.padding(12.dp), contentAlignment = Alignment.Center) {
-                            Text("ADD (+)", fontWeight = FontWeight.Bold, color = if (isAddition) RetailSuccess else RetailTextSecondary)
+                        Box(Modifier.padding(Spacing.md), contentAlignment = Alignment.Center) {
+                            Text("ADD (+)", fontWeight = FontWeight.Bold, color = if (isAddition) Success else TextSecondary)
                         }
                     }
                     Surface(
                         modifier = Modifier.weight(1f).clickable { isAddition = false },
-                        color = if (!isAddition) RetailError.copy(alpha = 0.1f) else RetailBackground,
-                        shape = RoundedCornerShape(8.dp),
-                        border = if (!isAddition) androidx.compose.foundation.BorderStroke(1.dp, RetailError) else null
+                        color = if (!isAddition) Error.copy(alpha = 0.1f) else SurfaceVariant,
+                        shape = Shapes.medium,
+                        border = if (!isAddition) androidx.compose.foundation.BorderStroke(1.dp, Error) else null
                     ) {
-                        Box(Modifier.padding(12.dp), contentAlignment = Alignment.Center) {
-                            Text("REDUCE (-)", fontWeight = FontWeight.Bold, color = if (!isAddition) RetailError else RetailTextSecondary)
+                        Box(Modifier.padding(Spacing.md), contentAlignment = Alignment.Center) {
+                            Text("REDUCE (-)", fontWeight = FontWeight.Bold, color = if (!isAddition) Error else TextSecondary)
                         }
                     }
                 }
@@ -593,7 +603,7 @@ fun AdjustStockDialog(
                     onValueChange = { if (it.all { c -> c.isDigit() || c == '.' }) quantityText = it },
                     label = { Text("Quantity") },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = Shapes.medium
                 )
 
                 OutlinedTextField(
@@ -601,7 +611,7 @@ fun AdjustStockDialog(
                     onValueChange = { reason = it },
                     label = { Text("Reason (e.g. Damage, Missing)") },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = Shapes.medium
                 )
             }
         },
@@ -613,15 +623,15 @@ fun AdjustStockDialog(
                     onConfirm(if (isAddition) qty else -qty, reason)
                 },
                 enabled = quantityText.isNotBlank(),
-                colors = ButtonDefaults.buttonColors(containerColor = RetailPrimary),
-                shape = RoundedCornerShape(12.dp)
+                colors = ButtonDefaults.buttonColors(containerColor = Primary),
+                shape = Shapes.pill
             ) {
                 Text("APPLY ADJUSTMENT", fontWeight = FontWeight.Black)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("CANCEL", color = RetailTextSecondary)
+                Text("CANCEL", color = TextSecondary)
             }
         }
     )
@@ -640,7 +650,7 @@ fun AddBatchDialog(
     var mrpText by remember { mutableStateOf("") }
     var sellingPriceText by remember { mutableStateOf("") }
     var expiryDate by remember { mutableStateOf("") } // YYYY-MM-DD or similar simplified
-    
+
     LaunchedEffect(selectedProduct) {
         selectedProduct?.let {
             mrpText = it.mrp.toString()
@@ -655,44 +665,44 @@ fun AddBatchDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = RetailSurface,
-        title = { Text("Receive New Stock", fontWeight = FontWeight.Black) },
+        containerColor = Surface,
+        title = { Text("Receive New Stock", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleLarge) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.lg)) {
                 if (selectedProduct == null) {
                     OutlinedTextField(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
                         label = { Text("Search Product to Restock") },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = Shapes.medium
                     )
                     filteredResults.forEach { prod ->
                         Surface(
                             modifier = Modifier.fillMaxWidth().clickable { selectedProduct = prod },
-                            color = RetailBackground,
-                            shape = RoundedCornerShape(8.dp)
+                            color = SurfaceVariant,
+                            shape = Shapes.medium
                         ) {
-                            Row(modifier = Modifier.padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text(prod.name, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-                                Text("SKU: ${prod.sku}", style = MaterialTheme.typography.labelSmall)
+                            Row(modifier = Modifier.padding(Spacing.md), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(prod.name, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = TextPrimary)
+                                Text("SKU: ${prod.sku}", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
                             }
                         }
                     }
                 } else {
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
-                        color = RetailPrimary.copy(alpha = 0.05f),
-                        shape = RoundedCornerShape(12.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, RetailPrimary.copy(alpha = 0.1f))
+                        color = Primary.copy(alpha = 0.05f),
+                        shape = Shapes.medium,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Primary.copy(alpha = 0.1f))
                     ) {
-                        Row(modifier = Modifier.padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Row(modifier = Modifier.padding(Spacing.md), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             Column {
-                                Text(selectedProduct!!.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall)
-                                Text("Current Stock: ${selectedProduct!!.currentStock.toInt()}", style = MaterialTheme.typography.labelSmall)
+                                Text(selectedProduct!!.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall, color = TextPrimary)
+                                Text("Current Stock: ${selectedProduct!!.currentStock.toInt()}", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
                             }
                             IconButton(onClick = { selectedProduct = null }) {
-                                Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Icon(Icons.Default.Close, contentDescription = "Close", modifier = Modifier.size(IconSizes.md))
                             }
                         }
                     }
@@ -702,7 +712,7 @@ fun AddBatchDialog(
                         onValueChange = { if (it.all { c -> c.isDigit() }) quantityText = it },
                         label = { Text("Quantity Received") },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = Shapes.medium
                     )
 
                     OutlinedTextField(
@@ -710,27 +720,27 @@ fun AddBatchDialog(
                         onValueChange = { batchNumber = it },
                         label = { Text("Batch Number") },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = Shapes.medium
                     )
 
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                         OutlinedTextField(
                             value = mrpText,
                             onValueChange = { if (it.all { c -> c.isDigit() || c == '.' }) mrpText = it },
                             label = { Text("MRP") },
                             modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(12.dp)
+                            shape = Shapes.medium
                         )
                         OutlinedTextField(
                             value = sellingPriceText,
                             onValueChange = { if (it.all { c -> c.isDigit() || c == '.' }) sellingPriceText = it },
                             label = { Text("Sale Price") },
                             modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(12.dp)
+                            shape = Shapes.medium
                         )
                     }
-                    
-                    Text("Expiry handling uses standard 6-month default for simulation if left blank.", style = MaterialTheme.typography.labelSmall, color = RetailTextSecondary)
+
+                    Text("Expiry handling uses standard 6-month default for simulation if left blank.", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
                 }
             }
         },
@@ -740,7 +750,7 @@ fun AddBatchDialog(
                     val prod = selectedProduct ?: return@Button
                     val qty = quantityText.toDoubleOrNull() ?: 0.0
                     if (qty <= 0) return@Button
-                    
+
                     val batch = BatchEntity(
                         id = UUID.randomUUID().toString(),
                         productId = prod.id,
@@ -756,15 +766,15 @@ fun AddBatchDialog(
                     onConfirm(batch)
                 },
                 enabled = selectedProduct != null && quantityText.isNotBlank(),
-                colors = ButtonDefaults.buttonColors(containerColor = RetailPrimary),
-                shape = RoundedCornerShape(12.dp)
+                colors = ButtonDefaults.buttonColors(containerColor = Primary),
+                shape = Shapes.pill
             ) {
                 Text("RECEIVE STOCK", fontWeight = FontWeight.Black)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("CANCEL", color = RetailTextSecondary)
+                Text("CANCEL", color = TextSecondary)
             }
         }
     )

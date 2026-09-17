@@ -99,7 +99,7 @@ fun GoogleLinkingUI(viewModel: MainViewModel) {
                 onValueChange = { username = it },
                 label = { Text("Owner Username") },
                 modifier = Modifier.fillMaxWidth(),
-                leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
+                leadingIcon = { Icon(Icons.Default.Person, contentDescription = "用户账号图标") },
                 singleLine = true
             )
 
@@ -110,7 +110,7 @@ fun GoogleLinkingUI(viewModel: MainViewModel) {
                 onValueChange = { if (it.length <= 6) pin = it },
                 label = { Text("Owner PIN") },
                 modifier = Modifier.fillMaxWidth(),
-                leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
+                leadingIcon = { Icon(Icons.Default.Lock, contentDescription = "密码图标") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
                 visualTransformation = PasswordVisualTransformation(),
                 singleLine = true
@@ -263,7 +263,7 @@ fun SetupScreen(viewModel: MainViewModel) {
             onValueChange = { storeName = it },
             label = { Text("Store Name") },
             modifier = Modifier.fillMaxWidth(),
-            leadingIcon = { Icon(Icons.Default.Business, contentDescription = null) },
+            leadingIcon = { Icon(Icons.Default.Business, contentDescription = "商店名称图标") },
             singleLine = true
         )
 
@@ -274,7 +274,7 @@ fun SetupScreen(viewModel: MainViewModel) {
             onValueChange = { ownerName = it },
             label = { Text("Owner Name") },
             modifier = Modifier.fillMaxWidth(),
-            leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
+            leadingIcon = { Icon(Icons.Default.Person, contentDescription = "店主姓名图标") },
             singleLine = true
         )
 
@@ -285,7 +285,7 @@ fun SetupScreen(viewModel: MainViewModel) {
             onValueChange = { phone = it },
             label = { Text("Phone Number") },
             modifier = Modifier.fillMaxWidth(),
-            leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
+            leadingIcon = { Icon(Icons.Default.Phone, contentDescription = "电话号码图标") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
             singleLine = true
         )
@@ -297,7 +297,7 @@ fun SetupScreen(viewModel: MainViewModel) {
             onValueChange = { if (it.length <= 6) pin = it },
             label = { Text("Create 4-6 Digit Login PIN") },
             modifier = Modifier.fillMaxWidth(),
-            leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
+            leadingIcon = { Icon(Icons.Default.Lock, contentDescription = "密码") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
             visualTransformation = PasswordVisualTransformation(),
             singleLine = true
@@ -310,7 +310,7 @@ fun SetupScreen(viewModel: MainViewModel) {
             onValueChange = { if (it.length <= 6) confirmPin = it },
             label = { Text("Confirm PIN") },
             modifier = Modifier.fillMaxWidth(),
-            leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
+            leadingIcon = { Icon(Icons.Default.Lock, contentDescription = "确认密码图标") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
             visualTransformation = PasswordVisualTransformation(),
             singleLine = true
@@ -395,7 +395,7 @@ fun LoginScreen(viewModel: MainViewModel) {
             onValueChange = { username = it },
             label = { Text("Username") },
             modifier = Modifier.fillMaxWidth(),
-            leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
+            leadingIcon = { Icon(Icons.Default.Person, contentDescription = "用户名图标") },
             singleLine = true
         )
 
@@ -406,12 +406,12 @@ fun LoginScreen(viewModel: MainViewModel) {
             onValueChange = { if (it.length <= 6) pin = it },
             label = { Text("PIN") },
             modifier = Modifier.fillMaxWidth(),
-            leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
+            leadingIcon = { Icon(Icons.Default.Lock, contentDescription = "PIN密码图标") },
             trailingIcon = {
                 IconButton(onClick = { pinVisible = !pinVisible }) {
                     Icon(
                         if (pinVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                        contentDescription = null
+                        contentDescription = if (pinVisible) "隐藏密码" else "显示密码"
                     )
                 }
             },

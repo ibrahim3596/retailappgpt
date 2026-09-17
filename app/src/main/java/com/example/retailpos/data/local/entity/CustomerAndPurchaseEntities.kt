@@ -45,7 +45,10 @@ data class CreditLedgerEntryEntity(
     val timestamp: Long = System.currentTimeMillis()
 )
 
-@Entity(tableName = "suppliers")
+@Entity(
+    tableName = "suppliers",
+    indices = [Index(value = ["storeId"])]
+)
 data class SupplierEntity(
     @PrimaryKey val id: String,
     val storeId: String,
@@ -56,7 +59,8 @@ data class SupplierEntity(
     val gstin: String = "",
     val address: String = "",
     val currentBalance: Double = 0.0,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis()
 )
 
 @Entity(tableName = "purchases")
@@ -69,7 +73,8 @@ data class PurchaseEntity(
     val totalAmount: Double,
     val gstTotal: Double,
     val notes: String = "",
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis()
 )
 
 @Entity(tableName = "purchase_items")
@@ -85,4 +90,17 @@ data class PurchaseItemEntity(
     val sellingPrice: Double,
     val mrp: Double,
     val itemTotal: Double
+)
+
+@Entity(tableName = "khata_payment_queue")
+data class KhataPaymentEntity(
+    @PrimaryKey val id: String,
+    val storeId: String,
+    val customerId: String,
+    val amount: Double,
+    val paymentMethod: String, // CASH, UPI, CARD, etc.
+    val notes: String = "",
+    val syncStatus: String = "PENDING", // PENDING, SYNCED, CONFLICT
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis()
 )

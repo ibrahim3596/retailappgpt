@@ -32,8 +32,47 @@ class InventoryRepository(private val db: AppDatabase) {
                 db.stockMovementDao().insertStockMovement(movement)
             }
         } else {
-            db.productDao().updateProduct(product)
+            // Stock must never be silently overwritten by a product edit: route
+            // any delta through the same guarded, audited path as a correction.
+            val stockDelta = product.currentStock - existing.currentStock
+            val persisted = product.copy(currentStock = existing.currentStock)
+            db.productDao().updateProduct(persisted)
+            if (stockDelta != 0.0) {
+                applyStockDelta(product.storeId, product.id, stockDelta, "Stock corrected via product edit")
+            }
         }
+    }
+
+    /**
+     * Applies a signed stock change with a negative-stock guard and writes the
+     * matching StockMovement audit row. Returns false when the guard rejects
+     * the change (insufficient stock).
+     */
+    private suspend fun applyStockDelta(
+        storeId: String,
+        productId: String,
+        delta: Double,
+        notes: String
+    ): Boolean {
+        val affectedRows = if (delta > 0) {
+            db.productDao().atomicAddStock(productId, storeId, delta)
+        } else {
+            db.productDao().atomicDeductStock(productId, storeId, -delta)
+        }
+        if (affectedRows == 0) return false
+
+        val updatedProduct = db.productDao().getProductById(storeId, productId)
+        val movement = StockMovementEntity(
+            id = UUID.randomUUID().toString(),
+            storeId = storeId,
+            productId = productId,
+            type = StockMovementType.ADJUSTMENT,
+            quantity = delta,
+            balanceAfter = updatedProduct?.currentStock ?: 0.0,
+            notes = notes
+        )
+        db.stockMovementDao().insertStockMovement(movement)
+        return true
     }
 
     suspend fun addBatch(batch: BatchEntity) = db.withTransaction {
@@ -157,9 +196,26 @@ class CustomerRepository(private val db: AppDatabase) {
     fun getLedgerForCustomer(storeId: String, customerId: String): Flow<List<CreditLedgerEntryEntity>> =
         db.creditLedgerDao().getLedgerForCustomer(storeId, customerId)
 
-    suspend fun recordPayment(storeId: String, customerId: String, amount: Double, notes: String) {
-        val customer = db.customerDao().getCustomerById(storeId, customerId) ?: return
-        val newBalance = (customer.currentBalance - amount).coerceAtLeast(0.0)
+    /**
+     * Records a khata payment atomically: balance update and audit ledger row
+     * commit together or not at all. Rejects non-positive amounts and
+     * overpayments (a credit balance must never go negative — settle the
+     * excess outside the ledger or record it as advance separately).
+     *
+     * @return true when the payment was recorded, false when rejected.
+     */
+    suspend fun recordPayment(
+        storeId: String,
+        customerId: String,
+        amount: Double,
+        notes: String,
+        paymentMethod: com.example.retailpos.data.local.entity.PaymentMethod
+    ): Boolean = db.withTransaction {
+        if (!amount.isFinite() || amount <= 0.0) return@withTransaction false
+
+        val customer = db.customerDao().getCustomerById(storeId, customerId)
+            ?: return@withTransaction false
+        if (amount > customer.currentBalance + 1e-9) return@withTransaction false
 
         db.customerDao().updateBalance(customerId, storeId, -amount)
 
@@ -169,10 +225,23 @@ class CustomerRepository(private val db: AppDatabase) {
             customerId = customerId,
             type = LedgerEntryType.CREDIT,
             amount = amount,
-            balanceAfter = newBalance,
+            balanceAfter = customer.currentBalance - amount,
             referenceId = "PAY-" + UUID.randomUUID().toString().take(8),
             notes = notes.ifEmpty { "Khata Payment Received" }
         )
         db.creditLedgerDao().insertLedgerEntry(entry)
+
+        // Queue for server sync so multi-device Khata stays consistent.
+        val queued = com.example.retailpos.data.local.entity.KhataPaymentEntity(
+            id = UUID.randomUUID().toString(),
+            storeId = storeId,
+            customerId = customerId,
+            amount = amount,
+            paymentMethod = paymentMethod.name,
+            notes = notes
+        )
+        db.khataPaymentDao().insertKhataPayment(queued)
+
+        true
     }
 }

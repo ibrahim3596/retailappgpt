@@ -121,6 +121,22 @@ class PosRepository(private val db: AppDatabase) {
         val grandTotal = (subtotal + totalGst - overallDiscount).coerceAtLeast(0.0)
         val changeDue = (amountReceived - grandTotal).coerceAtLeast(0.0)
 
+        // Only credit sales may be received short; anything else is a till error.
+        if (paymentMethod != PaymentMethod.CREDIT && amountReceived + 1e-9 < grandTotal) {
+            throw IllegalArgumentException("Amount received is less than the bill total")
+        }
+
+        // Credit sales require a customer and must respect the khata limit.
+        if (paymentMethod == PaymentMethod.CREDIT) {
+            if (customer == null) {
+                throw IllegalArgumentException("Credit sale requires a customer")
+            }
+            val projected = customer.currentBalance + grandTotal
+            if (projected > customer.creditLimit + 1e-9) {
+                throw IllegalStateException("Credit limit exceeded for ${customer.name}")
+            }
+        }
+
         val invoice = InvoiceEntity(
             id = invoiceId,
             localId = localId,

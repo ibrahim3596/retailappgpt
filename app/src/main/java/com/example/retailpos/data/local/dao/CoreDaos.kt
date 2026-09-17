@@ -74,6 +74,9 @@ interface ProductDao {
 
     @Query("SELECT * FROM products WHERE storeId = :storeId AND currentStock <= minStock AND isActive = 1")
     fun getLowStockProducts(storeId: String): Flow<List<ProductEntity>>
+
+    @Query("SELECT * FROM products WHERE storeId = :storeId ORDER BY updatedAt ASC")
+    suspend fun getAllProductsOnce(storeId: String): List<ProductEntity>
 }
 
 @Dao

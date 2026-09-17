@@ -22,23 +22,26 @@ enum class UserRole {
 
 object UserPermissions {
     fun canManageStaff(role: UserRole): Boolean = role == UserRole.OWNER
-    
+
     fun canUpdateStoreProfile(role: UserRole): Boolean = role == UserRole.OWNER
-    
-    fun canAccessInventory(role: UserRole): Boolean = 
+
+    fun canAccessInventory(role: UserRole): Boolean =
         role == UserRole.OWNER || role == UserRole.MANAGER
-        
-    fun canAdjustStock(role: UserRole): Boolean = 
+
+    fun canAdjustStock(role: UserRole): Boolean =
         role == UserRole.OWNER || role == UserRole.MANAGER
-        
-    fun canAccessAnalytics(role: UserRole): Boolean = 
+
+    fun canAccessAnalytics(role: UserRole): Boolean =
         role == UserRole.OWNER || role == UserRole.MANAGER
-        
-    fun canManageProducts(role: UserRole): Boolean = 
+
+    fun canManageProducts(role: UserRole): Boolean =
         role == UserRole.OWNER || role == UserRole.MANAGER
 
     fun canManageCustomers(role: UserRole): Boolean = true
-    
+
+    fun canManageKhata(role: UserRole): Boolean =
+        role == UserRole.OWNER || role == UserRole.MANAGER
+
     fun canPerformBilling(role: UserRole): Boolean = true
 }
 

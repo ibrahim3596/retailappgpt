@@ -23,6 +23,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.retailpos.data.local.entity.ProductEntity
 import com.example.ui.theme.*
+import com.example.ui.theme.RetailColors
+import com.example.ui.theme.Spacing
+import com.example.ui.theme.IconSizes
 
 @Composable
 fun CartItemRow(
@@ -37,11 +40,11 @@ fun CartItemRow(
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        color = Color.White
+        color = Surface
     ) {
         Row(
             modifier = Modifier
-                .padding(vertical = 12.dp),
+                .padding(vertical = Spacing.md, horizontal = Spacing.md),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
@@ -50,54 +53,57 @@ fun CartItemRow(
                     text = name,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = RetailTextPrimary,
+                    color = TextPrimary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     text = "$brand • $packSize",
                     style = MaterialTheme.typography.bodySmall,
-                    color = RetailTextSecondary,
+                    color = TextSecondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     text = "₹${String.format("%.2f", price)}",
                     style = MaterialTheme.typography.labelMedium,
-                    color = RetailPrimary,
+                    color = Primary,
                     fontWeight = FontWeight.Bold
                 )
             }
 
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                horizontalArrangement = Arrangement.spacedBy(Spacing.lg)
             ) {
                 // Quantity Controls
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(RetailSurfaceVariant)
+                        .clip(Shapes.small)
+                        .background(SurfaceVariant)
                 ) {
                     IconButton(
                         onClick = onDecrease,
                         modifier = Modifier.size(44.dp)
                     ) {
-                        Icon(Icons.Default.Remove, contentDescription = "Decrease", modifier = Modifier.size(20.dp), tint = RetailTextPrimary)
+                        Icon(Icons.Default.Remove, contentDescription = "Decrease", modifier = Modifier.size(IconSizes.md), tint = TextPrimary)
                     }
                     Text(
-                        text = quantity.toInt().toString(),
+                        // Weight-based items carry fractional quantities; truncating
+                        // to Int would display 0.5 kg as "0".
+                        text = if (quantity % 1.0 == 0.0) quantity.toLong().toString()
+                               else String.format(java.util.Locale.US, "%.2f", quantity).trimEnd('0').trimEnd('.'),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Black,
-                        modifier = Modifier.padding(horizontal = 4.dp),
-                        color = RetailTextPrimary
+                        modifier = Modifier.padding(horizontal = Spacing.md),
+                        color = TextPrimary
                     )
                     IconButton(
                         onClick = onIncrease,
                         modifier = Modifier.size(44.dp)
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = "Increase", modifier = Modifier.size(20.dp), tint = RetailTextPrimary)
+                        Icon(Icons.Default.Add, contentDescription = "Increase", modifier = Modifier.size(IconSizes.md), tint = TextPrimary)
                     }
                 }
 
@@ -105,7 +111,7 @@ fun CartItemRow(
                     text = "₹${String.format("%.0f", price * quantity)}",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Black,
-                    color = RetailTextPrimary,
+                    color = TextPrimary,
                     modifier = Modifier.widthIn(min = 70.dp)
                 )
             }
@@ -128,13 +134,13 @@ fun PosSummaryRow(
             text = label,
             style = if (isTotal) MaterialTheme.typography.titleLarge else MaterialTheme.typography.bodyMedium,
             fontWeight = if (isTotal) FontWeight.Black else FontWeight.Medium,
-            color = if (isTotal) RetailTextPrimary else RetailTextSecondary
+            color = if (isTotal) TextPrimary else TextSecondary
         )
         Text(
             text = value,
             style = if (isTotal) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.titleMedium,
             fontWeight = if (isTotal) FontWeight.Black else FontWeight.Bold,
-            color = if (isTotal) RetailPrimary else RetailTextPrimary
+            color = if (isTotal) Primary else TextPrimary
         )
     }
 }
@@ -152,44 +158,44 @@ fun EmptyCartState(
         Surface(
             modifier = Modifier.size(100.dp),
             shape = CircleShape,
-            color = RetailSurfaceVariant
+            color = SurfaceVariant
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(
                     Icons.Default.ShoppingBasket,
-                    contentDescription = null,
-                    modifier = Modifier.size(48.dp),
-                    tint = RetailTextSecondary.copy(alpha = 0.3f)
+                    contentDescription = "Empty cart",
+                    modifier = Modifier.size(IconSizes.xxxl),
+                    tint = TextTertiary
                 )
             }
         }
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(Spacing.xl))
         Text(
             "Your bill is empty",
-            style = MaterialTheme.typography.titleLarge,
+            style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Black,
-            color = RetailTextPrimary
+            color = TextPrimary
         )
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(Spacing.sm))
         Text(
             "Scan a barcode or search for a product to get started.",
             style = MaterialTheme.typography.bodyMedium,
-            color = RetailTextSecondary,
+            color = TextSecondary,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-            modifier = Modifier.padding(horizontal = 32.dp)
+            modifier = Modifier.padding(horizontal = Spacing.xxl)
         )
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(Spacing.xxl))
         Button(
             onClick = onScanClick,
-            shape = RoundedCornerShape(16.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = RetailPrimary),
+            shape = Shapes.pill,
+            colors = ButtonDefaults.buttonColors(containerColor = Primary),
             modifier = Modifier
                 .height(56.dp)
-                .padding(horizontal = 32.dp)
+                .padding(horizontal = Spacing.xxxl)
                 .fillMaxWidth()
         ) {
-            Icon(Icons.Default.QrCodeScanner, contentDescription = null)
-            Spacer(modifier = Modifier.width(12.dp))
+            Icon(Icons.Default.QrCodeScanner, contentDescription = "Scan barcode")
+            Spacer(modifier = Modifier.width(Spacing.md))
             Text("SCAN BARCODE", fontWeight = FontWeight.Black)
         }
     }
@@ -205,29 +211,31 @@ fun ProductCard(
         modifier = modifier
             .fillMaxWidth()
             .clickable { onClick() },
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = RetailSurface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, RetailBorderSubtle)
+        shape = Shapes.card,
+        colors = CardDefaults.cardColors(containerColor = Surface),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = Elevation.level1
+        ),
+        border = androidx.compose.foundation.BorderStroke(1.dp, OutlineVariant)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(Spacing.cardPadding),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
+            horizontalArrangement = Arrangement.spacedBy(Spacing.lg)
         ) {
             Surface(
                 modifier = Modifier.size(56.dp),
-                shape = RoundedCornerShape(12.dp),
-                color = RetailSurfaceVariant
+                shape = Shapes.medium,
+                color = SurfaceVariant
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         Icons.Default.Inventory,
-                        contentDescription = null,
-                        modifier = Modifier.size(24.dp),
-                        tint = RetailPrimary
+                        contentDescription = "Product",
+                        modifier = Modifier.size(IconSizes.lg),
+                        tint = Primary
                     )
                 }
             }
@@ -237,38 +245,38 @@ fun ProductCard(
                     text = product.name,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = RetailTextPrimary,
+                    color = TextPrimary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     text = "${product.brand}${if (product.brand.isNotEmpty()) " • " else ""}${product.variant}",
                     style = MaterialTheme.typography.bodySmall,
-                    color = RetailTextSecondary,
+                    color = TextSecondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Row(
-                    modifier = Modifier.padding(top = 4.dp),
+                    modifier = Modifier.padding(top = Spacing.xs),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
                 ) {
                     Surface(
-                        color = RetailSurfaceVariant,
-                        shape = RoundedCornerShape(4.dp)
+                        color = SurfaceVariant,
+                        shape = Shapes.extraSmall
                     ) {
                         Text(
                             text = product.barcode,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            modifier = Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.xs),
                             style = MaterialTheme.typography.labelSmall,
-                            color = RetailTextSecondary,
+                            color = TextSecondary,
                             fontWeight = FontWeight.Medium
                         )
                     }
                     Text(
                         text = product.category,
                         style = MaterialTheme.typography.labelSmall,
-                        color = RetailTextSecondary.copy(alpha = 0.7f)
+                        color = TextTertiary
                     )
                 }
             }
@@ -279,34 +287,34 @@ fun ProductCard(
                         text = "₹${product.sellingPrice}",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Black,
-                        color = RetailPrimary
+                        color = Primary
                     )
                 }
                 Text(
                     text = "MRP ₹${product.mrp}",
                     style = MaterialTheme.typography.labelSmall,
-                    color = RetailTextSecondary,
+                    color = TextSecondary,
                     textDecoration = androidx.compose.ui.text.style.TextDecoration.LineThrough
                 )
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(Spacing.xs))
                 val stockStatus = when {
-                    product.currentStock <= 0 -> "OUT OF STOCK"
-                    product.currentStock <= product.minStock -> "LOW STOCK"
-                    else -> "IN STOCK"
+                    product.currentStock <= 0 -> "Out of Stock"
+                    product.currentStock <= product.minStock -> "Low Stock"
+                    else -> "In Stock"
                 }
                 val statusColor = when {
-                    product.currentStock <= 0 -> RetailError
-                    product.currentStock <= product.minStock -> RetailWarning
-                    else -> RetailSuccess
+                    product.currentStock <= 0 -> Error
+                    product.currentStock <= product.minStock -> Warning
+                    else -> Success
                 }
                 Surface(
                     color = statusColor.copy(alpha = 0.1f),
-                    shape = CircleShape
+                    shape = Shapes.pill
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                        modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xs),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
                     ) {
                         Box(
                             modifier = Modifier

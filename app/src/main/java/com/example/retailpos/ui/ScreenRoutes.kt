@@ -9,6 +9,8 @@ sealed class Screen(val route: String, val title: String) {
     }
     object Inventory : Screen("inventory", "Batches & Stock")
     object Customers : Screen("customers", "Khata Ledger")
+    object Suppliers : Screen("suppliers", "Suppliers")
+    object Purchases : Screen("purchases", "Purchase Orders")
     object SyncConflicts : Screen("sync_conflicts", "Sync & Conflicts")
     object CameraScanner : Screen("camera_scanner/{mode}", "Camera & Barcode Vision") {
         fun createRoute(mode: String) = "camera_scanner/$mode"

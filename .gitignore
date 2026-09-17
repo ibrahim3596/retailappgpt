@@ -16,10 +16,10 @@
 local.properties
 .env
 .env.*
+!.env.example
 node_modules/
 dist/
 build/
 .gradle/
 *.jks
-*.keystore
 local.properties

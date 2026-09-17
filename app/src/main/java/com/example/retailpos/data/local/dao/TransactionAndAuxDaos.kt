@@ -40,6 +40,12 @@ interface InvoiceDao {
 
     @Query("SELECT COUNT(*) FROM invoices WHERE storeId = :storeId")
     suspend fun getInvoiceCount(storeId: String): Int
+
+    @Query("SELECT * FROM invoices WHERE storeId = :storeId AND syncStatus = 'PENDING' ORDER BY createdAt ASC")
+    suspend fun getPendingInvoices(storeId: String): List<InvoiceEntity>
+
+    @Query("UPDATE invoices SET syncStatus = :syncStatus, updatedAt = :updatedAt WHERE id = :id AND storeId = :storeId")
+    suspend fun updateInvoiceSyncStatus(id: String, storeId: String, syncStatus: String, updatedAt: Long = System.currentTimeMillis())
 }
 
 @Dao
@@ -64,6 +70,9 @@ interface CustomerDao {
 
     @Query("SELECT * FROM customers WHERE storeId = :storeId AND id = :id LIMIT 1")
     suspend fun getCustomerById(storeId: String, id: String): CustomerEntity?
+
+    @Query("SELECT * FROM customers WHERE storeId = :storeId ORDER BY updatedAt ASC")
+    suspend fun getAllCustomersOnce(storeId: String): List<CustomerEntity>
 
     @Query("UPDATE customers SET currentBalance = currentBalance + :amount, updatedAt = :updatedAt WHERE id = :customerId AND storeId = :storeId")
     suspend fun updateBalance(customerId: String, storeId: String, amount: Double, updatedAt: Long = System.currentTimeMillis())
@@ -139,4 +148,16 @@ interface ProvenanceDao {
 
     @Query("SELECT * FROM product_provenance WHERE productId = :productId")
     fun getProvenanceForProduct(productId: String): Flow<List<ProductProvenanceEntity>>
+}
+
+@Dao
+interface KhataPaymentDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertKhataPayment(payment: KhataPaymentEntity)
+
+    @Query("SELECT * FROM khata_payment_queue WHERE storeId = :storeId AND syncStatus = 'PENDING' ORDER BY createdAt ASC")
+    suspend fun getPendingPayments(storeId: String): List<KhataPaymentEntity>
+
+    @Query("UPDATE khata_payment_queue SET syncStatus = :syncStatus, updatedAt = :updatedAt WHERE id = :id AND storeId = :storeId")
+    suspend fun updatePaymentSyncStatus(id: String, storeId: String, syncStatus: String, updatedAt: Long = System.currentTimeMillis())
 }

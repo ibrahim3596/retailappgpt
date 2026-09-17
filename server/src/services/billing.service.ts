@@ -94,8 +94,12 @@ export function calculateBilling(
     });
   }
 
-  const totalTax = isInterstate ? igstPaise : (cgstPaise + sgstPaise);
-  const rawGrandTotal = subtotalPaise + totalTax - discountPaise;
+  // Grand total is the sum of what each line actually charges:
+  //  - tax-inclusive lines: the gross amount (tax already inside it)
+  //  - tax-exclusive lines: gross + tax
+  // Adding totalTax to the subtotal again would double-charge inclusive lines.
+  const totalLinePaise = calculatedItems.reduce((sum, i) => sum + i.lineTotalPaise, 0n);
+  const rawGrandTotal = totalLinePaise - discountPaise;
   const grandTotalPaise = rawGrandTotal < 0n ? 0n : rawGrandTotal;
 
   return {

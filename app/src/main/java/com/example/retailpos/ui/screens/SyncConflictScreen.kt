@@ -33,7 +33,7 @@ fun SyncConflictScreen(
     val conflicts by viewModel.unresolvedConflicts.collectAsStateWithLifecycle()
     val store by viewModel.currentStore.collectAsStateWithLifecycle()
 
-    val syncEngine = remember { SyncEngine(context, viewModel.db.invoiceDao(), viewModel.db.syncDao()) }
+    val syncEngine = remember { SyncEngine(context, viewModel.db.invoiceDao(), viewModel.db.syncDao(), viewModel.db.customerDao(), viewModel.db.creditLedgerDao()) }
     var selectedConflict by remember { mutableStateOf<SyncConflictEntity?>(null) }
 
     Scaffold(
@@ -61,7 +61,7 @@ fun SyncConflictScreen(
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.CloudSync, contentDescription = null, tint = Emerald600)
+                        Icon(Icons.Default.CloudSync, contentDescription = "云同步", tint = Emerald600)
                         Spacer(modifier = Modifier.width(8.dp))
                         Text("Multi-Device Offline Synchronization", fontWeight = FontWeight.Bold)
                     }
@@ -84,7 +84,7 @@ fun SyncConflictScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(64.dp), tint = Emerald600)
+                        Icon(Icons.Default.CheckCircle, contentDescription = "完成", modifier = Modifier.size(64.dp), tint = Emerald600)
                         Spacer(modifier = Modifier.height(8.dp))
                         Text("All devices in sync!", fontWeight = FontWeight.Bold)
                         Text("No conflicting invoice or stock updates found.", style = MaterialTheme.typography.bodySmall, color = Color.Gray)

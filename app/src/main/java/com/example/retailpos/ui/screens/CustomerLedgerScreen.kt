@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -22,6 +21,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.retailpos.data.local.entity.CustomerEntity
 import com.example.retailpos.ui.MainViewModel
 import com.example.ui.theme.*
+import com.example.ui.theme.Spacing
+import com.example.ui.theme.IconSizes
+import com.example.ui.theme.Shapes
+import com.example.ui.theme.Elevation
 import kotlinx.coroutines.launch
 import java.util.UUID
 
@@ -44,7 +47,7 @@ fun CustomerLedgerScreen(
     var paymentAmountText by remember { mutableStateOf("") }
 
     Scaffold(
-        containerColor = RetailBackground,
+        containerColor = Background,
         topBar = {
             TopAppBar(
                 title = { Text("KHATA LEDGER", fontWeight = FontWeight.Black, letterSpacing = 1.sp) },
@@ -53,17 +56,17 @@ fun CustomerLedgerScreen(
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = RetailBackground)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Background)
             )
         },
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = { showAddCustomerDialog = true },
-                containerColor = RetailPrimary,
+                containerColor = Primary,
                 contentColor = Color.White,
-                shape = RoundedCornerShape(16.dp),
-                icon = { Icon(Icons.Default.PersonAdd, contentDescription = null) },
-                text = { Text("ADD CUSTOMER") }
+                shape = Shapes.pill,
+                icon = { Icon(Icons.Default.PersonAdd, contentDescription = "Add Customer") },
+                text = { Text("ADD CUSTOMER", fontWeight = FontWeight.Bold) }
             )
         }
     ) { padding ->
@@ -71,39 +74,39 @@ fun CustomerLedgerScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(horizontal = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
+                .padding(horizontal = Spacing.screenPadding),
+            verticalArrangement = Arrangement.spacedBy(Spacing.xl)
         ) {
             val totalCreditDue = remember(customers) { customers.sumOf { it.currentBalance } }
 
             // Summary Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = RetailPrimary)
+                shape = Shapes.extraLarge,
+                colors = CardDefaults.cardColors(containerColor = Primary)
             ) {
                 Row(
-                    modifier = Modifier.padding(24.dp),
+                    modifier = Modifier.padding(Spacing.xxl),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Column {
-                        Text("TOTAL OUTSTANDING", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.7f), fontWeight = FontWeight.Bold)
-                        Text("₹${String.format("%,.2f", totalCreditDue)}", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black, color = Color.White)
+                        Text("TOTAL OUTSTANDING", style = MaterialTheme.typography.labelSmall, color = OnPrimary.copy(alpha = 0.7f), fontWeight = FontWeight.Bold)
+                        Text("₹${String.format("%,.2f", totalCreditDue)}", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black, color = OnPrimary)
                     }
                     Surface(
                         modifier = Modifier.size(48.dp),
                         shape = CircleShape,
-                        color = Color.White.copy(alpha = 0.15f)
+                        color = OnPrimary.copy(alpha = 0.15f)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
-                            Icon(Icons.Default.AccountBalanceWallet, contentDescription = null, tint = Color.White)
+                            Icon(Icons.Default.AccountBalanceWallet, contentDescription = "Account Balance", tint = OnPrimary)
                         }
                     }
                 }
             }
 
-            Text("My Customers", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = RetailTextPrimary)
+            Text("My Customers", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = TextPrimary)
 
             if (customers.isEmpty()) {
                 Column(
@@ -111,45 +114,47 @@ fun CustomerLedgerScreen(
                     verticalArrangement = Arrangement.Center,
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Icon(Icons.Default.PeopleOutline, contentDescription = null, modifier = Modifier.size(64.dp), tint = RetailTextSecondary.copy(alpha = 0.2f))
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text("No Khata Records", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = RetailTextSecondary)
+                    Icon(Icons.Default.PeopleOutline, contentDescription = "Customer List", modifier = Modifier.size(64.dp), tint = TextTertiary.copy(alpha = 0.2f))
+                    Spacer(modifier = Modifier.height(Spacing.lg))
+                    Text("No Khata Records", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = TextSecondary)
                 }
             } else {
                 LazyColumn(
                     modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.md),
                     contentPadding = PaddingValues(bottom = 80.dp)
                 ) {
                     items(customers) { customer ->
                         Card(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = RetailSurface),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                            shape = Shapes.card,
+                            colors = CardDefaults.cardColors(containerColor = Surface),
+                            elevation = CardDefaults.cardElevation(
+                                defaultElevation = Elevation.level1
+                            )
                         ) {
                             Row(
-                                modifier = Modifier.padding(16.dp),
+                                modifier = Modifier.padding(Spacing.cardPadding),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text(customer.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium, color = RetailTextPrimary)
-                                    Text("Ph: ${customer.phone}", style = MaterialTheme.typography.bodySmall, color = RetailTextSecondary)
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text("Limit: ₹${customer.creditLimit.toInt()}", style = MaterialTheme.typography.labelSmall, color = RetailTextSecondary, fontWeight = FontWeight.Bold)
+                                    Text(customer.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium, color = TextPrimary)
+                                    Text("Ph: ${customer.phone}", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                                    Spacer(modifier = Modifier.height(Spacing.xs))
+                                    Text("Limit: ₹${customer.creditLimit.toInt()}", style = MaterialTheme.typography.labelSmall, color = TextSecondary, fontWeight = FontWeight.Bold)
                                 }
 
-                                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Text("₹${String.format("%.2f", customer.currentBalance)}", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium, color = if (customer.currentBalance > 0) RetailError else RetailTextPrimary)
+                                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                                    Text("₹${String.format("%.2f", customer.currentBalance)}", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium, color = if (customer.currentBalance > 0) Error else TextPrimary)
                                     OutlinedButton(
                                         onClick = { selectedCustomerForPayment = customer },
-                                        contentPadding = PaddingValues(horizontal = 12.dp),
+                                        contentPadding = PaddingValues(horizontal = Spacing.md),
                                         modifier = Modifier.height(32.dp),
-                                        shape = RoundedCornerShape(8.dp),
-                                        border = androidx.compose.foundation.BorderStroke(1.dp, RetailBorder)
+                                        shape = Shapes.pill,
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, Outline)
                                     ) {
-                                        Text("PAYMENT", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = RetailPrimary)
+                                        Text("PAYMENT", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Primary)
                                     }
                                 }
                             }
@@ -163,20 +168,22 @@ fun CustomerLedgerScreen(
     if (showAddCustomerDialog) {
         AlertDialog(
             onDismissRequest = { showAddCustomerDialog = false },
-            title = { Text("Add Khata Customer") },
+            title = { Text("Add Khata Customer", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
                     OutlinedTextField(
                         value = nameText,
                         onValueChange = { nameText = it },
                         label = { Text("Customer Name") },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = Shapes.medium
                     )
                     OutlinedTextField(
                         value = phoneText,
                         onValueChange = { phoneText = it },
                         label = { Text("Mobile Phone") },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = Shapes.medium
                     )
                 }
             },
@@ -203,13 +210,14 @@ fun CustomerLedgerScreen(
                             Toast.makeText(context, "Customer added!", Toast.LENGTH_SHORT).show()
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Emerald600)
+                    colors = ButtonDefaults.buttonColors(containerColor = Success),
+                    shape = Shapes.pill
                 ) {
-                    Text("SAVE")
+                    Text("SAVE", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showAddCustomerDialog = false }) { Text("CANCEL") }
+                TextButton(onClick = { showAddCustomerDialog = false }) { Text("CANCEL", color = TextSecondary) }
             }
         )
     }
@@ -218,15 +226,16 @@ fun CustomerLedgerScreen(
         val cust = selectedCustomerForPayment!!
         AlertDialog(
             onDismissRequest = { selectedCustomerForPayment = null },
-            title = { Text("Receive Payment from ${cust.name}") },
+            title = { Text("Receive Payment from ${cust.name}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("Current Outstanding Due: ₹${cust.currentBalance}", fontWeight = FontWeight.Bold, color = Color(0xFFC2410C))
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                    Text("Current Outstanding Due: ₹${cust.currentBalance}", fontWeight = FontWeight.Bold, color = Warning, style = MaterialTheme.typography.bodyMedium)
                     OutlinedTextField(
                         value = paymentAmountText,
                         onValueChange = { paymentAmountText = it },
                         label = { Text("Payment Amount Received (₹)") },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = Shapes.medium
                     )
                 }
             },
@@ -239,20 +248,30 @@ fun CustomerLedgerScreen(
                             return@Button
                         }
                         val storeId = store?.id ?: "STORE-DEFAULT-001"
-                        scope.launch {
-                            viewModel.customerRepo.recordPayment(storeId, cust.id, amount, "Khata Cash Payment")
-                            selectedCustomerForPayment = null
-                            paymentAmountText = ""
-                            Toast.makeText(context, "Payment recorded successfully!", Toast.LENGTH_SHORT).show()
-                        }
+                        viewModel.recordKhataPaymentWithAuth(
+                            customerId = cust.id,
+                            amount = amount,
+                            paymentMethod = com.example.retailpos.data.local.entity.PaymentMethod.CASH,
+                            notes = "Khata Cash Payment",
+                            onResult = { success ->
+                                if (success) {
+                                    selectedCustomerForPayment = null
+                                    paymentAmountText = ""
+                                    Toast.makeText(context, "Payment recorded successfully!", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(context, "Payment rejected or unauthorized", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        )
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Emerald600)
+                    colors = ButtonDefaults.buttonColors(containerColor = Success),
+                    shape = Shapes.pill
                 ) {
-                    Text("RECORD PAYMENT")
+                    Text("RECORD PAYMENT", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { selectedCustomerForPayment = null }) { Text("CANCEL") }
+                TextButton(onClick = { selectedCustomerForPayment = null }) { Text("CANCEL", color = TextSecondary) }
             }
         )
     }

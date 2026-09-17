@@ -38,12 +38,17 @@ import com.example.retailpos.ui.MainViewModel
 import com.example.retailpos.ui.components.MetricTile
 import com.example.retailpos.util.ReportExporter
 import com.example.ui.theme.*
+import com.example.ui.theme.Spacing
+import com.example.ui.theme.IconSizes
+import com.example.ui.theme.Shapes
 import com.patrykandpatrick.vico.compose.axis.horizontal.rememberBottomAxis
 import com.patrykandpatrick.vico.compose.axis.vertical.rememberStartAxis
 import com.patrykandpatrick.vico.compose.chart.Chart
 import com.patrykandpatrick.vico.compose.chart.column.columnChart
 import com.patrykandpatrick.vico.compose.chart.line.lineChart
+import com.patrykandpatrick.vico.core.entry.ChartEntryModel
 import com.patrykandpatrick.vico.core.entry.entryModelOf
+import com.patrykandpatrick.vico.core.entry.FloatEntry
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
@@ -63,11 +68,11 @@ fun AnalyticsScreen(
     val context = LocalContext.current
 
     val invoices by viewModel.filteredInvoices.collectAsStateWithLifecycle()
- 
+
     val totalSales = remember(invoices) { invoices.sumOf { it.invoice.grandTotal } }
     val totalGst = remember(invoices) { invoices.sumOf { it.invoice.totalGst } }
     val billsCount = invoices.size
-    
+
     val totalProfit = remember(invoices) {
         invoices.sumOf { bill ->
             bill.items.sumOf { item ->
@@ -83,7 +88,7 @@ fun AnalyticsScreen(
             .toList()
             .sortedByDescending { it.second }
             .take(5)
-            .mapNotNull { (id, qty) -> 
+            .mapNotNull { (id, qty) ->
                 val prod = products.find { it.id == id }
                 if (prod != null) prod.name to qty else null
             }
@@ -91,7 +96,7 @@ fun AnalyticsScreen(
 
     // Chart Data Preparation
     val salesByDay = remember(invoices) {
-        invoices.groupBy { 
+        invoices.groupBy {
             val cal = Calendar.getInstance()
             cal.timeInMillis = it.invoice.createdAt
             cal.set(Calendar.HOUR_OF_DAY, 0)
@@ -106,7 +111,7 @@ fun AnalyticsScreen(
     }
 
     val chartModel = remember(salesByDay) {
-        if (salesByDay.isEmpty()) entryModelOf(0f)
+        if (salesByDay.isEmpty()) entryModelOf(emptyList<FloatEntry>())
         else entryModelOf(*salesByDay.toTypedArray())
     }
 
@@ -119,7 +124,7 @@ fun AnalyticsScreen(
     }
 
     Scaffold(
-        containerColor = RetailBackground,
+        containerColor = Background,
         topBar = {
             TopAppBar(
                 title = { Text("ANALYTICS", fontWeight = FontWeight.Black, letterSpacing = 1.sp, style = MaterialTheme.typography.titleMedium) },
@@ -136,7 +141,7 @@ fun AnalyticsScreen(
                         Icon(Icons.Default.Share, contentDescription = "Export CSV")
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = RetailBackground)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Background)
             )
         }
     ) { padding ->
@@ -144,26 +149,26 @@ fun AnalyticsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(horizontal = 16.dp)
+                .padding(horizontal = Spacing.screenPadding)
                 .verticalScroll(rememberScrollState())
-                .padding(bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp)
+                .padding(bottom = Spacing.xxxl),
+            verticalArrangement = Arrangement.spacedBy(Spacing.xl)
         ) {
             // Range Selector
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                color = RetailSurface,
-                shape = RoundedCornerShape(20.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, RetailBorderSubtle)
+                color = Surface,
+                shape = Shapes.extraLarge,
+                border = androidx.compose.foundation.BorderStroke(1.dp, OutlineVariant)
             ) {
                 Row(
-                    modifier = Modifier.padding(16.dp),
+                    modifier = Modifier.padding(Spacing.lg),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Column {
-                        Text("REPORT PERIOD", style = MaterialTheme.typography.labelSmall, color = RetailTextSecondary, fontWeight = FontWeight.Bold)
-                        Text(rangeText, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = RetailPrimary)
+                        Text("REPORT PERIOD", style = MaterialTheme.typography.labelSmall, color = TextSecondary, fontWeight = FontWeight.Bold)
+                        Text(rangeText, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = Primary)
                     }
                     Button(
                         onClick = {
@@ -177,47 +182,47 @@ fun AnalyticsScreen(
                                 viewModel.setAnalyticsRange(start, end)
                             }
                         },
-                        shape = RoundedCornerShape(12.dp)
+                        shape = Shapes.pill
                     ) {
                         Text("Next Range")
                     }
                 }
             }
-                // Hero Performance Card
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(28.dp),
-                    colors = CardDefaults.cardColors(containerColor = RetailPrimary)
-                ) {
-                    Column(modifier = Modifier.padding(24.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.Top
-                        ) {
-                            Column {
-                                Text("TOTAL REVENUE", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.7f), fontWeight = FontWeight.Bold)
-                                Text("₹${String.format("%,.2f", totalSales)}", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black, color = Color.White)
-                            }
-                            Surface(
-                                color = Color.White.copy(alpha = 0.2f),
-                                shape = CircleShape
-                            ) {
-                                Text("TODAY", color = Color.White, modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black)
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(20.dp))
-                        HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        Row(
+            // Hero Performance Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = Shapes.extraLarge,
+                colors = CardDefaults.cardColors(containerColor = Primary)
+            ) {
+                Column(modifier = Modifier.padding(Spacing.xxl)) {
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.Top
                     ) {
-                        AnalyticsHeroMetric("EST. PROFIT", "₹${String.format("%,.0f", totalProfit)}", RetailSuccess)
-                        AnalyticsHeroMetric("BILLS", "$billsCount", Color.White)
-                        AnalyticsHeroMetric("GST", "₹${totalGst.toInt()}", Color.White)
+                        Column {
+                            Text("TOTAL REVENUE", style = MaterialTheme.typography.labelSmall, color = OnPrimary.copy(alpha = 0.7f), fontWeight = FontWeight.Bold)
+                            Text("₹${String.format("%,.2f", totalSales)}", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black, color = OnPrimary)
+                        }
+                        Surface(
+                            color = OnPrimary.copy(alpha = 0.2f),
+                            shape = CircleShape
+                        ) {
+                            Text("TODAY", color = OnPrimary, modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xs), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(Spacing.lg))
+                    HorizontalDivider(color = OnPrimary.copy(alpha = 0.1f))
+                    Spacer(modifier = Modifier.height(Spacing.md))
+
+                    Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                        AnalyticsHeroMetric("EST. PROFIT", "₹${String.format("%,.0f", totalProfit)}", Success)
+                        AnalyticsHeroMetric("BILLS", "$billsCount", OnPrimary)
+                        AnalyticsHeroMetric("GST", "₹${totalGst.toInt()}", OnPrimary)
                     }
                 }
             }
@@ -226,13 +231,13 @@ fun AnalyticsScreen(
             DashboardSection(title = "Sales Trend") {
                 Card(
                     modifier = Modifier.fillMaxWidth().height(250.dp),
-                    shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.cardColors(containerColor = RetailSurface),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, RetailBorderSubtle)
+                    shape = Shapes.extraLarge,
+                    colors = CardDefaults.cardColors(containerColor = Surface),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, OutlineVariant)
                 ) {
                     if (salesByDay.isEmpty()) {
                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text("No sales data for this period", color = RetailTextSecondary)
+                            Text("No sales data for this period", color = TextSecondary)
                         }
                     } else {
                         Chart(
@@ -240,7 +245,7 @@ fun AnalyticsScreen(
                             model = chartModel,
                             startAxis = rememberStartAxis(),
                             bottomAxis = rememberBottomAxis(),
-                            modifier = Modifier.padding(16.dp)
+                            modifier = Modifier.padding(Spacing.lg)
                         )
                     }
                 }
@@ -249,30 +254,30 @@ fun AnalyticsScreen(
             // Top Products
             if (topSellingProducts.isNotEmpty()) {
                 DashboardSection(title = "Top Selling Products") {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
                         topSellingProducts.forEach { (name, qty) ->
                             Surface(
                                 modifier = Modifier.fillMaxWidth(),
-                                color = RetailSurface,
-                                shape = RoundedCornerShape(16.dp),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, RetailBorderSubtle)
+                                color = Surface,
+                                shape = Shapes.card,
+                                border = androidx.compose.foundation.BorderStroke(1.dp, OutlineVariant)
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(16.dp),
+                                    modifier = Modifier.padding(Spacing.cardPadding),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
                                     Column(modifier = Modifier.weight(1f)) {
-                                        Text(name, fontWeight = FontWeight.Bold, color = RetailTextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text(name, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     }
-                                    Text("${qty.toInt()} sold", color = RetailPrimary, fontWeight = FontWeight.Black)
+                                    Text("${qty.toInt()} sold", color = Primary, fontWeight = FontWeight.Black)
                                 }
                             }
                         }
                     }
                 }
             }
-            
+
             // Tax Breakdown
             DashboardSection(title = "Tax Breakdown") {
                 GstSummaryCard(invoices)
@@ -290,20 +295,20 @@ fun GstSummaryCard(invoices: List<com.example.retailpos.data.local.entity.Invoic
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = RetailSurface),
-        border = androidx.compose.foundation.BorderStroke(1.dp, RetailBorderSubtle)
+        shape = Shapes.extraLarge,
+        colors = CardDefaults.cardColors(containerColor = Surface),
+        border = androidx.compose.foundation.BorderStroke(1.dp, OutlineVariant)
     ) {
-        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(modifier = Modifier.padding(Spacing.xl), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
             TaxRow("Taxable Value", taxable)
-            HorizontalDivider(color = RetailBorderSubtle.copy(alpha = 0.5f))
+            HorizontalDivider(color = OutlineVariant.copy(alpha = 0.5f))
             TaxRow("CGST Total", cgst)
             TaxRow("SGST Total", sgst)
             TaxRow("IGST Total", igst)
-            HorizontalDivider(color = RetailBorderSubtle)
+            HorizontalDivider(color = OutlineVariant)
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("Total Tax", fontWeight = FontWeight.Black, color = RetailTextPrimary)
-                Text("₹${String.format("%.2f", cgst + sgst + igst)}", fontWeight = FontWeight.Black, color = RetailWarning)
+                Text("Total Tax", fontWeight = FontWeight.Black, color = TextPrimary)
+                Text("₹${String.format("%.2f", cgst + sgst + igst)}", fontWeight = FontWeight.Black, color = Warning)
             }
         }
     }
@@ -312,27 +317,27 @@ fun GstSummaryCard(invoices: List<com.example.retailpos.data.local.entity.Invoic
 @Composable
 fun TaxRow(label: String, amount: Double) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, color = RetailTextSecondary, style = MaterialTheme.typography.bodyMedium)
-        Text("₹${String.format("%.2f", amount)}", fontWeight = FontWeight.Bold, color = RetailTextPrimary)
+        Text(label, color = TextSecondary, style = MaterialTheme.typography.bodyMedium)
+        Text("₹${String.format("%.2f", amount)}", fontWeight = FontWeight.Bold, color = TextPrimary)
     }
 }
 
 @Composable
 fun AnalyticsHeroMetric(label: String, value: String, color: Color) {
     Column {
-        Text(label, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.6f))
+        Text(label, style = MaterialTheme.typography.labelSmall, color = OnPrimary.copy(alpha = 0.6f))
         Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = color)
     }
 }
 
 @Composable
 fun DashboardSection(title: String, content: @Composable () -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
         Text(
             text = title.uppercase(),
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Black,
-            color = RetailTextSecondary,
+            color = TextSecondary,
             letterSpacing = 1.sp
         )
         content()
@@ -343,19 +348,19 @@ fun DashboardSection(title: String, content: @Composable () -> Unit) {
 fun PaymentMetricTile(label: String, amount: Double, icon: ImageVector, color: Color, modifier: Modifier = Modifier) {
     Card(
         modifier = modifier,
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = RetailSurface),
-        border = androidx.compose.foundation.BorderStroke(1.dp, RetailBorderSubtle)
+        shape = Shapes.card,
+        colors = CardDefaults.cardColors(containerColor = Surface),
+        border = androidx.compose.foundation.BorderStroke(1.dp, OutlineVariant)
     ) {
-        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(modifier = Modifier.padding(Spacing.cardPadding), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
             Surface(color = color.copy(alpha = 0.1f), shape = CircleShape, modifier = Modifier.size(36.dp)) {
                 Box(contentAlignment = Alignment.Center) {
-                    Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(18.dp))
+                    Icon(icon, contentDescription = "Payment method", tint = color, modifier = Modifier.size(IconSizes.md))
                 }
             }
             Column {
-                Text(label, style = MaterialTheme.typography.labelSmall, color = RetailTextSecondary, fontWeight = FontWeight.Bold)
-                Text("₹${String.format("%,.0f", amount)}", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Black, color = RetailTextPrimary)
+                Text(label, style = MaterialTheme.typography.labelSmall, color = TextSecondary, fontWeight = FontWeight.Bold)
+                Text("₹${String.format("%,.0f", amount)}", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Black, color = TextPrimary)
             }
         }
     }
@@ -365,14 +370,14 @@ fun PaymentMetricTile(label: String, amount: Double, icon: ImageVector, color: C
 fun InsightCard(title: String, icon: ImageVector, iconColor: Color, content: @Composable () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = RetailSurface),
-        border = androidx.compose.foundation.BorderStroke(1.dp, RetailBorderSubtle)
+        shape = Shapes.extraLarge,
+        colors = CardDefaults.cardColors(containerColor = Surface),
+        border = androidx.compose.foundation.BorderStroke(1.dp, OutlineVariant)
     ) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(20.dp))
-                Text(title, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = RetailTextPrimary)
+        Column(modifier = Modifier.padding(Spacing.cardPadding), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                Icon(icon, contentDescription = "Insight", tint = iconColor, modifier = Modifier.size(IconSizes.md))
+                Text(title, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = TextPrimary)
             }
             content()
         }
@@ -384,13 +389,13 @@ fun InsightSummaryBox(label: String, count: Int, icon: ImageVector, color: Color
     Surface(
         modifier = modifier,
         color = color.copy(alpha = 0.05f),
-        shape = RoundedCornerShape(16.dp),
+        shape = Shapes.card,
         border = androidx.compose.foundation.BorderStroke(1.dp, color.copy(alpha = 0.1f))
     ) {
-        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(20.dp))
+        Row(modifier = Modifier.padding(Spacing.md), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
+            Icon(icon, contentDescription = "Insight", tint = color, modifier = Modifier.size(IconSizes.md))
             Column {
-                Text(label, style = MaterialTheme.typography.labelSmall, color = RetailTextSecondary, fontWeight = FontWeight.Bold)
+                Text(label, style = MaterialTheme.typography.labelSmall, color = TextSecondary, fontWeight = FontWeight.Bold)
                 Text("$count Items", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Black, color = color)
             }
         }
@@ -401,30 +406,30 @@ fun InsightSummaryBox(label: String, count: Int, icon: ImageVector, color: Color
 fun TransactionRow(invoiceWithItems: com.example.retailpos.data.local.entity.InvoiceWithItems) {
     val df = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
     Row(
-        modifier = Modifier.fillMaxWidth().padding(16.dp),
+        modifier = Modifier.fillMaxWidth().padding(Spacing.cardPadding),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Surface(color = RetailPrimary.copy(alpha = 0.1f), shape = RoundedCornerShape(8.dp), modifier = Modifier.size(40.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
+            Surface(color = Primary.copy(alpha = 0.1f), shape = Shapes.small, modifier = Modifier.size(40.dp)) {
                 Box(contentAlignment = Alignment.Center) {
-                    Icon(Icons.Default.Receipt, contentDescription = null, tint = RetailPrimary, modifier = Modifier.size(20.dp))
+                    Icon(Icons.Default.Receipt, contentDescription = "Receipt", tint = Primary, modifier = Modifier.size(IconSizes.md))
                 }
             }
             Column {
-                Text("#${invoiceWithItems.invoice.invoiceNumber}", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall, color = RetailTextPrimary)
-                Text("${invoiceWithItems.invoice.paymentMethod} • ${df.format(Date(invoiceWithItems.invoice.createdAt))}", style = MaterialTheme.typography.labelSmall, color = RetailTextSecondary)
+                Text("#${invoiceWithItems.invoice.invoiceNumber}", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall, color = TextPrimary)
+                Text("${invoiceWithItems.invoice.paymentMethod} • ${df.format(Date(invoiceWithItems.invoice.createdAt))}", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
             }
         }
-        Text("₹${String.format("%,.2f", invoiceWithItems.invoice.grandTotal)}", fontWeight = FontWeight.Black, style = MaterialTheme.typography.bodyLarge, color = RetailTextPrimary)
+        Text("₹${String.format("%,.2f", invoiceWithItems.invoice.grandTotal)}", fontWeight = FontWeight.Black, style = MaterialTheme.typography.bodyLarge, color = TextPrimary)
     }
 }
 
 @Composable
 fun AnalyticsTaxRow(label: String, amount: Double) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, style = MaterialTheme.typography.bodyMedium, color = RetailTextSecondary)
-        Text("₹${String.format("%,.2f", amount)}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = RetailTextPrimary)
+        Text(label, style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+        Text("₹${String.format("%,.2f", amount)}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = TextPrimary)
     }
 }
 
@@ -435,10 +440,10 @@ fun EmptyAnalyticsState(modifier: Modifier = Modifier) {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Icon(Icons.Default.BarChart, contentDescription = null, modifier = Modifier.size(80.dp), tint = RetailTextSecondary.copy(alpha = 0.1f))
-        Spacer(modifier = Modifier.height(16.dp))
-        Text("Insights arrive after sales.", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = RetailTextSecondary)
-        Text("Start your first billing session to see real metrics.", style = MaterialTheme.typography.bodySmall, color = RetailTextSecondary.copy(alpha = 0.7f), textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 40.dp))
+        Icon(Icons.Default.BarChart, contentDescription = "Chart", modifier = Modifier.size(80.dp), tint = TextTertiary.copy(alpha = 0.1f))
+        Spacer(modifier = Modifier.height(Spacing.lg))
+        Text("Insights arrive after sales.", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = TextSecondary)
+        Text("Start your first billing session to see real metrics.", style = MaterialTheme.typography.bodySmall, color = TextTertiary, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = Spacing.xxxl))
     }
 }
 
@@ -452,6 +457,7 @@ fun SettingsScreen(
     val store by viewModel.currentStore.collectAsStateWithLifecycle()
     val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
     val allUsers by viewModel.allUsers.collectAsStateWithLifecycle()
+    val invoices by viewModel.filteredInvoices.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
 
     var showStoreDialog by remember { mutableStateOf(false) }
@@ -459,7 +465,7 @@ fun SettingsScreen(
     var showSwitchStoreDialog by remember { mutableStateOf(false) }
 
     Scaffold(
-        containerColor = RetailBackground,
+        containerColor = Background,
         topBar = {
             TopAppBar(
                 title = { Text("SETTINGS", fontWeight = FontWeight.Black, letterSpacing = 1.sp, style = MaterialTheme.typography.titleMedium) },
@@ -468,7 +474,7 @@ fun SettingsScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = RetailBackground)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Background)
             )
         }
     ) { padding ->
@@ -477,8 +483,8 @@ fun SettingsScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(1.dp)
+                .padding(bottom = Spacing.xxxl),
+            verticalArrangement = Arrangement.spacedBy(Spacing.xs)
         ) {
             SettingsCategoryHeader("STORE & BUSINESS")
             if (UserPermissions.canUpdateStoreProfile(currentUser.userRole)) {
@@ -510,7 +516,14 @@ fun SettingsScreen(
                 title = "Payment Methods",
                 description = "Configure Cash, UPI, Card settings",
                 icon = Icons.Default.Payments,
-                onClick = { Toast.makeText(context, "Payment configuration active", Toast.LENGTH_SHORT).show() }
+                onClick = {
+                    val store = store ?: return@SettingsItem
+                    if (UserPermissions.canUpdateStoreProfile(currentUser.userRole)) {
+                        showStoreDialog = true
+                    } else {
+                        Toast.makeText(context, "Only owner can modify store config", Toast.LENGTH_SHORT).show()
+                    }
+                }
             )
 
             if (UserPermissions.canManageProducts(currentUser.userRole)) {
@@ -534,13 +547,17 @@ fun SettingsScreen(
                 title = "Printer Settings",
                 description = "Bluetooth, Thermal, and USB printers",
                 icon = Icons.Default.Print,
-                onClick = { Toast.makeText(context, "Scanning for devices...", Toast.LENGTH_SHORT).show() }
+                onClick = {
+                    Toast.makeText(context, "Printer config coming soon", Toast.LENGTH_SHORT).show()
+                }
             )
             SettingsItem(
                 title = "Scanner Options",
                 description = "Configure camera and external scanners",
                 icon = Icons.Default.QrCodeScanner,
-                onClick = { /* Using CameraScanner engine */ }
+                onClick = {
+                    Toast.makeText(context, "Scanner config coming soon", Toast.LENGTH_SHORT).show()
+                }
             )
 
             if (UserPermissions.canAccessAnalytics(currentUser.userRole)) {
@@ -555,7 +572,11 @@ fun SettingsScreen(
                     title = "Backup & Export",
                     description = "Export CSV reports and database backup",
                     icon = Icons.Default.CloudDownload,
-                    onClick = { Toast.makeText(context, "Preparing CSV Export...", Toast.LENGTH_SHORT).show() }
+                    onClick = {
+                        val csv = ReportExporter.exportInvoicesToCsv(context, invoices.map { it.invoice })
+                        if (csv != null) ReportExporter.shareFile(context, csv)
+                        else Toast.makeText(context, "No sales data to export", Toast.LENGTH_SHORT).show()
+                    }
                 )
             }
 
@@ -577,14 +598,14 @@ fun SettingsScreen(
                     Toast.makeText(context, "Logged out successfully", Toast.LENGTH_SHORT).show()
                 }
             )
-            
-            Spacer(modifier = Modifier.height(24.dp))
+
+            Spacer(modifier = Modifier.height(Spacing.xl))
             Text(
                 "RetailPOS Powered by Antigravity Agent",
                 modifier = Modifier.fillMaxWidth(),
                 textAlign = TextAlign.Center,
                 style = MaterialTheme.typography.labelSmall,
-                color = RetailTextSecondary.copy(alpha = 0.5f)
+                color = TextTertiary.copy(alpha = 0.5f)
             )
         }
     }
@@ -604,10 +625,15 @@ fun SettingsScreen(
     if (showSwitchStoreDialog) {
         SwitchStoreDialog(
             onDismiss = { showSwitchStoreDialog = false },
-            onSwitch = { storeId ->
-                viewModel.switchStore(storeId)
-                showSwitchStoreDialog = false
-                Toast.makeText(context, "Switched to Store: $storeId", Toast.LENGTH_SHORT).show()
+            onSwitch = { storeId, pin ->
+                viewModel.switchStore(storeId, pin) { success ->
+                    if (success) {
+                        showSwitchStoreDialog = false
+                        Toast.makeText(context, "Switched to Store: $storeId", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(context, "Switch failed: verify the store ID and your PIN (owner only)", Toast.LENGTH_SHORT).show()
+                    }
+                }
             },
             onCreateNew = { name, gstin, addr, ph, on, ou, op ->
                 viewModel.createNewStore(name, gstin, addr, ph, on, ou, op)
@@ -621,11 +647,12 @@ fun SettingsScreen(
 @Composable
 fun SwitchStoreDialog(
     onDismiss: () -> Unit,
-    onSwitch: (String) -> Unit,
+    onSwitch: (String, String) -> Unit,
     onCreateNew: (String, String, String, String, String, String, String) -> Unit
 ) {
     var showCreateForm by remember { mutableStateOf(false) }
     var inputStoreId by remember { mutableStateOf("") }
+    var switchPin by remember { mutableStateOf("") }
 
     var name by remember { mutableStateOf("") }
     var gstin by remember { mutableStateOf("") }
@@ -637,29 +664,38 @@ fun SwitchStoreDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = RetailSurface,
-        title = { Text(if (showCreateForm) "Create New Store" else "Switch Store", fontWeight = FontWeight.Black) },
+        containerColor = Surface,
+        title = { Text(if (showCreateForm) "Create New Store" else "Switch Store", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleLarge) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.lg)) {
                 if (showCreateForm) {
-                    OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Store Name") }, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = gstin, onValueChange = { gstin = it }, label = { Text("GSTIN") }, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = phone, onValueChange = { phone = it }, label = { Text("Phone") }, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = addr, onValueChange = { addr = it }, label = { Text("Address") }, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = ownerName, onValueChange = { ownerName = it }, label = { Text("Owner Name") }, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = ownerUser, onValueChange = { ownerUser = it }, label = { Text("Owner Username") }, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = ownerPin, onValueChange = { ownerPin = it }, label = { Text("Owner PIN (4 digits)") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Store Name") }, modifier = Modifier.fillMaxWidth(), shape = Shapes.medium)
+                    OutlinedTextField(value = gstin, onValueChange = { gstin = it }, label = { Text("GSTIN") }, modifier = Modifier.fillMaxWidth(), shape = Shapes.medium)
+                    OutlinedTextField(value = phone, onValueChange = { phone = it }, label = { Text("Phone") }, modifier = Modifier.fillMaxWidth(), shape = Shapes.medium)
+                    OutlinedTextField(value = addr, onValueChange = { addr = it }, label = { Text("Address") }, modifier = Modifier.fillMaxWidth(), shape = Shapes.medium)
+                    OutlinedTextField(value = ownerName, onValueChange = { ownerName = it }, label = { Text("Owner Name") }, modifier = Modifier.fillMaxWidth(), shape = Shapes.medium)
+                    OutlinedTextField(value = ownerUser, onValueChange = { ownerUser = it }, label = { Text("Owner Username") }, modifier = Modifier.fillMaxWidth(), shape = Shapes.medium)
+                    OutlinedTextField(value = ownerPin, onValueChange = { ownerPin = it }, label = { Text("Owner PIN (4 digits)") }, modifier = Modifier.fillMaxWidth(), shape = Shapes.medium)
                 } else {
-                    Text("Enter the ID of the store you want to switch to. You will need to login with valid credentials for that store.", style = MaterialTheme.typography.bodySmall, color = RetailTextSecondary)
+                    Text("Enter the ID of the store you want to switch to and confirm with your PIN.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
                     OutlinedTextField(
                         value = inputStoreId,
                         onValueChange = { inputStoreId = it },
                         label = { Text("Store ID") },
                         modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("e.g. STORE-XXXXXX") }
+                        placeholder = { Text("e.g. STORE-XXXXXX") },
+                        shape = Shapes.medium
+                    )
+                    OutlinedTextField(
+                        value = switchPin,
+                        onValueChange = { switchPin = it },
+                        label = { Text("Confirm with your PIN") },
+                        modifier = Modifier.fillMaxWidth(),
+                        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                        shape = Shapes.medium
                     )
                     TextButton(onClick = { showCreateForm = true }, modifier = Modifier.align(Alignment.CenterHorizontally)) {
-                        Text("OR CREATE NEW STORE", color = RetailPrimary, fontWeight = FontWeight.Bold)
+                        Text("OR CREATE NEW STORE", color = Primary, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -672,16 +708,16 @@ fun SwitchStoreDialog(
                             onCreateNew(name, gstin, addr, phone, ownerName, ownerUser, ownerPin)
                         }
                     } else {
-                        if (inputStoreId.isNotBlank()) onSwitch(inputStoreId)
+                        if (inputStoreId.isNotBlank() && switchPin.isNotBlank()) onSwitch(inputStoreId, switchPin)
                     }
                 },
-                shape = RoundedCornerShape(12.dp)
+                shape = Shapes.pill
             ) {
-                Text(if (showCreateForm) "CREATE" else "SWITCH")
+                Text(if (showCreateForm) "CREATE" else "SWITCH", fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("CANCEL") }
+            TextButton(onClick = onDismiss) { Text("CANCEL", color = TextSecondary) }
         }
     )
 }
@@ -695,16 +731,16 @@ fun StaffManagementDialog(
     onDeleteStaff: (com.example.retailpos.data.local.entity.UserEntity) -> Unit
 ) {
     var showAddForm by remember { mutableStateOf(false) }
-    
+
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = RetailSurface,
+        containerColor = Surface,
         title = {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("Manage Staff", fontWeight = FontWeight.Black)
+                Text("Manage Staff", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleLarge)
                 if (!showAddForm && UserPermissions.canManageStaff(currentUser.userRole)) {
                     IconButton(onClick = { showAddForm = true }) {
-                        Icon(Icons.Default.PersonAdd, contentDescription = "Add Staff", tint = RetailPrimary)
+                        Icon(Icons.Default.PersonAdd, contentDescription = "Add Staff", tint = Primary)
                     }
                 }
             }
@@ -720,14 +756,14 @@ fun StaffManagementDialog(
                         }
                     )
                 } else {
-                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                         items(allUsers) { user ->
                             StaffMemberRow(
                                 user = user,
                                 canDelete = UserPermissions.canManageStaff(currentUser.userRole) && user.role != "OWNER" && user.id != currentUser?.id,
                                 onDelete = { onDeleteStaff(user) }
                             )
-                            HorizontalDivider(color = RetailBorderSubtle.copy(alpha = 0.5f))
+                            HorizontalDivider(color = OutlineVariant.copy(alpha = 0.5f))
                         }
                     }
                 }
@@ -736,7 +772,7 @@ fun StaffManagementDialog(
         confirmButton = {
             if (!showAddForm) {
                 TextButton(onClick = onDismiss) {
-                    Text("CLOSE", color = RetailPrimary, fontWeight = FontWeight.Bold)
+                    Text("CLOSE", color = Primary, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -750,17 +786,17 @@ fun StaffMemberRow(
     onDelete: () -> Unit
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = Spacing.sm),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(user.fullName, fontWeight = FontWeight.Bold, color = RetailTextPrimary)
-            Text("${user.role} • @${user.username}", style = MaterialTheme.typography.labelSmall, color = RetailTextSecondary)
+            Text(user.fullName, fontWeight = FontWeight.Bold, color = TextPrimary)
+            Text("${user.role} • @${user.username}", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
         }
         if (canDelete) {
             IconButton(onClick = onDelete) {
-                Icon(Icons.Default.DeleteOutline, contentDescription = "Remove", tint = RetailError)
+                Icon(Icons.Default.DeleteOutline, contentDescription = "Remove", tint = Error)
             }
         }
     }
@@ -776,30 +812,30 @@ fun AddStaffForm(onCancel: () -> Unit, onSave: (String, String, String, String) 
 
     val roles = listOf("CASHIER", "MANAGER")
 
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
         OutlinedTextField(
             value = fullName,
             onValueChange = { fullName = it },
             label = { Text("Full Name") },
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp)
+            shape = Shapes.medium
         )
         OutlinedTextField(
             value = username,
             onValueChange = { username = it },
             label = { Text("Username") },
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp)
+            shape = Shapes.medium
         )
         OutlinedTextField(
             value = pin,
             onValueChange = { if (it.length <= 4 && it.all { c -> c.isDigit() }) pin = it },
             label = { Text("4-Digit PIN") },
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
+            shape = Shapes.medium,
             keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.NumberPassword)
         )
-        
+
         Box(modifier = Modifier.fillMaxWidth()) {
             OutlinedTextField(
                 value = role,
@@ -807,10 +843,10 @@ fun AddStaffForm(onCancel: () -> Unit, onSave: (String, String, String, String) 
                 readOnly = true,
                 label = { Text("Role") },
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
+                shape = Shapes.medium,
                 trailingIcon = {
                     IconButton(onClick = { expanded = true }) {
-                        Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                        Icon(Icons.Default.ArrowDropDown, contentDescription = "Dropdown")
                     }
                 }
             )
@@ -828,12 +864,12 @@ fun AddStaffForm(onCancel: () -> Unit, onSave: (String, String, String, String) 
         }
 
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onCancel) { Text("CANCEL", color = RetailTextSecondary) }
-            Spacer(modifier = Modifier.width(8.dp))
+            TextButton(onClick = onCancel) { Text("CANCEL", color = TextSecondary) }
+            Spacer(modifier = Modifier.width(Spacing.sm))
             Button(
                 onClick = { if (username.isNotBlank() && fullName.isNotBlank() && pin.length == 4) onSave(username, fullName, pin, role) },
-                colors = ButtonDefaults.buttonColors(containerColor = RetailPrimary),
-                shape = RoundedCornerShape(8.dp)
+                colors = ButtonDefaults.buttonColors(containerColor = Primary),
+                shape = Shapes.pill
             ) {
                 Text("ADD STAFF", fontWeight = FontWeight.Bold)
             }
@@ -846,14 +882,14 @@ fun SettingsCategoryHeader(title: String) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .background(RetailBackground)
-            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .background(Background)
+            .padding(horizontal = Spacing.screenPadding, vertical = Spacing.md)
     ) {
         Text(
             text = title,
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Black,
-            color = RetailPrimary,
+            color = Primary,
             letterSpacing = 0.5.sp
         )
     }
@@ -863,28 +899,28 @@ fun SettingsCategoryHeader(title: String) {
 fun SettingsItem(title: String, description: String, icon: ImageVector, onClick: () -> Unit) {
     Surface(
         onClick = onClick,
-        color = RetailSurface,
+        color = Surface,
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(Spacing.cardPadding),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
+            horizontalArrangement = Arrangement.spacedBy(Spacing.lg)
         ) {
             Surface(
-                color = RetailBackground,
+                color = SurfaceVariant,
                 shape = CircleShape,
                 modifier = Modifier.size(40.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Icon(icon, contentDescription = null, tint = RetailTextPrimary, modifier = Modifier.size(20.dp))
+                    Icon(icon, contentDescription = "Transaction", tint = TextPrimary, modifier = Modifier.size(IconSizes.md))
                 }
             }
             Column(modifier = Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = RetailTextPrimary)
-                Text(description, style = MaterialTheme.typography.labelSmall, color = RetailTextSecondary)
+                Text(title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = TextPrimary)
+                Text(description, style = MaterialTheme.typography.labelSmall, color = TextSecondary)
             }
-            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = RetailBorder, modifier = Modifier.size(20.dp))
+            Icon(Icons.Default.ChevronRight, contentDescription = "Arrow", tint = Outline, modifier = Modifier.size(IconSizes.md))
         }
     }
 }
@@ -902,37 +938,37 @@ fun StoreProfileDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = RetailSurface,
-        title = { Text("Store Profile", fontWeight = FontWeight.Black) },
+        containerColor = Surface,
+        title = { Text("Store Profile", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleLarge) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.lg)) {
                 OutlinedTextField(
                     value = nameText,
                     onValueChange = { nameText = it },
                     label = { Text("Business Name") },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = Shapes.medium
                 )
                 OutlinedTextField(
                     value = gstinText,
                     onValueChange = { gstinText = it },
                     label = { Text("GSTIN") },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = Shapes.medium
                 )
                 OutlinedTextField(
                     value = phoneText,
                     onValueChange = { phoneText = it },
                     label = { Text("Contact Number") },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = Shapes.medium
                 )
                 OutlinedTextField(
                     value = addressText,
                     onValueChange = { addressText = it },
                     label = { Text("Address") },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = Shapes.medium,
                     minLines = 2
                 )
             }
@@ -940,15 +976,15 @@ fun StoreProfileDialog(
         confirmButton = {
             Button(
                 onClick = { onSave(nameText, gstinText, phoneText, addressText) },
-                colors = ButtonDefaults.buttonColors(containerColor = RetailPrimary),
-                shape = RoundedCornerShape(12.dp)
+                colors = ButtonDefaults.buttonColors(containerColor = Primary),
+                shape = Shapes.pill
             ) {
-                Text("SAVE CHANGES", fontWeight = FontWeight.Black)
+                Text("SAVE CHANGES", fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("CANCEL", color = RetailTextSecondary)
+                Text("CANCEL", color = TextSecondary)
             }
         }
     )

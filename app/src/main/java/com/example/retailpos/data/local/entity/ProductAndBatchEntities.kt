@@ -78,7 +78,8 @@ data class BatchEntity(
     val initialQty: Double,
     val remainingQty: Double,
     val version: Long = 1L,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis()
 )
 
 enum class StockMovementType {

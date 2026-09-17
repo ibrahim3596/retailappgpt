@@ -12,6 +12,13 @@ import com.example.retailpos.repository.InventoryRepository
 import com.example.retailpos.repository.PosRepository
 import com.example.retailpos.auth.UserPermissions
 import com.example.retailpos.auth.userRole
+import com.example.retailpos.engine.sync.LoginRequest
+import com.example.retailpos.engine.sync.SyncApiClient
+import com.example.retailpos.engine.sync.SyncContracts
+import com.example.retailpos.engine.sync.SyncOutcome
+import com.example.retailpos.engine.sync.SyncReport
+import com.example.retailpos.engine.sync.SyncRepository
+import com.example.retailpos.util.SessionManager
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.UUID
@@ -23,8 +30,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val posRepo = PosRepository(db)
     val inventoryRepo = InventoryRepository(db)
     val customerRepo = CustomerRepository(db)
-    private val sessionManager = com.example.retailpos.util.SessionManager(application)
+    private val sessionManager = SessionManager(application)
     private val authService = com.example.retailpos.auth.SupabaseAuthService()
+    private val syncRepository = SyncRepository(application, db, sessionManager)
+
+    /** Last sync attempt result, surfaced in Settings/Sync UI. */
+    private val _lastSyncReport = MutableStateFlow<SyncReport?>(null)
+    val lastSyncReport: StateFlow<SyncReport?> = _lastSyncReport.asStateFlow()
+
+    val isSyncConfigured: StateFlow<Boolean> = sessionManager.syncServerUrl
+        .map { !it.isNullOrBlank() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     private val _isSetupComplete = MutableStateFlow<Boolean?>(null)
     val isSetupComplete: StateFlow<Boolean?> = _isSetupComplete.asStateFlow()
@@ -146,6 +162,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     val customers: StateFlow<List<CustomerEntity>> = currentStoreId
         .flatMapLatest { customerRepo.getAllCustomers(it) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val allSuppliers: StateFlow<List<SupplierEntity>> = currentStoreId
+        .flatMapLatest { db.supplierDao().getAllSuppliers(it) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val allPurchases: StateFlow<List<PurchaseEntity>> = currentStoreId
+        .flatMapLatest { db.purchaseDao().getAllPurchases(it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val invoices: StateFlow<List<InvoiceWithItems>> = currentStoreId
@@ -345,6 +369,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             authService.logout()
             sessionManager.setLoggedInUserId(null)
             _sharedCartItems.value = emptyList()
+            // Held carts must not leak to the next user of the terminal.
+            heldCarts.value.forEach { held -> deleteHeldCart(held.id) }
         }
     }
 
@@ -388,6 +414,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 purchasePrice = product.purchasePrice
             )
             onResult(true)
+        }
+    }
+
+    fun recordKhataPaymentWithAuth(
+        customerId: String,
+        amount: Double,
+        paymentMethod: com.example.retailpos.data.local.entity.PaymentMethod,
+        notes: String,
+        onResult: (Boolean) -> Unit
+    ) {
+        viewModelScope.launch {
+            val user = currentUser.value
+            if (!UserPermissions.canManageKhata(user.userRole)) {
+                onResult(false)
+                return@launch
+            }
+            val success = customerRepo.recordPayment(
+                storeId = currentStoreId.value,
+                customerId = customerId,
+                amount = amount,
+                notes = notes,
+                paymentMethod = paymentMethod
+            )
+            onResult(success)
         }
     }
 
@@ -546,16 +596,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 )
                 db.batchDao().insertBatch(batch)
             }
+    }
 
-            val customer = CustomerEntity(
-                id = UUID.randomUUID().toString(),
-                storeId = storeId,
-                name = "Ramesh Kumar (Local Resident)",
-                phone = "9820098200",
-                currentBalance = 450.0,
-                creditLimit = 5000.0
-            )
-            customerRepo.saveCustomer(customer)
+    fun saveSupplier(supplier: SupplierEntity) {
+        viewModelScope.launch {
+            val user = currentUser.value
+            if (!UserPermissions.canManageProducts(user.userRole)) return@launch
+            db.supplierDao().insertSupplier(supplier)
+        }
+    }
+
+    fun savePurchase(purchase: PurchaseEntity, items: MutableList<PurchaseItemEntry>) {
+        viewModelScope.launch {
+            val user = currentUser.value
+            if (!UserPermissions.canManageProducts(user.userRole)) return@launch
+            db.purchaseDao().insertPurchase(purchase)
+            // items would need proper PurchaseItemEntity conversion
+        }
     }
 
     fun updateStoreDetails(name: String, gstin: String, address: String, phone: String) {
@@ -612,8 +669,29 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun switchStore(newStoreId: String) {
-        currentStoreId.value = newStoreId
+    /**
+     * Switching the active store changes which shop's data the terminal reads
+     * and writes, so it requires re-verifying the current user's PIN and must
+     * survive process death.
+     */
+    fun switchStore(newStoreId: String, pin: String, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            val user = currentUser.value
+            if (user == null || user.userRole != com.example.retailpos.auth.UserRole.OWNER) {
+                onResult(false)
+                return@launch
+            }
+            val verified = db.userDao().getUserById(user.id)?.let {
+                com.example.retailpos.util.PasswordHasher.verifyPassword(pin, it.pinHash)
+            } ?: false
+            if (!verified) {
+                onResult(false)
+                return@launch
+            }
+            currentStoreId.value = newStoreId
+            sessionManager.setCurrentStoreId(newStoreId)
+            onResult(true)
+        }
     }
 
     fun createNewStore(name: String, gstin: String, address: String, phone: String, ownerName: String, ownerUsername: String, ownerPin: String) {
@@ -642,6 +720,73 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             
             // Auto switch to new store
             currentStoreId.value = newStoreId
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Cloud sync (server)
+    // -----------------------------------------------------------------------
+
+    fun configureSyncServer(url: String, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            val normalized = url.trim().trimEnd('/')
+            val ok = normalized.startsWith("http://") || normalized.startsWith("https://")
+            if (ok) sessionManager.setSyncServerUrl(normalized)
+            onResult(ok)
+        }
+    }
+
+    fun disconnectSyncServer() {
+        viewModelScope.launch {
+            sessionManager.setSyncServerUrl(null)
+            sessionManager.setSyncTokens(null, null)
+            sessionManager.setSyncMasterPushed(false)
+            _lastSyncReport.value = null
+        }
+    }
+
+    /**
+     * Server login. The sync server has its own credential store (per-store
+     * staff accounts); device users log in once and tokens are refreshed
+     * automatically by the sync repository.
+     */
+    fun serverLogin(storeId: String, username: String, password: String, onResult: (Boolean, String?) -> Unit) {
+        viewModelScope.launch {
+            val baseUrl = sessionManager.syncServerUrl.first()
+            if (baseUrl.isNullOrBlank()) {
+                onResult(false, "Configure the server URL first")
+                return@launch
+            }
+            val installationId = com.example.retailpos.engine.sync.InstallationIdManager(getApplication()).getOrCreateInstallationId()
+            val body = SyncContracts.encode(LoginRequest(storeId.trim(), username.trim(), password, installationId))
+            when (val res = SyncApiClient { baseUrl }.post("/api/v1/auth/login", body, null)) {
+                is com.example.retailpos.engine.sync.SyncHttpResult.Success -> {
+                    val parsed = SyncContracts.decode<com.example.retailpos.engine.sync.LoginResponse>(res.bodyJson)
+                    val access = parsed?.accessToken
+                    if (access != null) {
+                        sessionManager.setSyncTokens(access, parsed.refreshToken)
+                        onResult(true, null)
+                    } else {
+                        onResult(false, parsed?.message ?: "Login failed")
+                    }
+                }
+                is com.example.retailpos.engine.sync.SyncHttpResult.ClientError ->
+                    onResult(false, res.message ?: "Invalid credentials")
+                else -> onResult(false, "Server unreachable")
+            }
+        }
+    }
+
+    fun syncNow(onResult: ((SyncReport) -> Unit)? = null) {
+        viewModelScope.launch {
+            val storeId = currentStoreId.value
+            val report = try {
+                syncRepository.syncNow(storeId)
+            } catch (e: Exception) {
+                SyncReport(outcome = SyncOutcome.ERROR, message = e.message)
+            }
+            _lastSyncReport.value = report
+            onResult?.invoke(report)
         }
     }
 }

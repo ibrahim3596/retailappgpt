@@ -42,18 +42,14 @@ class MainActivity : ComponentActivity() {
             RetailPosTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     RetailPosApp(mainViewModel)
-                    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        SupabaseClientProvider.client.handleDeeplinks(intent)
+                }
+            }
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         SupabaseClientProvider.client.handleDeeplinks(intent)
-    }
-}
-            }
-        }
     }
 }
 

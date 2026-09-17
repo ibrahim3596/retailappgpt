@@ -314,33 +314,24 @@ fun CameraScannerScreen(
                                 textRecognizer.process(inputImage)
                                     .addOnSuccessListener { visionText ->
                                         val text = visionText.text
-                                        if (text.isNotBlank()) {
-                                            val ocr = PackagingOcrParser.parsePackagingText(text.lines())
-                                            val detectedCode = ocr.barcode ?: ("890" + (1000000000L..9999999999L).random())
+                                        val ocr = PackagingOcrParser.parsePackagingText(text.lines())
+                                        // Only real, detected codes may enter the flow: a
+                                        // fabricated barcode would silently bill the wrong item.
+                                        val detectedCode = ocr.barcode
+                                        if (text.isNotBlank() && detectedCode != null) {
                                             processBarcodeOrText(
                                                 scannedBarcode = detectedCode,
                                                 ocrText = text,
                                                 sourceName = "GALLERY_OCR"
                                             )
-                                            Toast.makeText(context, "Product label analyzed & added!", Toast.LENGTH_SHORT).show()
+                                            Toast.makeText(context, "Product label analyzed!", Toast.LENGTH_SHORT).show()
                                         } else {
-                                            val randomBarcode = "890" + (1000000000L..9999999999L).random()
-                                            processBarcodeOrText(
-                                                scannedBarcode = randomBarcode,
-                                                ocrText = "PRODUCT PHOTO SCAN\nNet Wt. 500g\nM.R.P. Rs. 45.00",
-                                                sourceName = "PHOTO_SAMPLE"
-                                            )
-                                            Toast.makeText(context, "Product detected from photo!", Toast.LENGTH_SHORT).show()
+                                            Toast.makeText(context, "No product code found in photo — scan the barcode or enter it manually", Toast.LENGTH_SHORT).show()
                                         }
                                         isAnalyzingPhoto = false
                                     }
                                     .addOnFailureListener {
-                                        val randomBarcode = "890" + (1000000000L..9999999999L).random()
-                                        processBarcodeOrText(
-                                            scannedBarcode = randomBarcode,
-                                            ocrText = "GROCERY PACKAGE ITEM\nNet Wt. 1kg\nM.R.P. Rs. 50.00",
-                                            sourceName = "PHOTO_HEURISTIC"
-                                        )
+                                        Toast.makeText(context, "Could not read the photo — scan the barcode instead", Toast.LENGTH_SHORT).show()
                                         isAnalyzingPhoto = false
                                     }
                             }
@@ -350,31 +341,26 @@ fun CameraScannerScreen(
                             textRecognizer.process(inputImage)
                                 .addOnSuccessListener { visionText ->
                                     val text = visionText.text
-                                    val detectedCode = "890" + (1000000000L..9999999999L).random()
-                                    processBarcodeOrText(
-                                        scannedBarcode = detectedCode,
-                                        ocrText = text.ifBlank { "RETAIL PRODUCT\nM.R.P. Rs. 35.00" },
-                                        sourceName = "PHOTO_OCR"
-                                    )
-                                    isAnalyzingPhoto = false
+                                    val detectedCode = PackagingOcrParser.parsePackagingText(text.lines()).barcode
+                                    if (text.isNotBlank() && detectedCode != null) {
+                                        processBarcodeOrText(
+                                            scannedBarcode = detectedCode,
+                                            ocrText = text,
+                                            sourceName = "PHOTO_OCR"
+                                        )
+                                        isAnalyzingPhoto = false
+                                    } else {
+                                        Toast.makeText(context, "No product code found in photo", Toast.LENGTH_SHORT).show()
+                                        isAnalyzingPhoto = false
+                                    }
                                 }
                                 .addOnFailureListener {
-                                    val fallbackBarcode = "890" + (1000000000L..9999999999L).random()
-                                    processBarcodeOrText(
-                                        scannedBarcode = fallbackBarcode,
-                                        ocrText = "PACKAGED GOODS\nM.R.P. Rs. 40.00",
-                                        sourceName = "PHOTO_FALLBACK"
-                                    )
+                                    Toast.makeText(context, "Could not read the photo", Toast.LENGTH_SHORT).show()
                                     isAnalyzingPhoto = false
                                 }
                         }
                 } catch (_: Exception) {
-                    val fallbackBarcode = "890" + (1000000000L..9999999999L).random()
-                    processBarcodeOrText(
-                        scannedBarcode = fallbackBarcode,
-                        ocrText = "RETAIL PRODUCT ITEM\nM.R.P. Rs. 30.00",
-                        sourceName = "PHOTO_SAFE"
-                    )
+                    Toast.makeText(context, "Photo analysis failed — scan the barcode instead", Toast.LENGTH_SHORT).show()
                     isAnalyzingPhoto = false
                 }
             }
@@ -425,8 +411,8 @@ fun CameraScannerScreen(
                                     fontSize = 11.sp,
                                     letterSpacing = 1.sp
                                 )
-                                Surface(color = RetailPrimary.copy(alpha = 0.2f), shape = RoundedCornerShape(4.dp)) {
-                                    Text("${totalCartUnits.toInt()} ITEMS", color = RetailPrimary, fontSize = 10.sp, fontWeight = FontWeight.Black, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                                Surface(color = Primary.copy(alpha = 0.2f), shape = RoundedCornerShape(4.dp)) {
+                                    Text("${totalCartUnits.toInt()} ITEMS", color = Primary, fontSize = 10.sp, fontWeight = FontWeight.Black, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
                                 }
                             }
                             Text(
@@ -439,11 +425,11 @@ fun CameraScannerScreen(
 
                         Button(
                             onClick = onNavigateToPos,
-                            colors = ButtonDefaults.buttonColors(containerColor = RetailPrimary),
+                            colors = ButtonDefaults.buttonColors(containerColor = Primary),
                             shape = RoundedCornerShape(16.dp),
                             modifier = Modifier.height(56.dp).padding(start = 12.dp)
                         ) {
-                            Icon(Icons.Default.ShoppingCartCheckout, contentDescription = null, modifier = Modifier.size(20.dp))
+                            Icon(Icons.Default.ShoppingCartCheckout, contentDescription = "结算", modifier = Modifier.size(20.dp))
                             Spacer(modifier = Modifier.width(8.dp))
                             Text("CHECKOUT", fontWeight = FontWeight.Black, fontSize = 14.sp)
                         }
@@ -551,10 +537,13 @@ fun CameraScannerScreen(
                             shape = CircleShape,
                             color = Color(0xFF1E293B)
                         ) {
+                            val icon = if (!hasCameraPermission) Icons.Default.NoPhotography else Icons.Default.VideocamOff
+                            val desc = if (!hasCameraPermission) "Camera permission missing" else "Camera not available"
+                            val tint = if (!hasCameraPermission) Primary else Error
                             Icon(
-                                if (!hasCameraPermission) Icons.Default.NoPhotography else Icons.Default.VideocamOff,
-                                contentDescription = null,
-                                tint = if (!hasCameraPermission) RetailPrimary else RetailError,
+                                icon,
+                                contentDescription = desc,
+                                tint = tint,
                                 modifier = Modifier.padding(20.dp)
                             )
                         }
@@ -578,7 +567,7 @@ fun CameraScannerScreen(
                         if (!hasCameraPermission) {
                             Button(
                                 onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) },
-                                colors = ButtonDefaults.buttonColors(containerColor = RetailPrimary),
+                                colors = ButtonDefaults.buttonColors(containerColor = Primary),
                                 shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier.height(50.dp).fillMaxWidth()
                             ) {
@@ -620,7 +609,7 @@ fun CameraScannerScreen(
 
                     // Cutout Glowing Border
                     drawRoundRect(
-                        color = RetailPrimary.copy(alpha = pulseAlpha * 0.4f),
+                        color = Primary.copy(alpha = pulseAlpha * 0.4f),
                         topLeft = Offset(left, top),
                         size = Size(cutoutWidth, cutoutHeight),
                         cornerRadius = CornerRadius(24.dp.toPx(), 24.dp.toPx()),
@@ -631,9 +620,9 @@ fun CameraScannerScreen(
                     val cornerLen = 32.dp.toPx()
                     val strokeW = 4.dp.toPx()
                     val cornerColor = when {
-                        scanSuccessEffect -> RetailSuccess
-                        scanErrorEffect -> RetailError
-                        else -> RetailPrimary
+                        scanSuccessEffect -> Success
+                        scanErrorEffect -> Error
+                        else -> Primary
                     }
 
                     // Top Left
@@ -658,9 +647,9 @@ fun CameraScannerScreen(
                         brush = Brush.horizontalGradient(
                             listOf(
                                 Color.Transparent,
-                                RetailPrimary,
+                                Primary,
                                 Color.White,
-                                RetailPrimary,
+                                Primary,
                                 Color.Transparent
                             )
                         ),
@@ -712,7 +701,7 @@ fun CameraScannerScreen(
                                 modifier = Modifier
                                     .size(10.dp)
                                     .clip(CircleShape)
-                                    .background(if (isLiveFeedActive) RetailSuccess else RetailPrimary)
+                                    .background(if (isLiveFeedActive) Success else Primary)
                             )
                             Text(
                                 if (isLiveFeedActive) "SENSOR ACTIVE" else "VIEWFINDER READY",
@@ -755,7 +744,7 @@ fun CameraScannerScreen(
                             Icon(
                                 if (soundEnabled) Icons.AutoMirrored.Filled.VolumeUp else Icons.Default.VolumeOff,
                                 contentDescription = "Audio",
-                                tint = if (soundEnabled) RetailPrimary else Color(0xFF94A3B8),
+                                tint = if (soundEnabled) Primary else Color(0xFF94A3B8),
                                 modifier = Modifier.size(20.dp)
                             )
                         }
@@ -766,7 +755,7 @@ fun CameraScannerScreen(
                     text = if (mode == "BILLING") "BILLING SCANNER" else "PRODUCT SCANNER",
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Black,
-                    color = RetailPrimary,
+                    color = Primary,
                     letterSpacing = 2.sp,
                     modifier = Modifier.padding(top = 12.dp)
                 )
@@ -856,7 +845,7 @@ fun CameraScannerScreen(
                             Spacer(modifier = Modifier.width(8.dp))
                             Text("Analyzing...", fontSize = 12.sp, color = Color.White)
                         } else {
-                            Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(18.dp))
+                            Icon(Icons.Default.AddPhotoAlternate, contentDescription = "添加照片", tint = Color(0xFF38BDF8), modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(6.dp))
                             Text("Scan Photo", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.SemiBold)
                         }
@@ -869,7 +858,7 @@ fun CameraScannerScreen(
                         shape = RoundedCornerShape(12.dp),
                         border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155))
                     ) {
-                        Icon(Icons.Default.Keyboard, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.Keyboard, contentDescription = "键盘", tint = Color(0xFF38BDF8), modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text("Type Barcode", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.SemiBold)
                     }
@@ -948,7 +937,7 @@ fun CameraScannerScreen(
                                 .background(Color(0xFF10B981)),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Default.Check, contentDescription = null, tint = Color.Black, modifier = Modifier.size(22.dp))
+                            Icon(Icons.Default.Check, contentDescription = "确认", tint = Color.Black, modifier = Modifier.size(22.dp))
                         }
                         Column(modifier = Modifier.weight(1f)) {
                             Text("ITEM ADDED TO CART", color = Color(0xFF6EE7B7), fontSize = 10.sp, fontWeight = FontWeight.ExtraBold)
@@ -988,7 +977,7 @@ fun CameraScannerScreen(
                             onClick = { viewModel.clearCart() },
                             colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFEF4444))
                         ) {
-                            Icon(Icons.Default.DeleteSweep, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.DeleteSweep, contentDescription = "删除", modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(4.dp))
                             Text("Clear All")
                         }
@@ -1047,7 +1036,7 @@ fun CameraScannerScreen(
                                         FilledIconButton(
                                             onClick = { viewModel.updateCartQuantity(item.product.id, 1.0) },
                                             modifier = Modifier.size(32.dp),
-                                            colors = IconButtonDefaults.filledIconButtonColors(containerColor = RetailPrimary)
+                                            colors = IconButtonDefaults.filledIconButtonColors(containerColor = Primary)
                                         ) {
                                             Icon(Icons.Default.Add, contentDescription = "Increase", tint = Color.White, modifier = Modifier.size(16.dp))
                                         }
@@ -1082,7 +1071,7 @@ fun CameraScannerScreen(
                                 showLineItemsSheet = false
                                 onNavigateToPos()
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = RetailPrimary),
+                            colors = ButtonDefaults.buttonColors(containerColor = Primary),
                             shape = RoundedCornerShape(12.dp)
                         ) {
                             Text("CHECKOUT IN POS", fontWeight = FontWeight.Bold)
@@ -1103,7 +1092,7 @@ fun CameraScannerScreen(
             textContentColor = Color(0xFF94A3B8),
             title = { 
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Icon(Icons.Default.Keyboard, contentDescription = null, tint = RetailPrimary)
+                    Icon(Icons.Default.Keyboard, contentDescription = "键盘", tint = Primary)
                     Text("Manual Barcode Entry", fontWeight = FontWeight.Bold)
                 }
             },
@@ -1120,8 +1109,8 @@ fun CameraScannerScreen(
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedTextColor = Color.White,
                             unfocusedTextColor = Color.White,
-                            cursorColor = RetailPrimary,
-                            focusedBorderColor = RetailPrimary,
+                            cursorColor = Primary,
+                            focusedBorderColor = Primary,
                             unfocusedBorderColor = Color(0xFF334155)
                         )
                     )
@@ -1136,7 +1125,7 @@ fun CameraScannerScreen(
                             manualBarcodeInput = ""
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = RetailPrimary),
+                    colors = ButtonDefaults.buttonColors(containerColor = Primary),
                     shape = RoundedCornerShape(10.dp)
                 ) {
                     Text("PROCESS", fontWeight = FontWeight.Black)
@@ -1159,8 +1148,8 @@ fun CameraScannerScreen(
             textContentColor = Color(0xFF94A3B8),
             title = {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Box(modifier = Modifier.size(32.dp).background(RetailError.copy(alpha = 0.2f), CircleShape), contentAlignment = Alignment.Center) {
-                        Icon(Icons.Default.SearchOff, contentDescription = null, tint = RetailError, modifier = Modifier.size(20.dp))
+                    Box(modifier = Modifier.size(32.dp).background(Error.copy(alpha = 0.2f), CircleShape), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.SearchOff, contentDescription = "无搜索结果", tint = Error, modifier = Modifier.size(20.dp))
                     }
                     Text("Product Not Found", fontWeight = FontWeight.Bold)
                 }
@@ -1177,7 +1166,7 @@ fun CameraScannerScreen(
                         showNotFoundDialog = false
                         onNavigateToProductReview(notFoundBarcode)
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = RetailPrimary),
+                    colors = ButtonDefaults.buttonColors(containerColor = Primary),
                     shape = RoundedCornerShape(10.dp)
                 ) {
                     Text("IDENTIFY & ADD", fontWeight = FontWeight.Black)

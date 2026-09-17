@@ -7,7 +7,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -20,9 +19,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.retailpos.data.local.entity.VerificationStatus
+import com.example.retailpos.engine.barcode.BarcodeNormalizer
 import com.example.retailpos.ui.MainViewModel
 import com.example.retailpos.ui.components.ProductCard
 import com.example.ui.theme.*
+import com.example.ui.theme.Spacing
+import com.example.ui.theme.IconSizes
+import com.example.ui.theme.Shapes
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -37,22 +40,26 @@ fun ProductListScreen(
 
     val filteredProducts = remember(searchQuery, products) {
         if (searchQuery.isBlank()) products
-        else products.filter {
-            it.name.contains(searchQuery, ignoreCase = true) ||
-                    it.barcode.contains(searchQuery, ignoreCase = true) ||
-                    it.brand.contains(searchQuery, ignoreCase = true) ||
-                    it.sku.contains(searchQuery, ignoreCase = true)
+        else {
+            val normalized = BarcodeNormalizer.normalize(searchQuery).canonicalGtin
+            products.filter {
+                it.name.contains(searchQuery, ignoreCase = true) ||
+                        it.barcode == searchQuery ||
+                        it.normalizedBarcode == normalized ||
+                        it.sku.contains(searchQuery, ignoreCase = true) ||
+                        it.brand.contains(searchQuery, ignoreCase = true)
+            }
         }
     }
 
     Scaffold(
-        containerColor = RetailBackground,
+        containerColor = Background,
         topBar = {
             TopAppBar(
                 title = {
                     Column {
-                        Text("PRODUCTS", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium, color = RetailTextPrimary)
-                        Text("Manage your product catalogue", style = MaterialTheme.typography.labelSmall, color = RetailTextSecondary)
+                        Text("PRODUCTS", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium, color = TextPrimary)
+                        Text("Manage your product catalogue", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
                     }
                 },
                 navigationIcon = {
@@ -63,24 +70,24 @@ fun ProductListScreen(
                 actions = {
                     TextButton(
                         onClick = onNavigateToCameraScanner,
-                        colors = ButtonDefaults.textButtonColors(contentColor = RetailPrimary)
+                        colors = ButtonDefaults.textButtonColors(contentColor = Primary)
                     ) {
-                        Icon(Icons.Default.QrCodeScanner, contentDescription = null, modifier = Modifier.size(20.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Icon(Icons.Default.QrCodeScanner, contentDescription = "Scan & Identify", modifier = Modifier.size(IconSizes.sm))
+                        Spacer(modifier = Modifier.width(Spacing.sm))
                         Text("SCAN & IDENTIFY", fontWeight = FontWeight.Bold)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = RetailBackground)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Background)
             )
         },
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = { onNavigateToProductDetail("") },
-                containerColor = RetailPrimary,
+                containerColor = Primary,
                 contentColor = Color.White,
-                shape = RoundedCornerShape(16.dp),
-                icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                text = { Text("ADD PRODUCT") }
+                shape = Shapes.pill,
+                icon = { Icon(Icons.Default.Add, contentDescription = "Add Product") },
+                text = { Text("ADD PRODUCT", fontWeight = FontWeight.Bold) }
             )
         }
     ) { padding ->
@@ -88,39 +95,39 @@ fun ProductListScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(horizontal = Spacing.screenPadding),
+            verticalArrangement = Arrangement.spacedBy(Spacing.lg)
         ) {
             // Search Bar
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Search products, barcode or SKU", color = RetailTextSecondary) },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = RetailTextSecondary) },
-                shape = RoundedCornerShape(16.dp),
+                placeholder = { Text("Search products, barcode or SKU", color = TextSecondary) },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search", tint = TextSecondary) },
+                shape = Shapes.medium,
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = RetailPrimary,
-                    unfocusedBorderColor = RetailBorderSubtle,
-                    unfocusedContainerColor = RetailSurface,
-                    focusedContainerColor = RetailSurface
+                    focusedBorderColor = Primary,
+                    unfocusedBorderColor = OutlineVariant,
+                    unfocusedContainerColor = Surface,
+                    focusedContainerColor = Surface
                 ),
                 singleLine = true
             )
 
             // Category Filter Chips
             LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(bottom = 8.dp)
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                contentPadding = PaddingValues(bottom = Spacing.sm)
             ) {
                 item {
                     FilterChip(
                         selected = true,
                         onClick = { },
                         label = { Text("All Items") },
-                        shape = CircleShape,
+                        shape = Shapes.pill,
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = RetailPrimary,
+                            selectedContainerColor = Primary,
                             selectedLabelColor = Color.White
                         ),
                         border = null
@@ -133,23 +140,23 @@ fun ProductListScreen(
             if (products.isEmpty()) {
                 // Empty state: No products at all
                 Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Spacing.xl)) {
                         Surface(
                             modifier = Modifier.size(120.dp),
                             shape = CircleShape,
-                            color = RetailSurfaceVariant
+                            color = SurfaceVariant
                         ) {
                             Box(contentAlignment = Alignment.Center) {
-                                Icon(Icons.Default.Inventory, contentDescription = null, modifier = Modifier.size(48.dp), tint = RetailTextSecondary.copy(alpha = 0.3f))
+                                Icon(Icons.Default.Inventory, contentDescription = "Inventory", modifier = Modifier.size(IconSizes.xxxl), tint = TextTertiary.copy(alpha = 0.3f))
                             }
                         }
-                        Text("No products yet", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = RetailTextPrimary)
-                        Text("Add products to start building your catalogue.", style = MaterialTheme.typography.bodyMedium, color = RetailTextSecondary, textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.padding(horizontal = 32.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            OutlinedButton(onClick = { onNavigateToProductDetail("") }, shape = RoundedCornerShape(12.dp)) {
+                        Text("No products yet", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = TextPrimary)
+                        Text("Add products to start building your catalogue.", style = MaterialTheme.typography.bodyMedium, color = TextSecondary, textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.padding(horizontal = Spacing.xxxl))
+                        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.lg)) {
+                            OutlinedButton(onClick = { onNavigateToProductDetail("") }, shape = Shapes.pill) {
                                 Text("ADD PRODUCT")
                             }
-                            Button(onClick = onNavigateToCameraScanner, shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = RetailPrimary)) {
+                            Button(onClick = onNavigateToCameraScanner, shape = Shapes.pill, colors = ButtonDefaults.buttonColors(containerColor = Primary)) {
                                 Text("SCAN & IDENTIFY")
                             }
                         }
@@ -158,16 +165,16 @@ fun ProductListScreen(
             } else if (filteredProducts.isEmpty()) {
                 // Empty state: Search results empty
                 Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Icon(Icons.Default.SearchOff, contentDescription = null, modifier = Modifier.size(64.dp), tint = RetailTextSecondary.copy(alpha = 0.3f))
-                        Text("No products found", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = RetailTextPrimary)
-                        Text("Try another name, barcode or SKU.", style = MaterialTheme.typography.bodyMedium, color = RetailTextSecondary)
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                        Icon(Icons.Default.SearchOff, contentDescription = "No search results", modifier = Modifier.size(64.dp), tint = TextTertiary.copy(alpha = 0.3f))
+                        Text("No products found", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = TextPrimary)
+                        Text("Try another name, barcode or SKU.", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
                     }
                 }
             } else {
                 LazyColumn(
                     modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.md),
                     contentPadding = PaddingValues(bottom = 80.dp)
                 ) {
                     items(filteredProducts, key = { it.id }) { product ->

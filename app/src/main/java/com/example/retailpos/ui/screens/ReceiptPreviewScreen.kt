@@ -75,12 +75,12 @@ fun ReceiptPreviewScreen(
                         Icon(Icons.Default.Share, contentDescription = "Share", tint = MaterialTheme.colorScheme.onPrimary)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = RetailPrimary)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Primary)
             )
         },
         bottomBar = {
             Surface(
-                color = RetailBackground,
+                color = Background,
                 tonalElevation = 8.dp
             ) {
                 Row(
@@ -102,9 +102,9 @@ fun ReceiptPreviewScreen(
                             .weight(1f)
                             .height(52.dp),
                         shape = RoundedCornerShape(14.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, RetailBorder)
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Outline)
                     ) {
-                        Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.Share, contentDescription = "分享", modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text("SHARE", fontWeight = FontWeight.Bold)
                     }
@@ -118,13 +118,13 @@ fun ReceiptPreviewScreen(
                                 Toast.makeText(context, "ESC/POS Thermal Print Commands Sent (${bytes.size} bytes)", Toast.LENGTH_LONG).show()
                             }
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = RetailPrimary),
+                        colors = ButtonDefaults.buttonColors(containerColor = Primary),
                         modifier = Modifier
                             .weight(1.5f)
                             .height(52.dp),
                         shape = RoundedCornerShape(14.dp)
                     ) {
-                        Icon(Icons.Default.Print, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.Print, contentDescription = "打印", modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text("PRINT (ESC/POS)", fontWeight = FontWeight.Bold)
                     }
@@ -136,16 +136,16 @@ fun ReceiptPreviewScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .background(RetailBackground)
+                .background(Background)
                 .padding(16.dp)
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = RetailSurface),
+                colors = CardDefaults.cardColors(containerColor = Surface),
                 shape = RoundedCornerShape(16.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, RetailBorder),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Outline),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
                 Text(
@@ -154,7 +154,7 @@ fun ReceiptPreviewScreen(
                     fontFamily = FontFamily.Monospace,
                     fontSize = 12.sp,
                     lineHeight = 17.sp,
-                    color = RetailTextPrimary
+                    color = TextPrimary
                 )
             }
         }

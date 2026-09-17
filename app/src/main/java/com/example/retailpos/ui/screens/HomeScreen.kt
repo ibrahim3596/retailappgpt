@@ -81,7 +81,7 @@ fun HomeScreen(
     }
 
     Scaffold(
-        containerColor = RetailBackground,
+        containerColor = Background,
         topBar = {
             TopAppBar(
                 title = {
@@ -90,12 +90,12 @@ fun HomeScreen(
                             text = store?.name ?: "RetailPOS Mart",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Black,
-                            color = RetailTextPrimary
+                            color = TextPrimary
                         )
                         Text(
                             text = currentDate,
                             style = MaterialTheme.typography.labelSmall,
-                            color = RetailTextSecondary
+                            color = TextSecondary
                         )
                     }
                 },
@@ -103,7 +103,7 @@ fun HomeScreen(
                     if (unresolvedConflicts.isNotEmpty()) {
                         IconButton(onClick = onNavigateToSync) {
                             BadgedBox(badge = { Badge { Text(unresolvedConflicts.size.toString()) } }) {
-                                Icon(Icons.Default.SyncProblem, contentDescription = "Conflicts", tint = RetailError)
+                                Icon(Icons.Default.SyncProblem, contentDescription = "Conflicts", tint = Error)
                             }
                         }
                     }
@@ -111,15 +111,15 @@ fun HomeScreen(
                         Surface(
                             modifier = Modifier.size(40.dp),
                             shape = CircleShape,
-                            color = RetailSurfaceVariant
+                            color = SurfaceVariant
                         ) {
                             Box(contentAlignment = Alignment.Center) {
-                                Icon(Icons.Default.Person, contentDescription = "Settings", tint = RetailPrimary)
+                                Icon(Icons.Default.Person, contentDescription = "Settings", tint = Primary)
                             }
                         }
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = RetailBackground)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Background)
             )
         }
     ) { padding ->
@@ -138,7 +138,7 @@ fun HomeScreen(
                         text = "Today's Performance",
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Black,
-                        color = RetailTextSecondary,
+                        color = TextSecondary,
                         letterSpacing = 0.5.sp
                     )
                     Row(
@@ -149,14 +149,14 @@ fun HomeScreen(
                             label = "Revenue",
                             value = "₹${String.format("%.0f", todaySales)}",
                             icon = Icons.Default.Payments,
-                            iconColor = RetailSuccess,
+                            iconColor = Success,
                             modifier = Modifier.weight(1.1f)
                         )
                         MetricTile(
                             label = "Bills",
                             value = "${todayInvoices.size}",
                             icon = Icons.Default.ReceiptLong,
-                            iconColor = RetailPrimary,
+                            iconColor = Primary,
                             modifier = Modifier.weight(0.9f)
                         )
                         MetricTile(
@@ -182,7 +182,7 @@ fun HomeScreen(
                         text = "Store Management",
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Black,
-                        color = RetailTextSecondary,
+                        color = TextSecondary,
                         letterSpacing = 0.5.sp
                     )
                     Row(
@@ -225,19 +225,19 @@ fun HomeScreen(
             if (lowStockItems.isNotEmpty()) {
                 item {
                     Surface(
-                        color = RetailError.copy(alpha = 0.05f),
+                        color = Error.copy(alpha = 0.05f),
                         shape = RoundedCornerShape(20.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, RetailError.copy(alpha = 0.1f))
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Error.copy(alpha = 0.1f))
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.ErrorOutline, contentDescription = null, tint = RetailError)
+                                Icon(Icons.Default.ErrorOutline, contentDescription = "错误提示", tint = Error)
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     text = "Low Stock Alerts",
                                     fontWeight = FontWeight.Bold,
                                     style = MaterialTheme.typography.titleSmall,
-                                    color = RetailError
+                                    color = Error
                                 )
                             }
                             Spacer(modifier = Modifier.height(12.dp))
@@ -246,10 +246,10 @@ fun HomeScreen(
                                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    Text(product.name, style = MaterialTheme.typography.bodyMedium, color = RetailTextPrimary)
+                                    Text(product.name, style = MaterialTheme.typography.bodyMedium, color = TextPrimary)
                                     Text(
                                         "${product.currentStock.toInt()} ${product.unit} left",
-                                        color = RetailError,
+                                        color = Error,
                                         fontWeight = FontWeight.Bold,
                                         style = MaterialTheme.typography.bodySmall
                                     )
@@ -271,11 +271,11 @@ fun HomeScreen(
                         text = "Recent Activity",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Black,
-                        color = RetailTextPrimary
+                        color = TextPrimary
                     )
                     if (invoices.isNotEmpty() && UserPermissions.canAccessAnalytics(currentUser.userRole)) {
                         TextButton(onClick = onNavigateToAnalytics) {
-                            Text("View All", color = RetailPrimary, fontWeight = FontWeight.Bold)
+                            Text("View All", color = Primary, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -291,22 +291,22 @@ fun HomeScreen(
                         Surface(
                             modifier = Modifier.size(64.dp),
                             shape = CircleShape,
-                            color = RetailSurfaceVariant
+                            color = SurfaceVariant
                         ) {
                             Box(contentAlignment = Alignment.Center) {
-                                Icon(Icons.Default.History, contentDescription = null, modifier = Modifier.size(32.dp), tint = RetailTextSecondary.copy(alpha = 0.5f))
+                                Icon(Icons.Default.History, contentDescription = "历史记录", modifier = Modifier.size(32.dp), tint = TextSecondary.copy(alpha = 0.5f))
                             }
                         }
                         Spacer(modifier = Modifier.height(16.dp))
                         Text(
                             "No transactions today",
-                            color = RetailTextSecondary,
+                            color = TextSecondary,
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
                             "Start your first bill to see activity here",
-                            color = RetailTextSecondary.copy(alpha = 0.7f),
+                            color = TextSecondary.copy(alpha = 0.7f),
                             style = MaterialTheme.typography.bodySmall
                         )
                     }
@@ -329,18 +329,18 @@ fun HomeScreen(
                                     text = invoice.invoice.invoiceNumber,
                                     fontWeight = FontWeight.Bold,
                                     style = MaterialTheme.typography.bodyLarge,
-                                    color = RetailTextPrimary
+                                    color = TextPrimary
                                 )
                                 Text(
                                     text = "${invoice.invoice.customerName} • ${invoice.invoice.paymentMethod.name}",
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = RetailTextSecondary
+                                    color = TextSecondary
                                 )
                             }
                             Text(
                                 text = "₹${String.format("%.0f", invoice.invoice.grandTotal)}",
                                 fontWeight = FontWeight.Black,
-                                color = RetailPrimary,
+                                color = Primary,
                                 style = MaterialTheme.typography.titleLarge
                             )
                         }
