@@ -194,7 +194,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
     val pendingSyncCount: StateFlow<Int> = currentStoreId
-        .flatMapLatest { db.syncDao().getUnresolvedConflicts(it).map { it.size } }
+        .flatMapLatest { db.syncDao().getPendingSyncCount(it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
     val recentPurchases: StateFlow<List<PurchaseEntity>> = currentStoreId
@@ -878,5 +878,39 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _lastSyncReport.value = report
             onResult?.invoke(report)
         }
+    }
+
+    /**
+     * Schedules background alert workers for the current store.
+     * Call this from the app after login/setup completes.
+     */
+    fun scheduleBackgroundAlerts() {
+        val storeId = currentStoreId.value
+        val context = getApplication<Application>()
+        com.example.retailpos.worker.InventoryAlertWorker.schedulePeriodicCheck(context, storeId)
+        com.example.retailpos.worker.SyncAlertWorker.schedulePeriodicCheck(context, storeId)
+        com.example.retailpos.worker.KhataAlertWorker.schedulePeriodicCheck(context, storeId)
+        com.example.retailpos.worker.NotificationWorker.scheduleNotificationCheck(context, storeId)
+    }
+
+    /**
+     * Cancels all background alert workers. Call on logout.
+     */
+    fun cancelBackgroundAlerts() {
+        val context = getApplication<Application>()
+        com.example.retailpos.worker.InventoryAlertWorker.cancelPeriodicCheck(context)
+        com.example.retailpos.worker.SyncAlertWorker.cancelPeriodicCheck(context)
+        com.example.retailpos.worker.KhataAlertWorker.cancelPeriodicCheck(context)
+        com.example.retailpos.worker.NotificationWorker.cancelNotifications(context, currentStoreId.value)
+    }
+
+    /**
+     * Triggers an immediate inventory alert check and notification.
+     */
+    fun refreshInventoryAlerts() {
+        val storeId = currentStoreId.value
+        val context = getApplication<Application>()
+        com.example.retailpos.worker.InventoryAlertWorker.schedulePeriodicCheck(context, storeId)
+        com.example.retailpos.worker.NotificationWorker.scheduleNotificationCheck(context, storeId)
     }
 }

@@ -135,6 +135,7 @@ dependencies {
   implementation(libs.vico.compose)
   implementation(libs.vico.compose.m3)
   implementation(libs.vico.core)
+implementation(libs.androidx.work.runtime)
   testImplementation(libs.androidx.compose.ui.test.junit4)
   testImplementation(libs.androidx.core)
   testImplementation(libs.androidx.junit)

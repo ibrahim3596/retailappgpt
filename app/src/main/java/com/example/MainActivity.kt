@@ -67,6 +67,8 @@ fun RetailPosApp(viewModel: MainViewModel) {
                     popUpTo(0) { inclusive = true }
                 }
             } else {
+                // Schedule background alert workers on login
+                viewModel.scheduleBackgroundAlerts()
                 // If we are at Login or Setup, go Home
                 val currentRoute = navController.currentBackStackEntry?.destination?.route
                 if (currentRoute == Screen.Login.route || currentRoute == Screen.Setup.route) {
@@ -79,6 +81,13 @@ fun RetailPosApp(viewModel: MainViewModel) {
             navController.navigate(Screen.Setup.route) {
                 popUpTo(0) { inclusive = true }
             }
+        }
+    }
+
+    // Cancel alert workers on logout
+    LaunchedEffect(loggedInUserId) {
+        if (loggedInUserId == null && isSetupComplete == true) {
+            viewModel.cancelBackgroundAlerts()
         }
     }
 

@@ -47,6 +47,7 @@ googleid = "1.1.1"
 mlkitTextRecognition = "19.0.1"
 mlkitBarcodeScanning = "18.3.1"
 vico = "1.15.0"
+workRuntime = "2.10.0"
 
 
 [libraries]
@@ -114,6 +115,7 @@ mlkit-barcode-scanning = { group = "com.google.android.gms", name = "play-servic
 vico-compose = { group = "com.patrykandpatrick.vico", name = "compose", version.ref = "vico" }
 vico-compose-m3 = { group = "com.patrykandpatrick.vico", name = "compose-m3", version.ref = "vico" }
 vico-core = { group = "com.patrykandpatrick.vico", name = "core", version.ref = "vico" }
+androidx-work-runtime = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "workRuntime" }
 
 
 [plugins]

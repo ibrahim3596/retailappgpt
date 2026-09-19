@@ -6,7 +6,7 @@ export default tseslint.config(
   ...tseslint.configs.recommended,
   {
     files: ["src/**/*.ts"],
-    ignores: ["dist/", "node_modules/", "*.config.*"],
+    ignores: ["dist/**", "node_modules/", "*.config.*"],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: "module",

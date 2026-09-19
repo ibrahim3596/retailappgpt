@@ -149,6 +149,12 @@ interface SyncDao {
     @Query("SELECT * FROM sync_queue WHERE storeId = :storeId AND status = 'PENDING' ORDER BY createdAt ASC")
     suspend fun getPendingSyncLogs(storeId: String): List<SyncLogEntity>
 
+    @Query("SELECT COUNT(*) FROM sync_queue WHERE storeId = :storeId AND status = 'PENDING'")
+    suspend fun getPendingSyncCount(storeId: String): Int
+
+    @Query("SELECT COUNT(*) FROM sync_queue WHERE storeId = :storeId AND status = :status")
+    suspend fun getSyncLogCountByStatus(storeId: String, status: String): Int
+
     @Update
     suspend fun updateSyncLog(syncLog: SyncLogEntity)
 
@@ -166,6 +172,9 @@ interface SyncDao {
 
     @Query("SELECT * FROM sync_conflicts WHERE storeId = :storeId AND status = 'UNRESOLVED' ORDER BY createdAt DESC")
     fun getUnresolvedConflicts(storeId: String): Flow<List<SyncConflictEntity>>
+
+    @Query("SELECT COUNT(*) FROM sync_conflicts WHERE storeId = :storeId AND status = 'UNRESOLVED'")
+    suspend fun getUnresolvedConflictsCount(storeId: String): Int
 
     @Update
     suspend fun updateSyncConflict(conflict: SyncConflictEntity)
