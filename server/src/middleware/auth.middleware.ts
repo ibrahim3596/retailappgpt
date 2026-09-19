@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from "express";
+import type { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 
 export interface AuthenticatedUser {
@@ -21,7 +21,7 @@ let cachedSecret: string | null = null;
  * configured secret.
  */
 export function getJwtSecret(): string {
-  if (cachedSecret) return cachedSecret;
+  if (cachedSecret) {return cachedSecret;}
   const secret = process.env.JWT_SECRET;
   if (!secret || secret.length < 32) {
     throw new Error(

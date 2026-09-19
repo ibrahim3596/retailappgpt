@@ -31,10 +31,8 @@ jobs:
     - name: Run Unit Tests
       run: ./gradlew testDebugUnitTest --stacktrace
 
-    - name: Run Debug Instrumentation Tests
-      run: ./gradlew connectedDebugAndroidTest --stacktrace
-      continue-on-error: true
-
+    # Instrumentation tests require an emulator/device which is not available in standard GitHub Actions.
+    # These are expected to pass on a developer machine with an emulator or physical device.
     - name: Upload test results
       if: always()
       uses: actions/upload-artifact@v4

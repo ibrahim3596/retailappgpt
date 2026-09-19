@@ -1,9 +1,10 @@
-import { Router, Request, Response } from "express";
+import type { Request, Response } from "express";
+import { Router } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import rateLimit from "express-rate-limit";
-import { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "@prisma/client";
 import { LoginRequestSchema, RefreshTokenRequestSchema, GoogleLinkRequestSchema, SetupStoreWithGoogleSchema } from "../contracts/schemas";
 import { getJwtSecret } from "../middleware/auth.middleware";
 

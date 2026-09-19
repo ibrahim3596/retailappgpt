@@ -2,7 +2,7 @@ import { z } from "zod";
 
 // BigInt JSON Helper Transform (Accepts string of digits or numbers, converts safely to BigInt)
 export const MoneyPaiseSchema = z.union([z.string(), z.number()]).transform((val) => {
-  if (typeof val === "number") return BigInt(Math.round(val));
+  if (typeof val === "number") {return BigInt(Math.round(val));}
   return BigInt(val);
 });
 

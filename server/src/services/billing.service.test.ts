@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { calculateBilling, ProductPriceMetadata } from "./billing.service";
+import type { ProductPriceMetadata } from "./billing.service";
+import { calculateBilling } from "./billing.service";
 
 const product = (over: Partial<ProductPriceMetadata> = {}): ProductPriceMetadata => ({
   mrpPaise: 10000n,

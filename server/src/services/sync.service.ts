@@ -1,6 +1,6 @@
-import { PrismaClient } from "@prisma/client";
-import { z } from "zod";
-import {
+import type { PrismaClient } from "@prisma/client";
+import type { z } from "zod";
+import type {
   SaleCommandSchema,
   CustomerPaymentCommandSchema,
   ProductUpsertCommandSchema,
@@ -44,7 +44,7 @@ export async function processSaleCommand(
         err !== null &&
         "code" in err &&
         (err as { code?: string }).code === "P2002";
-      if (isUniqueViolation && attempt < MAX_INVOICE_NUMBER_ATTEMPTS) continue;
+      if (isUniqueViolation && attempt < MAX_INVOICE_NUMBER_ATTEMPTS) {continue;}
       throw err;
     }
   }
@@ -198,7 +198,7 @@ async function applySaleCommand(
 
       let remainingToAllocate = item.quantity;
       for (const batch of batches) {
-        if (remainingToAllocate <= 0) break;
+        if (remainingToAllocate <= 0) {break;}
         const available = Number(batch.quantity);
         const take = Math.min(available, remainingToAllocate);
 
@@ -294,7 +294,7 @@ export async function processCustomerPaymentCommand(
     const existingLog = await tx.syncCommandLog.findUnique({
       where: { idempotencyKey }
     });
-    if (existingLog) return { status: "ALREADY_PROCESSED" };
+    if (existingLog) {return { status: "ALREADY_PROCESSED" };}
 
     // Payment must be positive and the customer must belong to this store.
     if (command.amountPaise <= 0n) {
@@ -362,7 +362,7 @@ export async function processProductUpsertCommand(
     const existingLog = await tx.syncCommandLog.findUnique({
       where: { idempotencyKey }
     });
-    if (existingLog) return { status: "ALREADY_PROCESSED", upserted: 0 };
+    if (existingLog) {return { status: "ALREADY_PROCESSED", upserted: 0 };}
 
     let upserted = 0;
     for (const p of command.products) {
@@ -419,7 +419,7 @@ export async function processCustomerUpsertCommand(
     const existingLog = await tx.syncCommandLog.findUnique({
       where: { idempotencyKey }
     });
-    if (existingLog) return { status: "ALREADY_PROCESSED", upserted: 0 };
+    if (existingLog) {return { status: "ALREADY_PROCESSED", upserted: 0 };}
 
     let upserted = 0;
     for (const c of command.customers) {

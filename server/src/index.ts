@@ -40,11 +40,11 @@ app.use("/api/v1/auth", createAuthRouter(prisma));
 app.use("/api/v1/sync", createSyncRouter(prisma));
 
 const server = app.listen(PORT, () => {
-  console.log(`[POS Server] Running on port ${PORT}`);
+  console.error(`[POS Server] Running on port ${PORT}`);
 });
 
-async function shutdown(signal: string) {
-  console.log(`[POS Server] ${signal} received, shutting down`);
+function shutdown(signal: string): void {
+  console.error(`[POS Server] ${signal} received, shutting down`);
   server.close(async () => {
     await prisma.$disconnect();
     process.exit(0);

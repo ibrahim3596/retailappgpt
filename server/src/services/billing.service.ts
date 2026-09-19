@@ -46,7 +46,7 @@ export function calculateBilling(
 
   for (const item of items) {
     const prod = products.get(item.productId);
-    if (!prod) throw new Error(`Product ${item.productId} not found in product master`);
+    if (!prod) {throw new Error(`Product ${item.productId} not found in product master`);}
 
     const sellingPrice = prod.sellingPricePaise;
     const grossLineTotal = BigInt(Math.round(Number(sellingPrice) * item.quantity));

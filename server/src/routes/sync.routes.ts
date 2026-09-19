@@ -1,7 +1,8 @@
 import { Router } from "express";
-import { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "@prisma/client";
 import { z } from "zod";
-import { AuthenticatedRequest, authenticateToken } from "../middleware/auth.middleware";
+import type { AuthenticatedRequest} from "../middleware/auth.middleware";
+import { authenticateToken } from "../middleware/auth.middleware";
 import {
   SaleCommandSchema,
   CustomerPaymentCommandSchema,

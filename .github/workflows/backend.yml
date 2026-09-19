@@ -39,7 +39,6 @@ jobs:
 
     - name: Audit production dependencies
       run: npm audit --omit=dev --audit-level=high
-      continue-on-error: true
 
   security:
     runs-on: ubuntu-latest
