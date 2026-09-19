@@ -4,7 +4,8 @@ import type {
   SaleCommandSchema,
   CustomerPaymentCommandSchema,
   ProductUpsertCommandSchema,
-  CustomerUpsertCommandSchema
+  CustomerUpsertCommandSchema,
+  ExpensePushCommandSchema
 } from "../contracts/schemas";
 import { calculateBilling } from "./billing.service";
 
@@ -453,5 +454,57 @@ export async function processCustomerUpsertCommand(
     });
 
     return { status: "SUCCESS", upserted };
+  });
+}
+
+export async function processExpensePushCommand(
+  prisma: PrismaClient,
+  storeId: string,
+  command: z.infer<typeof ExpensePushCommandSchema>,
+  idempotencyKey: string
+) {
+  return await prisma.$transaction(async (tx) => {
+    const existingLog = await tx.syncCommandLog.findUnique({
+      where: { idempotencyKey }
+    });
+    if (existingLog) {return { status: "ALREADY_PROCESSED", expenseId: null };}
+
+    if (command.amountPaise <= 0n) {
+      throw new SyncConflictError("UNDERPAYMENT", "Expense amount must be positive");
+    }
+
+    // Idempotent on (storeId, localId): a retried push re-asserts the same
+    // row instead of creating a duplicate expense.
+    const expense = await tx.expense.upsert({
+      where: { storeId_localId: { storeId, localId: command.localId } },
+      create: {
+        storeId,
+        localId: command.localId,
+        category: command.category,
+        amountPaise: command.amountPaise,
+        date: command.date ? new Date(command.date) : new Date(),
+        paymentMethod: command.paymentMethod,
+        notes: command.notes ?? ""
+      },
+      update: {
+        category: command.category,
+        amountPaise: command.amountPaise,
+        paymentMethod: command.paymentMethod,
+        notes: command.notes ?? ""
+      }
+    });
+
+    await tx.syncCommandLog.create({
+      data: {
+        storeId,
+        installationId: command.installationId,
+        localTransactionId: command.localTransactionId,
+        commandType: "STOCK_ADJUSTMENT", // closest CommandType enum member
+        idempotencyKey,
+        status: "SUCCESS"
+      }
+    });
+
+    return { status: "SUCCESS", expenseId: expense.id };
   });
 }

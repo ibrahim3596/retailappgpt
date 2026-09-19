@@ -8,6 +8,7 @@ import {
   CustomerPaymentCommandSchema,
   ProductUpsertCommandSchema,
   CustomerUpsertCommandSchema,
+  ExpensePushCommandSchema,
   SyncPullRequestSchema
 } from "../contracts/schemas";
 import {
@@ -15,6 +16,7 @@ import {
   processCustomerPaymentCommand,
   processProductUpsertCommand,
   processCustomerUpsertCommand,
+  processExpensePushCommand,
   SyncConflictError
 } from "../services/sync.service";
 import { serializeBigInt } from "../services/billing.service";
@@ -72,6 +74,10 @@ export function createSyncRouter(prisma: PrismaClient) {
       } else if (commandType === "CUSTOMER_UPSERT") {
         const payload = CustomerUpsertCommandSchema.parse(req.body.payload);
         const result = await processCustomerUpsertCommand(prisma, storeId, payload, idempotencyKey);
+        return res.json(serializeBigInt(result));
+      } else if (commandType === "EXPENSE_PUSH") {
+        const payload = ExpensePushCommandSchema.parse(req.body.payload);
+        const result = await processExpensePushCommand(prisma, storeId, payload, idempotencyKey);
         return res.json(serializeBigInt(result));
       } else {
         return res.status(400).json({ error: "UNSUPPORTED_COMMAND", message: `Command ${commandType} is not supported` });

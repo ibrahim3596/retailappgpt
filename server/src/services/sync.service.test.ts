@@ -3,6 +3,7 @@ import type { PrismaClient } from "@prisma/client";
 import {
   processSaleCommand,
   processCustomerPaymentCommand,
+  processExpensePushCommand,
   SyncConflictError
 } from "./sync.service";
 import { calculateBilling } from "./billing.service";
@@ -14,6 +15,7 @@ const mockCreate = vi.fn();
 const mockProductUpdate = vi.fn();
 const mockCustomerUpdate = vi.fn();
 const mockCount = vi.fn();
+const mockExpenseUpsert = vi.fn();
 
 const mockPrisma = {
   $transaction: async (fn: any) => fn({
@@ -24,6 +26,7 @@ const mockPrisma = {
     stockMovement: { create: mockCreate },
     customer: { findFirst: mockFindUnique, update: mockCustomerUpdate },
     customerLedger: { create: mockCreate },
+    expense: { upsert: mockExpenseUpsert },
   }),
 } as unknown as PrismaClient;
 
@@ -368,5 +371,112 @@ describe("billing service consistency", () => {
     expect(result.subtotalPaise).toBe(BigInt(18000));
     expect(result.grandTotalPaise).toBe(BigInt(18000));
     expect(result.cgstPaise + result.sgstPaise).toBeGreaterThan(0n);
+  });
+});
+
+describe("processExpensePushCommand", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns ALREADY_PROCESSED for duplicate idempotency key", async () => {
+    mockFindUnique.mockResolvedValue({ id: "existing-expense-log" });
+
+    const result = await processExpensePushCommand(
+      mockPrisma as any,
+      "store-1",
+      {
+        installationId: "inst-1",
+        localTransactionId: "local-exp-1",
+        localId: "exp-1",
+        category: "RENT",
+        amountPaise: 100000n,
+        date: "2024-01-15T10:00:00.000Z",
+        paymentMethod: "CASH",
+        notes: "Shop rent"
+      },
+      "key-exp-1"
+    );
+
+    expect(result.status).toBe("ALREADY_PROCESSED");
+  });
+
+  it("throws UNDERPAYMENT when amount is non-positive", async () => {
+    mockFindUnique.mockResolvedValue(null);
+
+    await expect(
+      processExpensePushCommand(
+        mockPrisma as any,
+        "store-1",
+        {
+          installationId: "inst-1",
+          localTransactionId: "local-exp-2",
+          localId: "exp-2",
+          category: "ELECTRICITY",
+          amountPaise: 0n,
+          date: "2024-01-15T10:00:00.000Z",
+          paymentMethod: "UPI"
+        },
+        "key-exp-2"
+      )
+    ).rejects.toThrow(/positive/i);
+  });
+
+  it("creates expense and sync log on valid push", async () => {
+    mockFindUnique.mockResolvedValue(null);
+    mockExpenseUpsert.mockResolvedValue({ id: "expense-1" });
+    mockCreate.mockResolvedValue({ id: "log-1" });
+
+    const result = await processExpensePushCommand(
+      mockPrisma as any,
+      "store-1",
+      {
+        installationId: "inst-1",
+        localTransactionId: "local-exp-3",
+        localId: "exp-3",
+        category: "TRANSPORT",
+        amountPaise: 50000n,
+        date: "2024-01-15T10:00:00.000Z",
+        paymentMethod: "CARD",
+        notes: "Fuel"
+      },
+      "key-exp-3"
+    );
+
+    expect(result.status).toBe("SUCCESS");
+    expect(result.expenseId).toBe("expense-1");
+    expect(mockExpenseUpsert).toHaveBeenCalledTimes(1);
+    expect(mockCreate).toHaveBeenCalledTimes(1); // syncCommandLog only
+  });
+
+  it("upserts on duplicate localId without creating duplicate expense", async () => {
+    mockFindUnique.mockResolvedValue(null);
+    mockExpenseUpsert.mockResolvedValue({ id: "expense-upsert" });
+    mockCreate.mockResolvedValue({ id: "sync-log-upsert" });
+
+    const result = await processExpensePushCommand(
+      mockPrisma as any,
+      "store-1",
+      {
+        installationId: "inst-1",
+        localTransactionId: "local-exp-4",
+        localId: "exp-4",
+        category: "SALARIES",
+        amountPaise: 200000n,
+        date: "2024-01-15T10:00:00.000Z",
+        paymentMethod: "CASH"
+      },
+      "key-exp-4"
+    );
+
+    expect(result.status).toBe("SUCCESS");
+    expect(result.expenseId).toBe("expense-upsert");
+    expect(mockExpenseUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          storeId_localId: { storeId: "store-1", localId: "exp-4" }
+        })
+      })
+    );
   });
 });

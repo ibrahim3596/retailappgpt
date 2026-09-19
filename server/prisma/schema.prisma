@@ -24,6 +24,7 @@ model Store {
   batches      Batch[]
   stockMoves   StockMovement[]
   ledgers      CustomerLedger[]
+  expenses     Expense[]
   syncCommands SyncCommandLog[]
 
   @@map("stores")
@@ -249,6 +250,23 @@ model CustomerLedger {
 enum LedgerType {
   DEBIT
   CREDIT
+}
+
+model Expense {
+  id             String   @id @default(uuid())
+  storeId        String
+  localId        String
+  category       String
+  amountPaise    BigInt
+  date           DateTime
+  paymentMethod  String
+  notes          String   @default("")
+
+  store          Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, localId])
+  @@index([storeId, date])
+  @@map("expenses")
 }
 
 model SyncCommandLog {

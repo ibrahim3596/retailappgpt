@@ -45,6 +45,7 @@ data class InvoiceEntity(
     val amountReceived: Double,
     val changeDue: Double,
     val isInterstate: Boolean = false,
+    val status: String = "COMPLETED", // COMPLETED, CANCELLED (full return)
     val syncStatus: SyncStatus = SyncStatus.PENDING,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis()
@@ -77,6 +78,7 @@ data class InvoiceItemEntity(
     val sellingPrice: Double,
     val purchasePrice: Double,
     val quantity: Double,
+    val returnedQty: Double = 0.0, // cumulative returned units across partial returns
     val gstRate: Double,
     val hsnCode: String = "",
     val cgstAmount: Double,

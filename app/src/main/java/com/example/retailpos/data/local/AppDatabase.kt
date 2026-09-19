@@ -96,9 +96,10 @@ class RoomConverters {
         SyncConflictEntity::class,
         ProductProvenanceEntity::class,
         ProductProvenanceHistoryEntity::class,
-        KhataPaymentEntity::class
+        KhataPaymentEntity::class,
+        ExpenseEntity::class
     ],
-    version = 4,
+    version = 6,
     exportSchema = false
 )
 @TypeConverters(RoomConverters::class)
@@ -117,6 +118,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun syncDao(): SyncDao
     abstract fun provenanceDao(): ProvenanceDao
     abstract fun khataPaymentDao(): KhataPaymentDao
+    abstract fun expenseDao(): ExpenseDao
 
     companion object {
         @Volatile
@@ -156,6 +158,38 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_4_5 = object : androidx.room.migration.Migration(4, 5) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `expenses` (
+                        `id` TEXT NOT NULL,
+                        `storeId` TEXT NOT NULL,
+                        `category` TEXT NOT NULL,
+                        `amount` REAL NOT NULL,
+                        `date` INTEGER NOT NULL,
+                        `paymentMethod` TEXT NOT NULL,
+                        `notes` TEXT NOT NULL DEFAULT '',
+                        `syncStatus` TEXT NOT NULL DEFAULT 'PENDING',
+                        `localId` TEXT NOT NULL,
+                        `createdAt` INTEGER NOT NULL DEFAULT 0,
+                        `updatedAt` INTEGER NOT NULL DEFAULT 0,
+                        PRIMARY KEY(`id`)
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_expenses_storeId_date` ON `expenses` (`storeId`, `date`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_expenses_storeId_category` ON `expenses` (`storeId`, `category`)")
+            }
+        }
+
+        private val MIGRATION_5_6 = object : androidx.room.migration.Migration(5, 6) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                // Return-tracking columns: existing rows keep zero/COMPLETED
+                // defaults so prior sales behaviour is unchanged.
+                db.execSQL("ALTER TABLE `invoice_items` ADD COLUMN `returnedQty` REAL NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE `invoices` ADD COLUMN `status` TEXT NOT NULL DEFAULT 'COMPLETED'")
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -163,7 +197,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "retailpos_db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                     .build()
                 INSTANCE = instance
                 instance

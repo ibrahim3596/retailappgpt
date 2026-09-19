@@ -245,3 +245,75 @@ class CustomerRepository(private val db: AppDatabase) {
         true
     }
 }
+
+/**
+ * Store expense tracking. Expenses are local-first: they are recorded
+ * offline and queued (via syncStatus) for server sync like other
+ * transactional records.
+ */
+class ExpenseRepository(private val db: AppDatabase) {
+
+    fun getAllExpenses(storeId: String): Flow<List<ExpenseEntity>> =
+        db.expenseDao().getAllExpenses(storeId)
+
+    fun getExpensesForRange(storeId: String, startTime: Long, endTime: Long): Flow<List<ExpenseEntity>> =
+        db.expenseDao().getExpensesForRange(storeId, startTime, endTime)
+
+    /**
+     * Records an expense. Returns false when rejected (non-finite or
+     * negative amounts are never written).
+     */
+    suspend fun addExpense(
+        storeId: String,
+        category: String,
+        amount: Double,
+        date: Long,
+        paymentMethod: String,
+        notes: String
+    ): Boolean {
+        if (!amount.isFinite() || amount <= 0.0) return false
+        if (category.isBlank()) return false
+
+        val now = System.currentTimeMillis()
+        val localId = UUID.randomUUID().toString()
+        val expense = ExpenseEntity(
+            id = UUID.randomUUID().toString(),
+            storeId = storeId,
+            category = category,
+            amount = amount,
+            date = date,
+            paymentMethod = paymentMethod,
+            notes = notes,
+            localId = localId,
+            createdAt = now,
+            updatedAt = now
+        )
+        db.expenseDao().insertExpense(expense)
+        return true
+    }
+
+    suspend fun updateExpense(expense: ExpenseEntity): Boolean {
+        if (!expense.amount.isFinite() || expense.amount <= 0.0) return false
+        val existing = db.expenseDao().getExpenseById(expense.storeId, expense.id) ?: return false
+        // Synced expenses keep their server identity; a local edit flips them
+        // back to PENDING so the next sync pushes the change.
+        val updated = expense.copy(
+            updatedAt = System.currentTimeMillis(),
+            syncStatus = if (existing.syncStatus == "SYNCED") "PENDING" else existing.syncStatus
+        )
+        db.expenseDao().updateExpense(updated)
+        return true
+    }
+
+    suspend fun deleteUnsyncedExpense(storeId: String, id: String): Boolean =
+        db.expenseDao().deleteUnsyncedExpense(id, storeId) > 0
+
+    suspend fun getTotalForRange(storeId: String, startTime: Long, endTime: Long): Double =
+        db.expenseDao().getTotalForRange(storeId, startTime, endTime)
+
+    suspend fun getPendingExpenses(storeId: String): List<ExpenseEntity> =
+        db.expenseDao().getPendingExpenses(storeId)
+
+    suspend fun markSynced(storeId: String, id: String) =
+        db.expenseDao().updateExpenseSyncStatus(id, storeId, "SYNCED")
+}

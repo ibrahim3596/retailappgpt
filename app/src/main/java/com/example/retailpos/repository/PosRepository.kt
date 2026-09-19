@@ -183,4 +183,125 @@ class PosRepository(private val db: AppDatabase) {
 
         invoice
     }
+
+    /**
+     * A unit being returned against a specific invoice item. Quantity is the
+     * additional amount being returned this time, NOT the cumulative total.
+     */
+    data class ReturnItem(
+        val invoiceItemId: String,
+        val quantity: Double
+    )
+
+    /**
+     * Processes a full or partial return against an existing invoice:
+     *  - validates every item is from the invoice and the cumulative returned
+     *    quantity never exceeds the sold quantity (so retries cannot over-return)
+     *  - restores product stock (and batch stock where the item was
+     *    batch-allocated) with an auditable RETURN movement
+     *  - reverses khata debt for credit sales via an immutable CREDIT ledger row
+     *  - marks the invoice CANCELLED only on a full return, preserving history
+     *
+     * @return the refund amount, or null when the return was rejected.
+     */
+    suspend fun processReturn(
+        storeId: String,
+        invoiceId: String,
+        items: List<ReturnItem>,
+        reason: String
+    ): Double? = db.withTransaction {
+        if (items.isEmpty()) return@withTransaction null
+
+        val invoice = db.invoiceDao().getInvoiceById(storeId, invoiceId)
+            ?: return@withTransaction null
+        // A fully-returned invoice is already cancelled; refusing it again
+        // protects against duplicate refund submissions.
+        if (invoice.status == "CANCELLED") return@withTransaction null
+
+        val invoiceItems = db.invoiceItemDao().getInvoiceItems(invoiceId)
+            .associateBy { it.id }
+
+        // Validate first, before touching any state.
+        var refundTotal = 0.0
+        var anyRefund = false
+        for (ret in items) {
+            val orig = invoiceItems[ret.invoiceItemId] ?: return@withTransaction null
+            if (ret.quantity <= 0.0) return@withTransaction null
+
+            val alreadyReturned = db.invoiceItemDao().getReturnedQty(orig.id)
+            // Cumulative returns can never exceed the sold quantity, so a
+            // retry or duplicate submission cannot over-return.
+            if (alreadyReturned + ret.quantity > orig.quantity + 1e-9) {
+                return@withTransaction null
+            }
+
+            // Refund at the price actually charged (per-unit line total).
+            val pricePerUnit = if (orig.quantity > 0) orig.itemTotal / orig.quantity else 0.0
+            refundTotal += pricePerUnit * ret.quantity
+            anyRefund = true
+        }
+        if (!anyRefund) return@withTransaction null
+
+        // Apply stock restoration + per-item return records.
+        for (ret in items) {
+            val orig = invoiceItems[ret.invoiceItemId] ?: continue
+
+            // Product-level restoration (guarded so stock can't go negative).
+            db.productDao().atomicAddStock(orig.productId, storeId, ret.quantity)
+
+            // Batch-level restoration when the item was allocated from a batch.
+            val product = db.productDao().getProductById(storeId, orig.productId)
+            if (orig.batchId != null) {
+                db.batchDao().atomicAddBatchQty(orig.batchId, ret.quantity)
+            }
+            val movement = StockMovementEntity(
+                id = UUID.randomUUID().toString(),
+                storeId = storeId,
+                productId = orig.productId,
+                batchId = orig.batchId,
+                type = StockMovementType.RETURN,
+                quantity = ret.quantity,
+                balanceAfter = product?.currentStock ?: 0.0,
+                referenceId = invoiceId,
+                notes = "Return against ${invoice.invoiceNumber}: $reason"
+            )
+            db.stockMovementDao().insertStockMovement(movement)
+
+            // Record the returned quantity on the item so cumulative returns
+            // are validated against the sold quantity on every attempt.
+            db.invoiceItemDao().incrementReturnedQty(orig.id, ret.quantity)
+        }
+
+        // Reverse khata debt for credit sales — ledger-driven so history stays immutable.
+        if (invoice.paymentMethod == PaymentMethod.CREDIT && invoice.customerId != null) {
+            val customer = db.customerDao().getCustomerById(storeId, invoice.customerId)
+            if (customer != null) {
+                val newBalance = (customer.currentBalance - refundTotal).coerceAtLeast(0.0)
+                db.customerDao().updateBalance(invoice.customerId, storeId, -refundTotal)
+                db.creditLedgerDao().insertLedgerEntry(
+                    CreditLedgerEntryEntity(
+                        id = UUID.randomUUID().toString(),
+                        storeId = storeId,
+                        customerId = invoice.customerId,
+                        type = LedgerEntryType.CREDIT,
+                        amount = refundTotal,
+                        balanceAfter = newBalance,
+                        referenceId = invoiceId,
+                        notes = "Return refund - Invoice ${invoice.invoiceNumber}: $reason"
+                    )
+                )
+            }
+        }
+
+        // Full return = every item fully returned → cancel the invoice,
+        // keeping all rows for audit. Partial returns leave it COMPLETED.
+        val fullyReturned = invoiceItems.all { orig ->
+            db.invoiceItemDao().getReturnedQty(orig.id) >= orig.quantity - 1e-9
+        }
+        if (fullyReturned) {
+            db.invoiceDao().markInvoiceCancelled(invoiceId, storeId)
+        }
+
+        refundTotal
+    }
 }

@@ -96,6 +96,9 @@ interface BatchDao {
     @Query("UPDATE batches SET remainingQty = remainingQty - :deductQty WHERE id = :batchId AND remainingQty >= :deductQty")
     suspend fun atomicDeductBatchQty(batchId: String, deductQty: Double): Int
 
+    @Query("UPDATE batches SET remainingQty = remainingQty + :addQty, updatedAt = :updatedAt WHERE id = :batchId")
+    suspend fun atomicAddBatchQty(batchId: String, addQty: Double, updatedAt: Long = System.currentTimeMillis()): Int
+
     @Query("SELECT * FROM batches WHERE storeId = :storeId AND expiryDate <= :thresholdTime AND remainingQty > 0 ORDER BY expiryDate ASC")
     fun getExpiringBatches(storeId: String, thresholdTime: Long): Flow<List<BatchEntity>>
 }

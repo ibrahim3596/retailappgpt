@@ -44,6 +44,10 @@ fun HomeScreen(
     onNavigateToProducts: () -> Unit,
     onNavigateToInventory: () -> Unit,
     onNavigateToCustomers: () -> Unit,
+    onNavigateToSuppliers: () -> Unit,
+    onNavigateToPurchases: () -> Unit,
+    onNavigateToExpenses: () -> Unit,
+    onNavigateToReturns: () -> Unit,
     onNavigateToSync: () -> Unit,
     onNavigateToAnalytics: () -> Unit,
     onNavigateToSettings: () -> Unit
@@ -209,7 +213,43 @@ fun HomeScreen(
                             onClick = onNavigateToCustomers,
                             modifier = Modifier.weight(1f)
                         )
-                        if (UserPermissions.canAccessAnalytics(currentUser.userRole)) {
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        QuickNavButton(
+                            title = "Suppliers",
+                            icon = Icons.Default.Business,
+                            onClick = onNavigateToSuppliers,
+                            modifier = Modifier.weight(1f)
+                        )
+                        QuickNavButton(
+                            title = "Purchases",
+                            icon = Icons.Default.ShoppingCart,
+                            onClick = onNavigateToPurchases,
+                            modifier = Modifier.weight(1f)
+                        )
+                        QuickNavButton(
+                            title = "Expenses",
+                            icon = Icons.Default.AccountBalanceWallet,
+                            onClick = onNavigateToExpenses,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    if (UserPermissions.canAccessAnalytics(currentUser.userRole)) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            QuickNavButton(
+                                title = "Returns",
+                                icon = Icons.Default.AssignmentReturn,
+                                onClick = onNavigateToReturns,
+                                modifier = Modifier.weight(1f)
+                            )
                             QuickNavButton(
                                 title = "Analytics",
                                 icon = Icons.Default.InsertChartOutlined,

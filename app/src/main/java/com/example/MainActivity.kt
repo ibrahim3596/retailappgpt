@@ -113,6 +113,10 @@ fun RetailPosApp(viewModel: MainViewModel) {
                 onNavigateToProducts = { navController.navigate(Screen.Products.route) },
                 onNavigateToInventory = { navController.navigate(Screen.Inventory.route) },
                 onNavigateToCustomers = { navController.navigate(Screen.Customers.route) },
+                onNavigateToSuppliers = { navController.navigate(Screen.Suppliers.route) },
+                onNavigateToPurchases = { navController.navigate(Screen.Purchases.route) },
+                onNavigateToExpenses = { navController.navigate(Screen.Expenses.route) },
+                onNavigateToReturns = { navController.navigate(Screen.Returns.route) },
                 onNavigateToSync = { navController.navigate(Screen.SyncConflicts.route) },
                 onNavigateToAnalytics = { navController.navigate(Screen.Analytics.route) },
                 onNavigateToSettings = { navController.navigate(Screen.Settings.route) }
@@ -195,6 +199,34 @@ fun RetailPosApp(viewModel: MainViewModel) {
 
         composable(Screen.Customers.route) {
             CustomerLedgerScreen(
+                viewModel = viewModel,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.Suppliers.route) {
+            SupplierScreen(
+                viewModel = viewModel,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.Purchases.route) {
+            PurchaseScreen(
+                viewModel = viewModel,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.Expenses.route) {
+            ExpenseScreen(
+                viewModel = viewModel,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.Returns.route) {
+            ReturnsScreen(
                 viewModel = viewModel,
                 onNavigateBack = { navController.popBackStack() }
             )

@@ -72,6 +72,19 @@ export const CustomerUpsertCommandSchema = z.object({
   customers: z.array(MasterCustomerSchema).min(1).max(1000)
 });
 
+const ExpenseCommandSchema = z.object({
+  installationId: z.string().uuid(),
+  localTransactionId: z.string().min(1),
+  localId: z.string().min(1).max(64),
+  category: z.string().min(1).max(50),
+  amountPaise: MoneyPaiseSchema,
+  date: z.string().datetime().optional(),
+  paymentMethod: z.enum(["CASH", "UPI", "CARD", "OTHER"]),
+  notes: z.string().max(500).optional()
+});
+
+export const ExpensePushCommandSchema = ExpenseCommandSchema;
+
 export const SyncPullRequestSchema = z.object({
   lastSyncedAt: z.string().optional(),
   installationId: z.string().uuid()

@@ -27,6 +27,9 @@ interface InvoiceDao {
     @Query("SELECT * FROM invoices WHERE storeId = :storeId AND id = :id LIMIT 1")
     suspend fun getInvoiceById(storeId: String, id: String): InvoiceEntity?
 
+    @Query("UPDATE invoices SET status = 'CANCELLED', updatedAt = :updatedAt WHERE id = :id AND storeId = :storeId")
+    suspend fun markInvoiceCancelled(id: String, storeId: String, updatedAt: Long = System.currentTimeMillis())
+
     @Transaction
     @Query("SELECT * FROM invoices WHERE storeId = :storeId ORDER BY createdAt DESC")
     fun getAllInvoices(storeId: String): Flow<List<InvoiceWithItems>>
@@ -55,6 +58,12 @@ interface InvoiceItemDao {
 
     @Query("SELECT * FROM invoice_items WHERE invoiceId = :invoiceId")
     suspend fun getInvoiceItems(invoiceId: String): List<InvoiceItemEntity>
+
+    @Query("SELECT COALESCE(returnedQty, 0) FROM invoice_items WHERE id = :itemId")
+    suspend fun getReturnedQty(itemId: String): Double
+
+    @Query("UPDATE invoice_items SET returnedQty = COALESCE(returnedQty, 0) + :qty WHERE id = :itemId")
+    suspend fun incrementReturnedQty(itemId: String, qty: Double)
 
     @Query("SELECT * FROM invoice_items WHERE invoiceId = :invoiceId")
     fun getInvoiceItemsFlow(invoiceId: String): Flow<List<InvoiceItemEntity>>

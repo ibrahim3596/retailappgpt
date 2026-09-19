@@ -8,6 +8,7 @@ import com.example.retailpos.data.local.entity.*
 import com.example.retailpos.engine.barcode.BarcodeNormalizer
 import com.example.retailpos.repository.CartItem
 import com.example.retailpos.repository.CustomerRepository
+import com.example.retailpos.repository.ExpenseRepository
 import com.example.retailpos.repository.InventoryRepository
 import com.example.retailpos.repository.PosRepository
 import com.example.retailpos.auth.UserPermissions
@@ -30,6 +31,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val posRepo = PosRepository(db)
     val inventoryRepo = InventoryRepository(db)
     val customerRepo = CustomerRepository(db)
+    val expenseRepo = ExpenseRepository(db)
     private val sessionManager = SessionManager(application)
     private val authService = com.example.retailpos.auth.SupabaseAuthService()
     private val syncRepository = SyncRepository(application, db, sessionManager)
@@ -175,6 +177,59 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val invoices: StateFlow<List<InvoiceWithItems>> = currentStoreId
         .flatMapLatest { db.invoiceDao().getAllInvoices(it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val allExpenses: StateFlow<List<ExpenseEntity>> = currentStoreId
+        .flatMapLatest { expenseRepo.getAllExpenses(it) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /** Expenses within the current analytics range (defaults to today). */
+    val analyticsExpenses: StateFlow<List<ExpenseEntity>> = combine(currentStoreId, _analyticsRange) { storeId, range ->
+        storeId to range
+    }.flatMapLatest { (storeId, range) ->
+        val (start, end) = range ?: todayRange()
+        expenseRepo.getExpensesForRange(storeId, start, end)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private fun todayRange(): Pair<Long, Long> {
+        val cal = Calendar.getInstance()
+        cal.set(Calendar.HOUR_OF_DAY, 0); cal.set(Calendar.MINUTE, 0); cal.set(Calendar.SECOND, 0); cal.set(Calendar.MILLISECOND, 0)
+        return cal.timeInMillis to (cal.timeInMillis + 24L * 3600 * 1000 - 1)
+    }
+
+    private val _expenseOpResult = MutableStateFlow<Boolean?>(null)
+    val expenseOpResult: StateFlow<Boolean?> = _expenseOpResult.asStateFlow()
+
+    fun addExpense(category: String, amount: Double, date: Long, paymentMethod: String, notes: String) {
+        viewModelScope.launch {
+            _expenseOpResult.value = expenseRepo.addExpense(currentStoreId.value, category, amount, date, paymentMethod, notes)
+        }
+    }
+
+    fun updateExpense(expense: ExpenseEntity) {
+        viewModelScope.launch {
+            _expenseOpResult.value = expenseRepo.updateExpense(expense)
+        }
+    }
+
+    fun deleteUnsyncedExpense(id: String) {
+        viewModelScope.launch {
+            _expenseOpResult.value = expenseRepo.deleteUnsyncedExpense(currentStoreId.value, id)
+        }
+    }
+
+    fun clearExpenseOpResult() {
+        _expenseOpResult.value = null
+    }
+
+    /**
+     * Processes a return against an invoice. Returns the refund amount, or
+     * null when rejected (unknown bill, over-return, already cancelled).
+     */
+    suspend fun processReturn(
+        invoiceId: String,
+        items: List<PosRepository.ReturnItem>,
+        reason: String
+    ): Double? = posRepo.processReturn(currentStoreId.value, invoiceId, items, reason)
 
     private val _analyticsRange = MutableStateFlow<Pair<Long, Long>?>(null)
     val analyticsRange: StateFlow<Pair<Long, Long>?> = _analyticsRange.asStateFlow()
