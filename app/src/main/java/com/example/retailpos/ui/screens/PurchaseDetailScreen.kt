@@ -22,7 +22,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.compose.foundation.layout.HorizontalDivider
 import com.example.retailpos.data.local.entity.PurchaseEntity
 import com.example.retailpos.data.local.entity.PurchaseItemEntity
 import com.example.retailpos.data.local.entity.SupplierEntity
@@ -264,7 +263,7 @@ fun PurchaseDetailScreen(
                                     Text("₹${String.format("%,.2f", purchase.gstTotal)}", fontWeight = FontWeight.Bold, color = TextPrimary, style = MaterialTheme.typography.bodyLarge)
                                 }
                             }
-                            androidx.compose.foundation.layout.HorizontalDivider(color = OutlineVariant.copy(alpha = 0.5f))
+                            HorizontalDivider(color = OutlineVariant.copy(alpha = 0.5f))
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween

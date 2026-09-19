@@ -22,7 +22,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.compose.foundation.layout.HorizontalDivider
 import com.example.retailpos.data.local.entity.PurchaseEntity
 import com.example.retailpos.data.local.entity.SupplierEntity
 import com.example.retailpos.ui.MainViewModel
@@ -48,8 +47,8 @@ fun SupplierDetailScreen(
         suppliers.find { it.id == supplierId }
     }
 
-    val purchases by viewModel.getPurchasesForSupplier(supplierId).collectAsStateWithLifecycle()
-    val totalPurchases by viewModel.getTotalPurchasesForSupplier(supplierId).collectAsStateWithLifecycle()
+    val purchases by viewModel.getPurchasesForSupplier(supplierId).collectAsStateWithLifecycle(initialValue = emptyList())
+    val totalPurchases by viewModel.getTotalPurchasesForSupplier(supplierId).collectAsStateWithLifecycle(initialValue = 0.0)
 
     var showEditDialog by remember { mutableStateOf(false) }
     var name by remember { mutableStateOf(supplier?.name ?: "") }
