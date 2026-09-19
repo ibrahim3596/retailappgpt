@@ -316,7 +316,7 @@ private fun ExpenseDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .menuAnchor()
-                            .then(Modifier.clip(RoundedCornerShape(Shapes.medium)))
+                            .then(Modifier.clip(Shapes.medium))
                     )
                     ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                         categories.forEach { cat ->
@@ -346,7 +346,7 @@ private fun ExpenseDialog(
                         readOnly = true,
                         label = { Text("Paid via") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = pmExpanded) },
-                        modifier = Modifier.fillMaxWidth().menuAnchor().clip(RoundedCornerShape(Shapes.medium))
+                        modifier = Modifier.fillMaxWidth().menuAnchor().clip(Shapes.medium)
                     )
                     ExposedDropdownMenu(expanded = pmExpanded, onDismissRequest = { pmExpanded = false }) {
                         paymentMethods.forEach { pm ->
