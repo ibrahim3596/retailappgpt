@@ -283,6 +283,7 @@ fun ExpenseScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ExpenseDialog(
     existing: ExpenseEntity?,
