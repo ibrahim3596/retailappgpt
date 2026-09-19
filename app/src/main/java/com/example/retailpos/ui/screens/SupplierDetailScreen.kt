@@ -228,17 +228,22 @@ fun SupplierDetailScreen(
                                         modifier = Modifier.padding(16.dp),
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
-                                    Text(
-                                    text = purchase.invoiceNumber.ifEmpty { "PO #${purchase.id.takeLast(6)}" },
-                                    fontWeight = FontWeight.Bold,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = TextPrimary
-                                )
-                                Text(
-                                    text = "${sdf.format(Date(purchase.createdAt))}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = TextSecondary
-                                )
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = purchase.invoiceNumber.ifEmpty { "PO #${purchase.id.takeLast(6)}" },
+                                                fontWeight = FontWeight.Bold,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = TextPrimary
+                                            )
+                                            Text(
+                                                text = sdf.format(Date(purchase.createdAt)),
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = TextSecondary
+                                            )
+                                        }
+                                        Text(
+                                            text = "₹${String.format("%,.2f", purchase.totalAmount)}",
                                             fontWeight = FontWeight.Black,
                                             color = Color(0xFF2563EB),
                                             style = MaterialTheme.typography.titleMedium
