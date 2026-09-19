@@ -22,6 +22,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.foundation.layout.HorizontalDivider
 import com.example.retailpos.data.local.entity.PurchaseEntity
 import com.example.retailpos.data.local.entity.PurchaseItemEntity
 import com.example.retailpos.data.local.entity.SupplierEntity
