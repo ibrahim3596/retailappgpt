@@ -692,6 +692,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         currentStoreId.flatMapLatest { db.supplierDao().getTotalPurchasesForSupplier(it, supplierId) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
+    fun getPurchaseItems(purchaseId: String): Flow<List<PurchaseItemEntity>> =
+        db.purchaseDao().getPurchaseItems(purchaseId)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     fun savePurchase(purchase: PurchaseEntity, items: MutableList<PurchaseItemEntry>) {
         viewModelScope.launch {
             val user = currentUser.value

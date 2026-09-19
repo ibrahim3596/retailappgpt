@@ -133,6 +133,12 @@ interface PurchaseDao {
 
     @Query("SELECT * FROM purchases WHERE storeId = :storeId ORDER BY createdAt DESC")
     fun getAllPurchases(storeId: String): Flow<List<PurchaseEntity>>
+
+    @Query("SELECT * FROM purchases WHERE storeId = :storeId AND id = :id LIMIT 1")
+    suspend fun getPurchaseById(storeId: String, id: String): PurchaseEntity?
+
+    @Query("SELECT * FROM purchase_items WHERE purchaseId = :purchaseId")
+    suspend fun getPurchaseItems(purchaseId: String): List<PurchaseItemEntity>
 }
 
 @Dao

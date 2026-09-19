@@ -43,7 +43,8 @@ import java.util.*
 @Composable
 fun PurchaseScreen(
     viewModel: MainViewModel,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    onNavigateToPurchaseDetail: (String) -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -186,30 +187,34 @@ fun PurchaseScreen(
                 ) {
                     items(filteredPurchases) { purchase ->
                         Surface(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onNavigateToPurchaseDetail(purchase.id) }
+                                .padding(Spacing.cardPadding),
                             color = Surface,
                             shape = Shapes.card,
                             border = androidx.compose.foundation.BorderStroke(1.dp, OutlineVariant)
                         ) {
-                            Column(modifier = Modifier.padding(Spacing.cardPadding)) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column {
-                                        Text(purchase.invoiceNumber, fontWeight = FontWeight.Bold, color = TextPrimary)
-                                        Text("Supplier: ${purchase.supplierName}", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
-                                    }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text(purchase.invoiceNumber.ifEmpty { "PO #${purchase.id.takeLast(6)}" }, fontWeight = FontWeight.Bold, color = TextPrimary)
+                                    Text("Supplier: ${purchase.supplierName}", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                                }
+                                Column(horizontalAlignment = Alignment.End) {
                                     Text("₹${String.format("%,.2f", purchase.totalAmount)}", fontWeight = FontWeight.Black, color = Primary, style = MaterialTheme.typography.titleMedium)
+                                    Row(
+                                        horizontalArrangement = Arrangement.End
+                                    ) {
+                                        Text("Date: ${SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(purchase.createdAt))}", style = MaterialTheme.typography.labelSmall, color = TextTertiary)
+                                        if (purchase.gstTotal > 0)
+                                            Text(" • GST: ₹${String.format("%,.2f", purchase.gstTotal)}", style = MaterialTheme.typography.labelSmall, color = TextTertiary)
+                                    }
                                 }
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(top = Spacing.xs),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text("Date: ${SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(purchase.createdAt))}", style = MaterialTheme.typography.labelSmall, color = TextTertiary)
-                                    Text("GST: ₹${String.format("%,.2f", purchase.gstTotal)}", style = MaterialTheme.typography.labelSmall, color = TextTertiary)
-                                }
+                                Icon(Icons.Default.ChevronRight, contentDescription = "View Details", tint = TextSecondary.copy(alpha = 0.5f))
                             }
                         }
                     }
