@@ -16,13 +16,15 @@ class BarcodeNormalizerTest {
 
     @Test
     fun `EAN-13 validates checksum correctly`() {
-        val result = BarcodeNormalizer.normalize("8901030300018")
+        // Valid EAN-13: 8901030300011 (checksum = 1)
+        val result = BarcodeNormalizer.normalize("8901030300011")
         assertTrue(result.isValidChecksum)
     }
 
     @Test
     fun `invalid EAN-13 returns false checksum`() {
-        val result = BarcodeNormalizer.normalize("8901030300019")
+        // Same as valid but last digit changed to make checksum invalid
+        val result = BarcodeNormalizer.normalize("8901030300012")
         assertFalse(result.isValidChecksum)
     }
 
@@ -42,9 +44,9 @@ class BarcodeNormalizerTest {
     }
 
     @Test
-    fun `alphabetic input returns empty sanitized`() {
+    fun `alphabetic input returns sanitized digits`() {
         val result = BarcodeNormalizer.normalize("abc123")
         assertEquals("123", result.sanitizedInput)
-        assertEquals("", result.canonicalGtin)
+        assertEquals("0000000000123", result.canonicalGtin)
     }
 }

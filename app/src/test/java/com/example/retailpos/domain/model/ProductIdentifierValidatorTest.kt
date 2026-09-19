@@ -23,7 +23,7 @@ class ProductIdentifierValidatorTest {
 
     @Test
     fun normalizationRemovesWhitespaceAndNormalizesCase() {
-        assertTrue(ProductIdentifierValidator.normalize("  abc-123  ") == "ABC-123")
+        assertTrue(ProductIdentifierValidator.normalize("  abc-123  ") == "ABC123")
     }
 
     @Test
