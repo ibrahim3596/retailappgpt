@@ -26,6 +26,7 @@ data class SyncReport(
     val pushedProducts: Int = 0,
     val pushedCustomers: Int = 0,
     val pushedPayments: Int = 0,
+    val pushedExpenses: Int = 0,
     val pulledProducts: Int = 0,
     val pulledCustomers: Int = 0,
     val conflicts: Int = 0,
@@ -213,6 +214,51 @@ class SyncRepository(
         } catch (e: Exception) {
             hadError = true
             report = report.copy(message = report.message ?: "Payment push failed: ${e.message}")
+        }
+
+        // 2c. Push pending expenses
+        try {
+            val pendingExpenses = db.expenseDao().getPendingExpenses(storeId)
+            for (expense in pendingExpenses) {
+                val installationId = installationId()
+                val command = buildExpensePushCommand(
+                    installationId = installationId,
+                    localTransactionId = expense.id,
+                    expense = expense
+                )
+                val key = "EXPENSE_PUSH-$installationId-${expense.localId}"
+                val res = withRefreshedTokenIfPossible {
+                    makeApi().post(
+                        "/api/v1/sync/push",
+                        SyncContracts.encode(PushRequest("EXPENSE_PUSH", command, key)),
+                        token,
+                        key
+                    )
+                }
+                when (res) {
+                    is SyncHttpResult.Success -> {
+                        val parsed = SyncContracts.decode<PushResponse>(res.bodyJson)
+                        if (parsed?.status == "SUCCESS" || parsed?.status == "ALREADY_PROCESSED") {
+                            db.expenseDao().updateExpenseSyncStatus(expense.id, storeId, "SYNCED")
+                            report = report.copy(pushedExpenses = report.pushedExpenses + 1)
+                        } else {
+                            hadError = true
+                        }
+                    }
+                    is SyncHttpResult.ClientError -> {
+                        if (res.httpCode == 409) {
+                            report = report.copy(conflicts = report.conflicts + 1)
+                            hadConflict = true
+                        } else {
+                            hadError = true
+                        }
+                    }
+                    else -> hadError = true
+                }
+            }
+        } catch (e: Exception) {
+            hadError = true
+            report = report.copy(message = report.message ?: "Expense push failed: ${e.message}")
         }
 
         // 3. Pull server changes (products/customers)

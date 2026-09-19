@@ -154,6 +154,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         .flatMapLatest { inventoryRepo.getLowStockProducts(it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val outOfStockProducts: StateFlow<List<ProductEntity>> = currentStoreId
+        .flatMapLatest { db.productDao().getOutOfStockProducts(it) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     val expiringSoonBatches: StateFlow<List<BatchEntity>> = currentStoreId
         .flatMapLatest { inventoryRepo.getExpiringBatches(it, 30) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -180,6 +184,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     val allExpenses: StateFlow<List<ExpenseEntity>> = currentStoreId
         .flatMapLatest { expenseRepo.getAllExpenses(it) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // Dashboard metrics
+    val totalOutstandingCredit: StateFlow<Double> = currentStoreId
+        .flatMapLatest { db.customerDao().getAllCustomers(it).map { customers ->
+            customers.sumOf { it.currentBalance }
+        } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
+    val pendingSyncCount: StateFlow<Int> = currentStoreId
+        .flatMapLatest { db.syncDao().getUnresolvedConflicts(it).map { it.size } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    val recentPurchases: StateFlow<List<PurchaseEntity>> = currentStoreId
+        .flatMapLatest { db.purchaseDao().getAllPurchases(it).map { it.take(5) } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val recentExpenses: StateFlow<List<ExpenseEntity>> = currentStoreId
+        .flatMapLatest { expenseRepo.getAllExpenses(it).map { it.take(5) } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     /** Expenses within the current analytics range (defaults to today). */

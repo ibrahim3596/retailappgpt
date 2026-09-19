@@ -79,6 +79,17 @@ data class CustomerPaymentPayload(
     val notes: String? = null
 )
 
+data class ExpensePushPayload(
+    val installationId: String,
+    val localTransactionId: String,
+    val localId: String,
+    val category: String,
+    val amountPaise: String,
+    val date: String?,
+    val paymentMethod: String,
+    val notes: String? = null
+)
+
 data class PushRequest(
     val commandType: String,
     val payload: Any,
@@ -286,4 +297,21 @@ fun buildCustomerPaymentCommand(
         amountPaise = rupeesToPaiseString(amount),
         paymentMethod = paymentMethodToWire(paymentMethod),
         notes = notes
+    )
+
+/** Builds the server EXPENSE_PUSH command from a local expense. */
+fun buildExpensePushCommand(
+    installationId: String,
+    localTransactionId: String,
+    expense: com.example.retailpos.data.local.entity.ExpenseEntity
+): ExpensePushPayload =
+    ExpensePushPayload(
+        installationId = installationId,
+        localTransactionId = localTransactionId,
+        localId = expense.localId,
+        category = expense.category,
+        amountPaise = rupeesToPaiseString(expense.amount),
+        date = java.time.Instant.ofEpochMilli(expense.date).toString(),
+        paymentMethod = expense.paymentMethod,
+        notes = expense.notes.ifEmpty { null }
     )

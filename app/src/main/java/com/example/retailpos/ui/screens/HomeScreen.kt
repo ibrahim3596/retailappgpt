@@ -22,7 +22,9 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.retailpos.auth.UserPermissions
 import com.example.retailpos.auth.userRole
+import com.example.retailpos.data.local.entity.PaymentMethod
 import com.example.retailpos.data.local.entity.ProductEntity
+import com.example.retailpos.data.local.entity.PurchaseEntity
 import com.example.retailpos.data.local.entity.StoreEntity
 import com.example.retailpos.ui.MainViewModel
 import com.example.retailpos.ui.components.MetricTile
@@ -55,8 +57,13 @@ fun HomeScreen(
     val store by viewModel.currentStore.collectAsStateWithLifecycle()
     val invoices by viewModel.invoices.collectAsStateWithLifecycle()
     val lowStockItems by viewModel.lowStockProducts.collectAsStateWithLifecycle()
+    val outOfStockItems by viewModel.outOfStockProducts.collectAsStateWithLifecycle()
     val unresolvedConflicts by viewModel.unresolvedConflicts.collectAsStateWithLifecycle()
     val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
+    val totalOutstandingCredit by viewModel.totalOutstandingCredit.collectAsStateWithLifecycle()
+    val pendingSyncCount by viewModel.pendingSyncCount.collectAsStateWithLifecycle()
+    val recentPurchases by viewModel.recentPurchases.collectAsStateWithLifecycle()
+    val recentExpenses by viewModel.recentExpenses.collectAsStateWithLifecycle()
 
     val todayInvoices = remember(invoices) {
         val calendar = Calendar.getInstance().apply {
@@ -68,16 +75,21 @@ fun HomeScreen(
         val startOfDay = calendar.timeInMillis
         calendar.add(Calendar.DAY_OF_YEAR, 1)
         val endOfDay = calendar.timeInMillis
-        
+
         invoices.filter { it.invoice.createdAt >= startOfDay && it.invoice.createdAt < endOfDay }
     }
 
     val todaySales = remember(todayInvoices) {
         todayInvoices.sumOf { it.invoice.grandTotal.toDouble() }
     }
-    
+
     val itemsSold = remember(todayInvoices) {
         todayInvoices.sumOf { invoiceWithItems -> invoiceWithItems.items.sumOf { item -> item.quantity.toDouble() } }
+    }
+
+    val paymentBreakdown = remember(todayInvoices) {
+        todayInvoices.groupBy { it.invoice.paymentMethod }
+            .mapValues { (_, list) -> list.sumOf { it.invoice.grandTotal.toDouble() } }
     }
 
     val currentDate = remember {
@@ -104,10 +116,10 @@ fun HomeScreen(
                     }
                 },
                 actions = {
-                    if (unresolvedConflicts.isNotEmpty()) {
+                    if (unresolvedConflicts.isNotEmpty() || pendingSyncCount > 0) {
                         IconButton(onClick = onNavigateToSync) {
-                            BadgedBox(badge = { Badge { Text(unresolvedConflicts.size.toString()) } }) {
-                                Icon(Icons.Default.SyncProblem, contentDescription = "Conflicts", tint = Error)
+                            BadgedBox(badge = { Badge { Text((unresolvedConflicts.size + pendingSyncCount).toString()) } }) {
+                                Icon(Icons.Default.SyncProblem, contentDescription = "Sync Issues", tint = Error)
                             }
                         }
                     }
@@ -135,7 +147,7 @@ fun HomeScreen(
             verticalArrangement = Arrangement.spacedBy(24.dp),
             contentPadding = PaddingValues(top = 16.dp, bottom = 32.dp)
         ) {
-            // Metrics Summary Section
+            // Metrics Summary Section - Row 1: Today's Performance
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(
@@ -170,6 +182,82 @@ fun HomeScreen(
                             iconColor = Color(0xFFD97706),
                             modifier = Modifier.weight(0.9f)
                         )
+                    }
+                }
+            }
+
+            // Metrics Summary Section - Row 2: Key Indicators
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        text = "Key Indicators",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Black,
+                        color = TextSecondary,
+                        letterSpacing = 0.5.sp
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        MetricTile(
+                            label = "Outstanding Khata",
+                            value = "₹${String.format("%.0f", totalOutstandingCredit)}",
+                            icon = Icons.Default.AccountBalance,
+                            iconColor = if (totalOutstandingCredit > 0) Error else Success,
+                            modifier = Modifier.weight(1f)
+                        )
+                        MetricTile(
+                            label = "Low Stock",
+                            value = "${lowStockItems.size}",
+                            icon = Icons.Default.WarningAmber,
+                            iconColor = Color(0xFFF59E0B),
+                            modifier = Modifier.weight(1f)
+                        )
+                        MetricTile(
+                            label = "Out of Stock",
+                            value = "${outOfStockItems.size}",
+                            icon = Icons.Default.NoInventory,
+                            iconColor = Error,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+
+            // Metrics Summary Section - Row 3: Payment Breakdown (if any sales today)
+            if (todayInvoices.isNotEmpty()) {
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(
+                            text = "Payment Breakdown",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Black,
+                            color = TextSecondary,
+                            letterSpacing = 0.5.sp
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            paymentBreakdown.entries.forEach { entry ->
+                                val (method, amount) = entry
+                                val (icon, color) = when (method) {
+                                    PaymentMethod.CASH -> Icons.Default.AttachMoney to Color(0xFF059669)
+                                    PaymentMethod.UPI -> Icons.Default.QrCode to Color(0xFF7C3AED)
+                                    PaymentMethod.CARD -> Icons.Default.CreditCard to Color(0xFF2563EB)
+                                    PaymentMethod.CREDIT -> Icons.Default.AccountBalance to Color(0xFFDC2626)
+                                    else -> Icons.Default.Payments to Primary
+                                }
+                                MetricTile(
+                                    label = method.name,
+                                    value = "₹${String.format("%.0f", amount)}",
+                                    icon = icon,
+                                    iconColor = color,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -261,8 +349,55 @@ fun HomeScreen(
                 }
             }
 
-            // Alerts / Notifications section
+            // Alerts / Notifications section - Low Stock
             if (lowStockItems.isNotEmpty()) {
+                item {
+                    Surface(
+                        color = Color(0xFFF59E0B).copy(alpha = 0.05f),
+                        shape = RoundedCornerShape(20.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.1f))
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.WarningAmber, contentDescription = "Warning", tint = Color(0xFFF59E0B))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Low Stock Alerts (${lowStockItems.size})",
+                                    fontWeight = FontWeight.Bold,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = Color(0xFFF59E0B)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(12.dp))
+                            lowStockItems.take(3).forEach { product ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(product.name, style = MaterialTheme.typography.bodyMedium, color = TextPrimary)
+                                    Text(
+                                        "${product.currentStock.toInt()} ${product.unit} left",
+                                        color = Color(0xFFF59E0B),
+                                        fontWeight = FontWeight.Bold,
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
+                            }
+                            if (lowStockItems.size > 3) {
+                                Text(
+                                    "And ${lowStockItems.size - 3} more...",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = TextSecondary,
+                                    modifier = Modifier.padding(top = 8.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Alerts / Notifications section - Out of Stock
+            if (outOfStockItems.isNotEmpty()) {
                 item {
                     Surface(
                         color = Error.copy(alpha = 0.05f),
@@ -271,30 +406,172 @@ fun HomeScreen(
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.ErrorOutline, contentDescription = "错误提示", tint = Error)
+                                Icon(Icons.Default.NoInventory, contentDescription = "Out of Stock", tint = Error)
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "Low Stock Alerts",
+                                    text = "Out of Stock (${outOfStockItems.size})",
                                     fontWeight = FontWeight.Bold,
                                     style = MaterialTheme.typography.titleSmall,
                                     color = Error
                                 )
                             }
                             Spacer(modifier = Modifier.height(12.dp))
-                            lowStockItems.take(2).forEach { product ->
+                            outOfStockItems.take(3).forEach { product ->
                                 Row(
                                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
                                     Text(product.name, style = MaterialTheme.typography.bodyMedium, color = TextPrimary)
                                     Text(
-                                        "${product.currentStock.toInt()} ${product.unit} left",
+                                        "0 ${product.unit} left",
                                         color = Error,
                                         fontWeight = FontWeight.Bold,
                                         style = MaterialTheme.typography.bodySmall
                                     )
                                 }
                             }
+                            if (outOfStockItems.size > 3) {
+                                Text(
+                                    "And ${outOfStockItems.size - 3} more...",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = TextSecondary,
+                                    modifier = Modifier.padding(top = 8.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Pending Sync Alert
+            if (pendingSyncCount > 0 || unresolvedConflicts.isNotEmpty()) {
+                item {
+                    Surface(
+                        color = Primary.copy(alpha = 0.05f),
+                        shape = RoundedCornerShape(20.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Primary.copy(alpha = 0.1f))
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.CloudOff, contentDescription = "Sync Pending", tint = Primary)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Pending Sync (${pendingSyncCount + unresolvedConflicts.size})",
+                                    fontWeight = FontWeight.Bold,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = Primary
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                "Tap to resolve conflicts or retry sync",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextSecondary
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Recent Purchases Section
+            if (recentPurchases.isNotEmpty()) {
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Recent Purchases",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Black,
+                            color = TextPrimary
+                        )
+                    }
+                }
+                items(recentPurchases) { purchase ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.5.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = purchase.invoiceNumber,
+                                    fontWeight = FontWeight.Bold,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = TextPrimary
+                                )
+                                Text(
+                                    text = "${purchase.supplierName} • ${purchase.items.size} items",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = TextSecondary
+                                )
+                            }
+                            Text(
+                                text = "₹${String.format("%.0f", purchase.totalAmount)}",
+                                fontWeight = FontWeight.Black,
+                                color = Color(0xFF2563EB),
+                                style = MaterialTheme.typography.titleLarge
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Recent Expenses Section
+            if (recentExpenses.isNotEmpty()) {
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Recent Expenses",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Black,
+                            color = TextPrimary
+                        )
+                    }
+                }
+                items(recentExpenses) { expense ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.5.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = expense.category,
+                                    fontWeight = FontWeight.Bold,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = TextPrimary
+                                )
+                                Text(
+                                    text = "${expense.paymentMethod} • ${SimpleDateFormat("dd MMM", Locale.getDefault()).format(Date(expense.date))}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = TextSecondary
+                                )
+                            }
+                            Text(
+                                text = "₹${String.format("%.0f", expense.amount)}",
+                                fontWeight = FontWeight.Black,
+                                color = Error,
+                                style = MaterialTheme.typography.titleLarge
+                            )
                         }
                     }
                 }
