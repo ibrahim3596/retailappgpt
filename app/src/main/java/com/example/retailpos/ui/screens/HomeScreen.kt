@@ -217,7 +217,7 @@ fun HomeScreen(
                         MetricTile(
                             label = "Out of Stock",
                             value = "${outOfStockItems.size}",
-                            icon = Icons.Default.NoInventory,
+                            icon = Icons.Default.Inventory2,
                             iconColor = Error,
                             modifier = Modifier.weight(1f)
                         )
@@ -406,7 +406,7 @@ fun HomeScreen(
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.NoInventory, contentDescription = "Out of Stock", tint = Error)
+                                Icon(Icons.Default.Inventory2, contentDescription = "Out of Stock", tint = Error)
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     text = "Out of Stock (${outOfStockItems.size})",
@@ -509,7 +509,7 @@ fun HomeScreen(
                                     color = TextPrimary
                                 )
                                 Text(
-                                    text = "${purchase.supplierName} • ${purchase.items.size} items",
+                                    text = "${purchase.supplierName} • recent order",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = TextSecondary
                                 )

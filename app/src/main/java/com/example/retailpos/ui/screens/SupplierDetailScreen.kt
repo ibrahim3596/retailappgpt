@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -227,17 +228,17 @@ fun SupplierDetailScreen(
                                         modifier = Modifier.padding(16.dp),
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(purchase.invoiceNumber.ifEmpty { "PO #${purchase.id.takeLast(6)}" },
-                                                fontWeight = FontWeight.Bold, color = TextPrimary)
-                                            Text("${purchase.items.size} items • ${sdf.format(Date(purchase.createdAt))}",
-                                                style = MaterialTheme.typography.bodySmall, color = TextSecondary)
-                                            if (purchase.notes.isNotBlank())
-                                                Text(purchase.notes, style = MaterialTheme.typography.bodySmall, color = TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                        }
-                                        Text(
-                                            "₹${String.format("%,.2f", purchase.totalAmount)}",
+                                    Text(
+                                    text = purchase.invoiceNumber.ifEmpty { "PO #${purchase.id.takeLast(6)}" },
+                                    fontWeight = FontWeight.Bold,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = TextPrimary
+                                )
+                                Text(
+                                    text = "${sdf.format(Date(purchase.createdAt))}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = TextSecondary
+                                )
                                             fontWeight = FontWeight.Black,
                                             color = Color(0xFF2563EB),
                                             style = MaterialTheme.typography.titleMedium

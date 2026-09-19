@@ -104,11 +104,11 @@ object ReportExporter {
 
         try {
             file.bufferedWriter().use { out ->
-                out.write("Date,PO Number,Supplier,Items Count,Total Amount,GST,Notes\n")
+                out.write("Date,PO Number,Supplier,Total Amount,GST,Notes\n")
                 val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
                 purchases.forEach { p ->
                     val dateStr = sdf.format(Date(p.createdAt))
-                    out.write("\"$dateStr\",\"${p.invoiceNumber}\",\"${p.supplierName}\",${p.items.size},${p.totalAmount},${p.gstTotal},\"${p.notes}\"\n")
+                    out.write("\"$dateStr\",\"${p.invoiceNumber}\",\"${p.supplierName}\",${p.totalAmount},${p.gstTotal},\"${p.notes}\"\n")
                 }
             }
             return file

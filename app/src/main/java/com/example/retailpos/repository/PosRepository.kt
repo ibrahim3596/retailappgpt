@@ -296,7 +296,8 @@ class PosRepository(private val db: AppDatabase) {
         // Full return = every item fully returned → cancel the invoice,
         // keeping all rows for audit. Partial returns leave it COMPLETED.
         val fullyReturned = invoiceItems.all { orig ->
-            db.invoiceItemDao().getReturnedQty(orig.id) >= orig.quantity - 1e-9
+            val returned = db.invoiceItemDao().getReturnedQty(orig.id)
+            returned >= orig.quantity - 1e-9
         }
         if (fullyReturned) {
             db.invoiceDao().markInvoiceCancelled(invoiceId, storeId)

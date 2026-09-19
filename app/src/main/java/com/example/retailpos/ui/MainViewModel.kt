@@ -194,7 +194,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
     val pendingSyncCount: StateFlow<Int> = currentStoreId
-        .flatMapLatest { db.syncDao().getPendingSyncCount(it) }
+        .flatMapLatest { storeId ->
+            flow { emit(db.syncDao().getPendingSyncCount(storeId)) }
+        }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
     val recentPurchases: StateFlow<List<PurchaseEntity>> = currentStoreId
@@ -693,7 +695,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
     fun getPurchaseItems(purchaseId: String): Flow<List<PurchaseItemEntity>> =
-        db.purchaseDao().getPurchaseItems(purchaseId)
+        flow { emit(db.purchaseDao().getPurchaseItems(purchaseId)) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun savePurchase(purchase: PurchaseEntity, items: MutableList<PurchaseItemEntry>) {
