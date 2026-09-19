@@ -57,7 +57,7 @@ fun PurchaseDetailScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Text(purchase?.invoiceNumber.ifEmpty { "Purchase Order" } ?: "Purchase Details",
+                    Text(purchase?.invoiceNumber?.ifEmpty { "Purchase Order" } ?: "Purchase Details",
                         fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 },
                 navigationIcon = {
