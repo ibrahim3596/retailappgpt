@@ -263,13 +263,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         reason: String
     ): Double? = posRepo.processReturn(currentStoreId.value, invoiceId, items, reason)
 
-    private val _analyticsRange = MutableStateFlow<Pair<Long, Long>?>(null)
-    val analyticsRange: StateFlow<Pair<Long, Long>?> = _analyticsRange.asStateFlow()
-
-    fun setAnalyticsRange(start: Long, end: Long) {
-        _analyticsRange.value = start to end
-    }
-
     val filteredInvoices: StateFlow<List<InvoiceWithItems>> = combine(currentStoreId, _analyticsRange) { storeId: String, range: Pair<Long, Long>? ->
         storeId to range
     }.flatMapLatest { (storeId, range) ->
