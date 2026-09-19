@@ -16,7 +16,7 @@ class InventoryAlertWorker(
     params: WorkerParameters
 ) : CoroutineWorker(context, params) {
 
-    private val db = AppDatabase.getInstance(applicationContext)
+    private val db = AppDatabase.getDatabase(applicationContext)
 
     override suspend fun doWork(): Result {
         return try {

@@ -17,7 +17,7 @@ class NotificationWorker(
     params: WorkerParameters
 ) : CoroutineWorker(context, params) {
 
-    private val db = AppDatabase.getInstance(applicationContext)
+    private val db = AppDatabase.getDatabase(applicationContext)
     private val notificationManager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
     override suspend fun doWork(): Result {
