@@ -207,6 +207,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         .flatMapLatest { expenseRepo.getAllExpenses(it).map { it.take(5) } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    private val _analyticsRange = MutableStateFlow<Pair<Long, Long>?>(null)
+    val analyticsRange: StateFlow<Pair<Long, Long>?> = _analyticsRange.asStateFlow()
+
     /** Expenses within the current analytics range (defaults to today). */
     val analyticsExpenses: StateFlow<List<ExpenseEntity>> = combine(currentStoreId, _analyticsRange) { storeId, range ->
         storeId to range
@@ -219,6 +222,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val cal = Calendar.getInstance()
         cal.set(Calendar.HOUR_OF_DAY, 0); cal.set(Calendar.MINUTE, 0); cal.set(Calendar.SECOND, 0); cal.set(Calendar.MILLISECOND, 0)
         return cal.timeInMillis to (cal.timeInMillis + 24L * 3600 * 1000 - 1)
+    }
+
+    fun setAnalyticsRange(start: Long, end: Long) {
+        _analyticsRange.value = start to end
     }
 
     private val _expenseOpResult = MutableStateFlow<Boolean?>(null)
@@ -691,10 +698,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun getTotalPurchasesForSupplier(supplierId: String): StateFlow<Double> =
-        currentStoreId.flatMapLatest { db.supplierDao().getTotalPurchasesForSupplier(it, supplierId) }
+        currentStoreId.flatMapLatest { storeId ->
+            flow { emit(db.supplierDao().getTotalPurchasesForSupplier(storeId, supplierId)) }
+        }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
-    fun getPurchaseItems(purchaseId: String): Flow<List<PurchaseItemEntity>> =
+    fun getPurchaseItems(purchaseId: String): StateFlow<List<PurchaseItemEntity>> =
         flow { emit(db.purchaseDao().getPurchaseItems(purchaseId)) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
