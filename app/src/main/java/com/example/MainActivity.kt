@@ -207,6 +207,21 @@ fun RetailPosApp(viewModel: MainViewModel) {
         composable(Screen.Suppliers.route) {
             SupplierScreen(
                 viewModel = viewModel,
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToSupplierDetail = { supplierId ->
+                    navController.navigate(Screen.SupplierDetail.createRoute(supplierId))
+                }
+            )
+        }
+
+        composable(
+            route = Screen.SupplierDetail.route,
+            arguments = listOf(navArgument("supplierId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val supplierId = backStackEntry.arguments?.getString("supplierId") ?: ""
+            SupplierDetailScreen(
+                viewModel = viewModel,
+                supplierId = supplierId,
                 onNavigateBack = { navController.popBackStack() }
             )
         }

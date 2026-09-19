@@ -103,6 +103,24 @@ interface SupplierDao {
 
     @Query("SELECT * FROM suppliers WHERE storeId = :storeId ORDER BY name ASC")
     fun getAllSuppliers(storeId: String): Flow<List<SupplierEntity>>
+
+    @Query("SELECT * FROM suppliers WHERE storeId = :storeId AND id = :id LIMIT 1")
+    suspend fun getSupplierById(storeId: String, id: String): SupplierEntity?
+
+    @Query("SELECT * FROM suppliers WHERE storeId = :storeId ORDER BY updatedAt ASC")
+    suspend fun getAllSuppliersOnce(storeId: String): List<SupplierEntity>
+
+    @Update
+    suspend fun updateSupplier(supplier: SupplierEntity)
+
+    @Query("DELETE FROM suppliers WHERE id = :id AND storeId = :storeId")
+    suspend fun deleteSupplier(id: String, storeId: String): Int
+
+    @Query("SELECT * FROM purchases WHERE supplierId = :supplierId AND storeId = :storeId ORDER BY createdAt DESC")
+    fun getPurchasesForSupplier(storeId: String, supplierId: String): Flow<List<PurchaseEntity>>
+
+    @Query("SELECT COALESCE(SUM(totalAmount), 0) FROM purchases WHERE supplierId = :supplierId AND storeId = :storeId")
+    suspend fun getTotalPurchasesForSupplier(storeId: String, supplierId: String): Double
 }
 
 @Dao

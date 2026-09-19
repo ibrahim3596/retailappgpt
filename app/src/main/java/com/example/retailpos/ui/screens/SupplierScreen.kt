@@ -22,7 +22,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.retailpos.data.local.entity.SupplierEntity
+import com.example.retailpos.data.local.entity.PurchaseEntity
 import com.example.retailpos.ui.MainViewModel
+import com.example.retailpos.ui.Screen
 import com.example.retailpos.ui.components.MetricTile
 import com.example.ui.theme.*
 import kotlinx.coroutines.launch
@@ -33,7 +35,8 @@ import java.util.*
 @Composable
 fun SupplierScreen(
     viewModel: MainViewModel,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    onNavigateToSupplierDetail: (String) -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -139,33 +142,35 @@ fun SupplierScreen(
                 ) {
                     items(filteredSuppliers) { supplier ->
                         Surface(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onNavigateToSupplierDetail(supplier.id) }
+                                .padding(16.dp),
                             color = Surface,
                             shape = Shapes.card,
                             border = androidx.compose.foundation.BorderStroke(1.dp, OutlineVariant)
                         ) {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(supplier.name, fontWeight = FontWeight.Bold, color = TextPrimary)
-                                        if (supplier.contactPerson.isNotBlank())
-                                            Text("Contact: ${supplier.contactPerson}", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
-                                        if (supplier.phone.isNotBlank())
-                                            Text(supplier.phone, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
-                                        if (supplier.email.isNotBlank())
-                                            Text(supplier.email, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
-                                        if (supplier.gstin.isNotBlank())
-                                            Text("GSTIN: ${supplier.gstin}", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
-                                    }
-                                    Column(horizontalAlignment = Alignment.End) {
-                                        Text("Balance: ₹${String.format("%,.2f", supplier.currentBalance)}",
-                                            fontWeight = FontWeight.Bold,
-                                            color = if (supplier.currentBalance > 0) Error else Success)
-                                    }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(supplier.name, fontWeight = FontWeight.Bold, color = TextPrimary)
+                                    if (supplier.contactPerson.isNotBlank())
+                                        Text("Contact: ${supplier.contactPerson}", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                                    if (supplier.phone.isNotBlank())
+                                        Text(supplier.phone, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                                    if (supplier.email.isNotBlank())
+                                        Text(supplier.email, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                                    if (supplier.gstin.isNotBlank())
+                                        Text("GSTIN: ${supplier.gstin}", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                                }
+                                Column(horizontalAlignment = Alignment.End) {
+                                    Text("Balance: ₹${String.format("%,.2f", supplier.currentBalance)}",
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (supplier.currentBalance > 0) Error else Success)
+                                    Icon(Icons.Default.ChevronRight, contentDescription = "View Details", tint = TextSecondary.copy(alpha = 0.5f), modifier = Modifier.padding(top = 4.dp))
                                 }
                             }
                         }
