@@ -44,11 +44,7 @@ fun ProductReviewScreen(
     val store by viewModel.currentStore.collectAsStateWithLifecycle()
     val products by viewModel.products.collectAsStateWithLifecycle()
 
-    var sampleOcrInputText by remember {
-        mutableStateOf(
-            "AMUL TAAZA TONED MILK\nNet Wt. 500ml\nM.R.P. Rs. 28.00\nMfd: 01/2026\nHSN 0401\nGST 5%\n$barcode"
-        )
-    }
+    var sampleOcrInputText by remember { mutableStateOf("") }
 
     var existingProductId by remember { mutableStateOf<String?>(null) }
     var sku by remember { mutableStateOf("") }
@@ -106,12 +102,12 @@ fun ProductReviewScreen(
                 initialStockText = existing.currentStock.toInt().toString()
                 isOcrProcessed = true
             } else {
-                // Pre-fill barcode for new product
+                // Pre-fill only the real barcode. Never fabricate product details for an unknown code.
                 currentBarcode = barcode
                 existingProductId = null
                 sku = ""
-                // Auto-run OCR simulation if barcode is provided but not found
-                runRealOcrParser()
+                isOcrProcessed = false
+                mrpConflictDetected = false
             }
         } else {
             existingProductId = null
@@ -195,7 +191,7 @@ fun ProductReviewScreen(
                             value = sampleOcrInputText,
                             onValueChange = { sampleOcrInputText = it },
                             modifier = Modifier.fillMaxWidth().height(100.dp),
-                            label = { Text("Recognized Text Buffer", style = MaterialTheme.typography.bodySmall) },
+                            label = { Text("OCR Text (paste or edit)", style = MaterialTheme.typography.bodySmall) },
                             shape = Shapes.medium,
                             colors = OutlinedTextFieldDefaults.colors(unfocusedContainerColor = Surface, focusedContainerColor = Surface)
                         )
