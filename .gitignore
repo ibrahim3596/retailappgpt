@@ -22,4 +22,6 @@ dist/
 build/
 .gradle/
 *.jks
+*.keystore
+*.apk
 local.properties
