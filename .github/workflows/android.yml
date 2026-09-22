@@ -1,5 +1,8 @@
 name: Android CI
 
+permissions:
+  contents: write
+
 on:
   push:
     branches: [ "main", "develop" ]
@@ -47,3 +50,17 @@ jobs:
         name: debug-apk
         path: app/build/outputs/apk/debug/*.apk
         if-no-files-found: ignore
+    - name: Publish debug APK to repository
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      run: |
+        cp app/build/outputs/apk/debug/*.apk app-debug.apk
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git add app-debug.apk
+        if git diff --cached --quiet; then
+          echo "APK unchanged; nothing to commit"
+        else
+          git commit -m "build: publish latest debug APK [skip ci]"
+          git push
+        fi
+
