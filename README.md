@@ -19,14 +19,9 @@ Both GitHub Actions workflows are **green**:
 
 ## Debug APK
 
-A debug APK is built on every push to `main` and is available as a workflow
-artifact named `debug-apk`. The latest APK is also committed at the repo root:
+A debug APK is built on every push to `main`/ `develop` and uploaded as a GitHub Actions artifact named `debug-apk`.
 
-```
-app-debug.apk   # 28 MB, debug-signed with debug.keystore
-```
-
-Install it on a device/emulator:
+Install a downloaded APK on a device/emulator with:
 
 ```bash
 adb install -r app-debug.apk

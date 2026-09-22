@@ -2,195 +2,135 @@ package com.example.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// ========================================================================
-// RETAIL POS PROFESSIONAL COLOR SYSTEM
-// ========================================================================
-// Blue-based professional palette with semantic aliases for retail operations
-// ========================================================================
+// RetailPOS palette — restrained indigo/slate system used by the original UI.
+val RetailPrimary = Color(0xFF4F46E5)
+val RetailPrimaryContainer = Color(0xFFEEF2FF)
+val RetailOnPrimaryContainer = Color(0xFF3730A3)
+val RetailSecondary = Color(0xFF475569)
+val RetailSecondaryContainer = Color(0xFFF1F5F9)
+val RetailBackground = Color(0xFFF8FAFC)
+val RetailSurface = Color(0xFFFFFFFF)
+val RetailSurfaceVariant = Color(0xFFF1F5F9)
+val RetailTextPrimary = Color(0xFF0F172A)
+val RetailTextSecondary = Color(0xFF64748B)
+val RetailTextTertiary = Color(0xFF94A3B8)
+val RetailSuccess = Color(0xFF059669)
+val RetailWarning = Color(0xFFD97706)
+val RetailError = Color(0xFFE11D48)
+val RetailBorder = Color(0xFFE2E8F0)
+val RetailBorderSubtle = Color(0xFFF1F5F9)
 
-// --- Primary Brand Colors (Blue 600) ---
-val Primary = Color(0xFF2563EB)
-val PrimaryContainer = Color(0xFFDBEAFE)
-val OnPrimaryContainer = Color(0xFF1E3A8A)
+val Primary = RetailPrimary
+val PrimaryContainer = RetailPrimaryContainer
+val OnPrimaryContainer = RetailOnPrimaryContainer
 val OnPrimary = Color.White
-
-// --- Secondary Accent Colors (Cyan 600) ---
-val Secondary = Color(0xFF0891B2)
-val SecondaryContainer = Color(0xFFCFFAFE)
-val OnSecondaryContainer = Color(0xFF164E63)
+val Secondary = RetailSecondary
+val SecondaryContainer = RetailSecondaryContainer
+val OnSecondaryContainer = RetailTextPrimary
 val OnSecondary = Color.White
-
-// --- Tertiary Highlight Colors (Pink 600) ---
-val Tertiary = Color(0xFFDB2777)
-val TertiaryContainer = Color(0xFFFCE7F3)
-val OnTertiaryContainer = Color(0xFF831843)
+val Tertiary = Color(0xFF7C3AED)
+val TertiaryContainer = Color(0xFFF3E8FF)
+val OnTertiaryContainer = Color(0xFF581C87)
 val OnTertiary = Color.White
 
-// --- Surface & Background ---
-val Background = Color(0xFFFFFFFF)
-val Surface = Color(0xFFFFFFFF)
-val SurfaceVariant = Color(0xFFF1F5F9)
-val SurfaceContainer = Color(0xFFE2E8F0)
-val SurfaceContainerHigh = Color(0xFFE2E8F0)
-val SurfaceContainerHighest = Color(0xFFCBD5E1)
+val Background = RetailBackground
+val Surface = RetailSurface
+val SurfaceVariant = RetailSurfaceVariant
+val SurfaceContainer = RetailSurfaceVariant
+val SurfaceContainerHigh = RetailSurfaceVariant
+val SurfaceContainerHighest = RetailBorder
+val OnBackground = RetailTextPrimary
+val OnSurface = RetailTextPrimary
+val OnSurfaceVariant = RetailTextSecondary
+val OnSurfaceDisabled = RetailTextTertiary
 
-// --- Text Colors ---
-val OnBackground = Color(0xFF0F172A)
-val OnSurface = Color(0xFF0F172A)
-val OnSurfaceVariant = Color(0xFF475569)
-val OnSurfaceDisabled = Color(0xFF94A3B8)
+val Outline = RetailBorder
+val OutlineVariant = RetailBorderSubtle
+val Border = RetailBorder
+val BorderSubtle = RetailBorderSubtle
 
-// --- Outline & Borders ---
-val Outline = Color(0xFFE2E8F0)
-val OutlineVariant = Color(0xFFF1F5F9)
-val Border = Outline
-val BorderSubtle = OutlineVariant
-
-// --- Error / Destructive ---
-val Error = Color(0xFFDC2626)
-val ErrorContainer = Color(0xFFFEF2F2)
-val OnErrorContainer = Color(0xFF991B1B)
+val Error = RetailError
+val ErrorContainer = Color(0xFFFFF1F2)
+val OnErrorContainer = Color(0xFF9F1239)
 val OnError = Color.White
 
-// --- Success / Positive ---
-val Success = Color(0xFF059669)
+val Success = RetailSuccess
 val SuccessContainer = Color(0xFFECFDF5)
-val OnSuccessContainer = Color(0xFF064E3B)
+val OnSuccessContainer = Color(0xFF065F46)
 
-// --- Warning / Caution ---
-val Warning = Color(0xFFD97706)
-val WarningContainer = Color(0xFFFFF8E1)
-val OnWarningContainer = Color(0xFF78350F)
+val Warning = RetailWarning
+val WarningContainer = Color(0xFFFFF7ED)
+val OnWarningContainer = Color(0xFF92400E)
 
-// --- Info / Neutral ---
-val Info = Color(0xFF0891B2)
-val InfoContainer = Color(0xFFCFFAFE)
-val OnInfoContainer = Color(0xFF164E63)
+val Info = Color(0xFF0284C7)
+val InfoContainer = Color(0xFFE0F2FE)
+val OnInfoContainer = Color(0xFF075985)
 
-// --- Shadow & Scrim ---
-val Shadow = Color(0xFF0F172A)
-val Scrim = Color(0xFF0F172A)
+val Shadow = RetailTextPrimary
+val Scrim = RetailTextPrimary
 
-// ========================================================================
-// SEMANTIC ALIASES - Use these in UI code for consistency
-// ========================================================================
+val TextPrimary = RetailTextPrimary
+val TextSecondary = RetailTextSecondary
+val TextTertiary = RetailTextTertiary
+val TextDisabled = RetailTextTertiary
 
-// Text
-val TextPrimary = OnSurface
-val TextSecondary = OnSurfaceVariant
-val TextTertiary = OnSurfaceDisabled
-val TextDisabled = OnSurfaceDisabled
-
-// Primary actions
 val PrimaryAction = Primary
 val PrimaryActionContainer = PrimaryContainer
 val OnPrimaryAction = OnPrimary
-
-// Destructive actions
 val DestructiveAction = Error
 val DestructiveActionContainer = ErrorContainer
-
-// Success actions
 val SuccessAction = Success
 val SuccessActionContainer = SuccessContainer
 
-// Status indicators
 val InStockColor = Success
 val LowStockColor = Warning
 val OutOfStockColor = Error
 
-// Payment method colors
-val CashColor = Success
-val UpiColor = Primary
+val CashColor = RetailSuccess
+val UpiColor = RetailPrimary
 val CardColor = Color(0xFF7C3AED)
-val CreditColor = Warning
+val CreditColor = RetailWarning
 
-// Role colors
 val OwnerColor = Color(0xFF7C3AED)
-val ManagerColor = Primary
-val CashierColor = Secondary
+val ManagerColor = RetailPrimary
+val CashierColor = RetailSecondary
 
-// ========================================================================
-// LEGACY COMPATIBILITY - For existing code migration
-// ========================================================================
-
-// Old retail palette (deprecated - use semantic aliases above)
-@Deprecated("Use Primary instead", ReplaceWith("Primary"))
-val RetailPrimary = Primary
-
-@Deprecated("Use PrimaryContainer instead", ReplaceWith("PrimaryContainer"))
-val RetailPrimaryContainer = PrimaryContainer
-
-@Deprecated("Use OnPrimaryContainer instead", ReplaceWith("OnPrimaryContainer"))
-val RetailOnPrimaryContainer = OnPrimaryContainer
-
-@Deprecated("Use Secondary instead", ReplaceWith("Secondary"))
-val RetailSecondary = Secondary
-
-@Deprecated("Use SecondaryContainer instead", ReplaceWith("SecondaryContainer"))
-val RetailSecondaryContainer = SecondaryContainer
-
-@Deprecated("Use Background instead", ReplaceWith("Background"))
-val RetailBackground = Background
-
-@Deprecated("Use Surface instead", ReplaceWith("Surface"))
-val RetailSurface = Surface
-
-@Deprecated("Use SurfaceVariant instead", ReplaceWith("SurfaceVariant"))
-val RetailSurfaceVariant = SurfaceVariant
-
-@Deprecated("Use TextPrimary instead", ReplaceWith("TextPrimary"))
-val RetailTextPrimary = TextPrimary
-
-@Deprecated("Use TextSecondary instead", ReplaceWith("TextSecondary"))
-val RetailTextSecondary = TextSecondary
-
-@Deprecated("Use TextTertiary instead", ReplaceWith("TextTertiary"))
-val RetailTextTertiary = TextTertiary
-
-@Deprecated("Use Success instead", ReplaceWith("Success"))
-val RetailSuccess = Success
-
-@Deprecated("Use Warning instead", ReplaceWith("Warning"))
-val RetailWarning = Warning
-
-@Deprecated("Use Error instead", ReplaceWith("Error"))
-val RetailError = Error
-
-@Deprecated("Use Outline instead", ReplaceWith("Outline"))
-val RetailBorder = Outline
-
-@Deprecated("Use OutlineVariant instead", ReplaceWith("OutlineVariant"))
-val RetailBorderSubtle = OutlineVariant
-
-// Semantic aliases
-@Deprecated("Use Primary instead", ReplaceWith("Primary"))
-val ColorPrimary = Primary
-
-@Deprecated("Use Background instead", ReplaceWith("Background"))
-val ColorBackground = Background
-
-@Deprecated("Use Surface instead", ReplaceWith("Surface"))
-val ColorSurface = Surface
-
-@Deprecated("Use TextPrimary instead", ReplaceWith("TextPrimary"))
-val ColorTextPrimary = TextPrimary
-
-@Deprecated("Use TextSecondary instead", ReplaceWith("TextSecondary"))
-val ColorTextSecondary = TextSecondary
-
-// Additional named colors
-val Emerald600 = Success
+val Emerald600 = RetailSuccess
 val Emerald700 = Color(0xFF047857)
 val Emerald50 = SuccessContainer
-
 val Sky600 = Info
 val Sky700 = Color(0xFF0369A1)
-
-val Amber600 = Warning
-val Rose600 = Error
-
-val Slate900 = TextPrimary
+val Amber600 = RetailWarning
+val Rose600 = RetailError
+val Slate900 = RetailTextPrimary
 val Slate800 = Color(0xFF1E293B)
-val Slate100 = SurfaceVariant
-val Slate50 = Background
+val Slate100 = RetailBorderSubtle
+val Slate50 = RetailBackground
+
+object RetailColors {
+    val Success = RetailSuccess
+    val SuccessContainer = Color(0xFFECFDF5)
+    val SuccessOnContainer = Color(0xFF065F46)
+    val Warning = RetailWarning
+    val WarningContainer = Color(0xFFFFF7ED)
+    val WarningOnContainer = Color(0xFF92400E)
+    val Error = RetailError
+    val ErrorContainer = Color(0xFFFFF1F2)
+    val ErrorOnContainer = Color(0xFF9F1239)
+    val Info = com.example.ui.theme.Info
+    val InfoContainer = com.example.ui.theme.InfoContainer
+    val InfoOnContainer = com.example.ui.theme.OnInfoContainer
+    val Owner = OwnerColor
+    val Manager = ManagerColor
+    val Cashier = CashierColor
+    val Cash = CashColor
+    val Upi = UpiColor
+    val Card = CardColor
+    val Credit = CreditColor
+}
+
+val ColorPrimary = RetailPrimary
+val ColorBackground = RetailBackground
+val ColorSurface = RetailSurface
+val ColorTextPrimary = RetailTextPrimary
+val ColorTextSecondary = RetailTextSecondary

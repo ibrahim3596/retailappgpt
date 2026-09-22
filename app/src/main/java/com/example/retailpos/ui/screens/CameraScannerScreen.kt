@@ -93,15 +93,6 @@ data class ScannedBarcodeState(
     val timestamp: Long = System.currentTimeMillis()
 )
 
-data class SamplePackagePreset(
-    val name: String,
-    val barcode: String,
-    val ocrRaw: String,
-    val brand: String,
-    val mrp: Double,
-    val gstRate: Double
-)
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CameraScannerScreen(
@@ -367,15 +358,7 @@ fun CameraScannerScreen(
         }
     }
 
-    val sampleProducts = listOf(
-        SamplePackagePreset("Amul Milk", "8901030300018", "AMUL TAAZA MILK\n500ml\nRs. 28.00", "Amul", 28.0, 5.0),
-        SamplePackagePreset("Aashirvaad Atta", "8901058852025", "AASHIRVAAD ATTA 5kg\nRs. 265.00", "ITC", 265.0, 5.0),
-        SamplePackagePreset("Tata Salt", "8901030010122", "TATA SALT 1kg\nRs. 28.00", "Tata", 28.0, 0.0),
-        SamplePackagePreset("Parle-G", "8901207000102", "PARLE-G BISCUIT 100g\nRs. 10.00", "Parle", 10.0, 18.0),
-        SamplePackagePreset("Maggi", "8901058859999", "MAGGI NOODLES 70g\nRs. 14.00", "Nestle", 14.0, 12.0),
-        SamplePackagePreset("Surf Excel", "8901030000001", "SURF EXCEL 1kg\nRs. 150.00", "HUL", 150.0, 18.0),
-        SamplePackagePreset("Dettol Soap", "8901396112233", "DETTOL SOAP 75g\nRs. 40.00", "Reckitt", 40.0, 18.0)
-    )
+    // Production scanner: real camera, gallery OCR, or manual barcode input only.
 
     Scaffold(
         containerColor = Color(0xFF030712),
