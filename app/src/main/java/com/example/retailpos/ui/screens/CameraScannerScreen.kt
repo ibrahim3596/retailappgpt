@@ -849,47 +849,7 @@ fun CameraScannerScreen(
 
                 Spacer(modifier = Modifier.weight(1f))
 
-                // 1-Tap FMCG Test Quick Bar
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A).copy(alpha = 0.95f)),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B))
-                ) {
-                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("Quick Presets (1-Tap Simulation)", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                            Text("Tap to test", color = Color(0xFF38BDF8), fontSize = 11.sp)
-                        }
-
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            items(sampleProducts) { sample ->
-                                Surface(
-                                    onClick = {
-                                        processBarcodeOrText(
-                                            scannedBarcode = sample.barcode,
-                                            ocrText = sample.ocrRaw,
-                                            sourceName = "PRESET"
-                                        )
-                                    },
-                                    shape = RoundedCornerShape(10.dp),
-                                    color = Color(0xFF1E293B),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155))
-                                ) {
-                                    Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
-                                        Text(sample.name, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                        Text("₹${sample.mrp} • ${sample.barcode.takeLast(5)}", color = Color(0xFF38BDF8), fontSize = 10.sp, fontFamily = FontFamily.Monospace)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+                Spacer(modifier = Modifier.height(8.dp))
 
             // High-Visibility Animated Scan Success Toast
             AnimatedVisibility(
