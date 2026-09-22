@@ -850,6 +850,7 @@ fun CameraScannerScreen(
                 Spacer(modifier = Modifier.weight(1f))
 
                 Spacer(modifier = Modifier.height(8.dp))
+            }
 
             // High-Visibility Animated Scan Success Toast
             AnimatedVisibility(
